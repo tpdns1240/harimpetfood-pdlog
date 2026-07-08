@@ -6,11 +6,11 @@
 <title>일일 생산마감 · 하림펫푸드</title>
 <style>
 :root{
-  --navy:#1a3a5c; --navy2:#24507e; --navy3:#3a6ea5;
+  --navy:#3b556e; --navy2:#4a6784; --navy3:#6b85a0;
   --smoke:#eef3f8; --card:#fff; --line:#dce4ee;
   --ink:#1f2d3d; --sub:#5a6b82; --mut:#93a1b5;
-  --red:#e0483a; --grn:#1a9d5c; --grn-soft:#e8f7ef;
-  --blue:#2670c9; --blue-soft:#eaf2fc;
+  --red:#d15a4e; --grn:#4e9a72; --grn-soft:#eef4f0;
+  --blue:#4a6784; --blue-soft:#eef2f6;
   --r:12px; --sh:0 1px 2px rgba(26,58,92,.06),0 4px 16px rgba(26,58,92,.05);
   --sh-lg:0 16px 48px rgba(26,58,92,.14);
 }
@@ -40,12 +40,12 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .admin-link.on{color:var(--blue)}
 
 /* 상단바/헤더 */
-.topbar{background:var(--navy);color:#fff;height:52px;display:flex;align-items:center;padding:0 22px;gap:14px;font-size:12.5px}
-.topbar .brandtag{background:#fff;color:var(--navy);font-weight:800;border-radius:6px;padding:5px 10px}
-.topbar .sys{color:#8ea0c8;font-weight:600}
+.topbar{background:var(--navy);color:var(--hdr-text,#fff);height:52px;display:flex;align-items:center;padding:0 22px;gap:14px;font-size:12.5px}
+.topbar .brandtag{background:rgba(255,255,255,.92);color:var(--navy);font-weight:800;border-radius:6px;padding:5px 10px}
+.topbar .sys{color:var(--hdr-text,#8ea0c8);opacity:.72;font-weight:600}
 .topbar .spacer{flex:1}
-.topbar .who b{color:#fff}.topbar .who{color:#c9d4ec}
-.topbar .lo{color:#8ea0c8;font-weight:600}
+.topbar .who b{color:var(--hdr-text,#fff)}.topbar .who{color:var(--hdr-text,#c9d4ec);opacity:.9}
+.topbar .lo{color:var(--hdr-text,#8ea0c8);opacity:.82;font-weight:600}
 .header{background:#fff;border-bottom:1px solid var(--line);padding:18px 28px;display:flex;align-items:center;gap:16px}
 .logo{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
 .header h1{font-size:19px;font-weight:800}
@@ -309,13 +309,10 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tsc-num{background:#f8fafc;border-radius:8px;padding:10px;text-align:center}
 .tsc-l{font-size:11px;color:var(--mut);margin-bottom:4px}
 .tsc-v{font-size:22px;font-weight:800;color:var(--ink)}
-/* 색상 테마 선택 점 */
-.theme-dots{display:flex;gap:8px;align-items:center}
-.theme-dot{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;display:inline-block}
-.theme-dot:hover{transform:scale(1.2)}
-.theme-dot.on{border-color:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
-.login-theme{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
-.lt-label{font-size:12px;color:var(--mut);font-weight:600}
+/* 색상 테마 드롭다운 (상단바) */
+.theme-select{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;outline:none}
+.theme-select option{background:#fff;color:var(--ink)}
+.theme-select optgroup{background:#fff;color:var(--ink);font-weight:800}
 /* 개선접수 게시판 */
 .im-filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .im-chip{padding:8px 16px;border-radius:20px;font-weight:700;font-size:13px;color:var(--sub);background:#fff;border:1px solid var(--line);transition:all .15s}
@@ -388,10 +385,6 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
     <div class="login-links">
       <span class="admin-link" id="toggleAdmin" onclick="toggleAdminLogin()">관리자로 로그인</span>
     </div>
-    <div class="login-theme">
-      <span class="lt-label">테마</span>
-      <span class="theme-dots" id="loginThemeDots"></span>
-    </div>
   </div>
 </div>
 
@@ -401,7 +394,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <span class="sys">HARIM PETFOOD · 생산마감 시스템</span>
   <span class="spacer"></span>
   <span class="who">담당 <b id="whoName">-</b></span>
-  <span class="theme-dots" id="topThemeDots" style="margin:0 12px"></span>
+  <span id="topThemeWrap" style="margin:0 12px"></span>
   <button class="lo" onclick="openChangePin()" style="margin-right:6px">PIN 변경</button>
   <button class="lo" onclick="doLogout()">로그아웃</button>
 </div>
@@ -436,26 +429,36 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 /* ===== 색상 테마 시스템 (CSS 변수만 교체 · 로딩 부담 없음) ===== */
 const THEMES={
-  navy:  {name:'남색',  navy:'#1a3a5c', navy2:'#24507e', navy3:'#3a6ea5', blue:'#2670c9', blueSoft:'#eaf2fc', dot:'#1a3a5c'},
-  black: {name:'블랙',  navy:'#1c1c1e', navy2:'#2c2c2e', navy3:'#48484a', blue:'#3a3a3c', blueSoft:'#ebebeb', dot:'#1c1c1e'},
-  slate: {name:'그레이',navy:'#334155', navy2:'#475569', navy3:'#64748b', blue:'#475569', blueSoft:'#eef2f6', dot:'#334155'},
-  orange:{name:'주황',  navy:'#c2410c', navy2:'#ea580c', navy3:'#fb923c', blue:'#ea580c', blueSoft:'#fff1e8', dot:'#ea580c'},
-  green: {name:'녹색',  navy:'#166534', navy2:'#15803d', navy3:'#22c55e', blue:'#15803d', blueSoft:'#e9f7ef', dot:'#15803d'},
-  wine:  {name:'와인',  navy:'#7f1d3a', navy2:'#a01f4a', navy3:'#c94f74', blue:'#a01f4a', blueSoft:'#fbe9f0', dot:'#a01f4a'}
+  // 짙은 테마: 배경 진하게, 글자 흰색
+  black: {name:'블랙',  cat:'짙은', navy:'#111114', navy2:'#26262a', navy3:'#48484c', blue:'#333338', blueSoft:'#eef0f3', hdrText:'#ffffff', dot:'#111114'},
+  navy:  {name:'남색',  cat:'짙은', navy:'#0c2350', navy2:'#1a3a6e', navy3:'#3a5a95', blue:'#1a3a6e', blueSoft:'#eaf0f8', hdrText:'#ffffff', dot:'#0c2350'},
+  charcoal:{name:'차콜',cat:'짙은', navy:'#3b4654', navy2:'#4c5766', navy3:'#6a7686', blue:'#4c5766', blueSoft:'#eef1f4', hdrText:'#ffffff', dot:'#3b4654'},
+  // 옅은 테마: 배경 옅게, 글자 진하게
+  apricot:{name:'살구',cat:'옅은', navy:'#fbe0d4', navy2:'#f8d3c2', navy3:'#f0b8a0', blue:'#c26a4c', blueSoft:'#fdf1eb', hdrText:'#8a3d24', dot:'#fbe0d4'},
+  cream: {name:'크림',  cat:'옅은', navy:'#fbeecb', navy2:'#f7e3ad', navy3:'#eecf82', blue:'#b5892a', blueSoft:'#fdf7e8', hdrText:'#7a5a13', dot:'#fbeecb'},
+  mint:  {name:'연녹',  cat:'옅은', navy:'#e0efd8', navy2:'#cfe6c2', navy3:'#a8cf94', blue:'#4e8a5f', blueSoft:'#eff6ea', hdrText:'#2f5d3a', dot:'#e0efd8'},
+  sky:   {name:'연파랑',cat:'옅은', navy:'#d7e0f3', navy2:'#c2d1ec', navy3:'#94add6', blue:'#4a6aa0', blueSoft:'#eef2fa', hdrText:'#2a4270', dot:'#d7e0f3'},
+  gray:  {name:'회색',  cat:'옅은', navy:'#d4d4d6', navy2:'#c2c2c6', navy3:'#a0a0a6', blue:'#5c5c62', blueSoft:'#f0f0f2', hdrText:'#3a3a40', dot:'#d4d4d6'}
 };
 function applyTheme(key){
   const t=THEMES[key]||THEMES.navy;
   const r=document.documentElement.style;
   r.setProperty('--navy',t.navy); r.setProperty('--navy2',t.navy2); r.setProperty('--navy3',t.navy3);
   r.setProperty('--blue',t.blue); r.setProperty('--blue-soft',t.blueSoft);
+  r.setProperty('--hdr-text',t.hdrText);
   try{ localStorage.setItem('harim_theme',key); }catch(e){}
-  document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('on',d.dataset.theme===key));
+  const dd=$('#themeSelect'); if(dd) dd.value=key;
 }
 function getTheme(){ try{ return localStorage.getItem('harim_theme')||'navy'; }catch(e){ return 'navy'; } }
-function themeDotsHtml(){
-  return Object.keys(THEMES).map(k=>
-    `<span class="theme-dot ${getTheme()===k?'on':''}" data-theme="${k}" style="background:${THEMES[k].dot}" title="${THEMES[k].name}" onclick="applyTheme('${k}')"></span>`
-  ).join('');
+function themeSelectHtml(){
+  const cur=getTheme();
+  const groups={'짙은':[],'옅은':[]};
+  Object.keys(THEMES).forEach(k=>groups[THEMES[k].cat].push({k,...THEMES[k]}));
+  const opt=arr=>arr.map(t=>`<option value="${t.k}" ${cur===t.k?'selected':''}>${t.name}</option>`).join('');
+  return `<select id="themeSelect" class="theme-select" onchange="applyTheme(this.value)" title="화면 색상 테마">
+    <optgroup label="짙은 테마 (배경 진함)">${opt(groups['짙은'])}</optgroup>
+    <optgroup label="옅은 테마 (글자 강조)">${opt(groups['옅은'])}</optgroup>
+  </select>`;
 }
 
 
@@ -481,7 +484,6 @@ let ADMIN_MODE=false;
 window.addEventListener('DOMContentLoaded', initLogin);
 async function initLogin(){
   applyTheme(getTheme());
-  const ltd=$('#loginThemeDots'); if(ltd) ltd.innerHTML=themeDotsHtml();
   try{
     const {data,error}=await sb.rpc('get_users',{p_team:null});
     if(error) throw error;
@@ -540,7 +542,7 @@ async function doLogin(){
     ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.remove('hidden'));
     const teamTxt=u.role==='admin'?'관리자':(u.team||'-');
     $('#whoName').textContent=`${u.name} (${teamTxt})`;
-    const ttd=$('#topThemeDots'); if(ttd) ttd.innerHTML=themeDotsHtml();
+    const ttw=$('#topThemeWrap'); if(ttw){ ttw.innerHTML=themeSelectHtml(); applyTheme(getTheme()); }
     if(u.role==='admin'){ $('#navUpload').classList.remove('hidden'); $('#navApprLine').classList.remove('hidden'); }
     go('cal');
     showNoticePopup();
