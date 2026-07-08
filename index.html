@@ -333,6 +333,15 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .ts-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .line-chip{background:#f1f4fa;color:var(--sub);font-size:12px;padding:4px 10px;border-radius:6px}
 .ts-open{font-size:13px;color:var(--blue);font-weight:600}
+/* 라인 상세 탭 */
+.ld-tabs{display:flex;gap:8px;margin:18px 0}
+.ldtab{padding:9px 18px;border-radius:9px;font-weight:700;font-size:13px;color:var(--sub);background:#fff;border:1px solid var(--line);cursor:pointer}
+.ldtab.on{background:var(--navy);color:var(--hdr-text,#fff);border-color:var(--navy)}
+.capa-note{background:#f1f4fa;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--sub)}
+.capa-note.warn{background:#fffbeb;color:#92660c;border:1px solid #fde68a}
+.kind-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:#f1f4fa;color:var(--sub)}
+.kind-tag.fin{background:var(--blue-soft);color:var(--blue)}
+.kind-tag.semi{background:var(--grn-soft);color:var(--grn)}
 /* 색상 테마 드롭다운 (상단바) */
 .theme-select{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;outline:none}
 .theme-select option{background:#fff;color:var(--ink)}
@@ -1118,16 +1127,19 @@ async function openLineDetail(team,line){
 }
 async function loadLineDetail(){
   LD.charts.forEach(c=>{try{c.destroy()}catch(e){}}); LD.charts=[];
-  // 라인 상세는 팀 라인 목록에서 해당 라인만 필터
   const p={p_team:LD.team,p_from:LD.from,p_to:LD.to};
+  const pLine={p_team:LD.team,p_line:LD.line,p_from:LD.from,p_to:LD.to};
   try{
-    const [lines,scrap,defect]=await Promise.all([
+    const [lines,scrap,defect,capa,orders]=await Promise.all([
       sb.rpc('team_line_detail',p),
       sb.rpc('team_scrap_types',p),
-      sb.rpc('team_defect_types',p)
+      sb.rpc('team_defect_types',p),
+      sb.rpc('line_capa_metrics',pLine),
+      sb.rpc('line_order_detail',pLine)
     ]);
     const line=(lines.data||[]).find(l=>l.line===LD.line)||{};
-    const sc=scrap.data||[], df=defect.data||[];
+    const sc=scrap.data||[], df=defect.data||[], cp=capa.data||{}, od=orders.data||[];
+    LD.orders=od;
     $('#wrap').innerHTML=`
     <div class="tr-hero">
       <div><div class="tr-crumb" onclick="openTeamReport('${LD.team}','${LD.ym}')" style="cursor:pointer">← ${LD.team} 월간일보</div>
@@ -1135,39 +1147,83 @@ async function loadLineDetail(){
         <div class="en">LINE DETAIL · ${LD.team} · ${LD.ym}</div></div>
       <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div>
     </div>
-    <div class="score-row" style="grid-template-columns:repeat(4,1fr)">
-      <div class="sc"><div class="l">계획량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(line.plan_sum||0))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc b"><div class="l">실적량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(line.actual_sum||0))}<span style="font-size:10px">KG</span></div></div>
+    <div class="score-row" style="grid-template-columns:repeat(5,1fr)">
+      <div class="sc"><div class="l">계획량</div><div class="v mono" style="font-size:15px">${fmt(Math.round(line.plan_sum||0))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc b"><div class="l">실적량</div><div class="v mono" style="font-size:15px">${fmt(Math.round(line.actual_sum||0))}<span style="font-size:10px">KG</span></div></div>
       <div class="sc ${(line.achieve||0)>=100?'g':'r'}"><div class="l">달성률</div><div class="v mono">${line.achieve||0}%</div></div>
-      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(line.net_loss)}" style="font-size:14px">${fmtWon(line.net_loss||0)}</div></div>
+      <div class="sc ${(cp.capa_rate||0)>0?'':''}"><div class="l">CAPA 가동률</div><div class="v mono" style="color:var(--navy2)">${cp.capa_rate||0}%</div></div>
+      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(line.net_loss)}" style="font-size:13px">${fmtWon(line.net_loss||0)}</div></div>
     </div>
-    <div class="dash-2col">
+    ${cp.capa_daily>0?`<div class="capa-note">CAPA 기준: 일 ${fmt(cp.capa_daily)}KG × ${cp.work_days}일 = 월 ${fmt(Math.round(cp.capa_month))}KG · 실적 ${fmt(Math.round(cp.actual))}KG</div>`:`<div class="capa-note warn">⚠ 이 라인의 CAPA(생산능력)가 설정되지 않았습니다. 설정 → CAPA 관리에서 입력하면 가동률이 계산됩니다.</div>`}
+
+    <!-- 오더별/제품별 탭 -->
+    <div class="ld-tabs">
+      <button class="ldtab on" id="ldtab_order" onclick="switchLineTab('order')">오더별 상세</button>
+      <button class="ldtab" id="ldtab_product" onclick="switchLineTab('product')">제품별 상세</button>
+      <button class="ldtab" id="ldtab_loss" onclick="switchLineTab('loss')">스크랩·불량</button>
+    </div>
+    <div id="ldTabBody"></div>`;
+
+    // 스크랩/불량 캐시(탭 전환용)
+    LD.sc=sc; LD.df=df;
+    switchLineTab('order');
+  }catch(e){ toast('라인 상세 조회 실패: '+(e.message||e),'err'); }
+}
+function switchLineTab(tab){
+  document.querySelectorAll('.ldtab').forEach(b=>b.classList.remove('on'));
+  $('#ldtab_'+tab)&&$('#ldtab_'+tab).classList.add('on');
+  LD.charts.forEach(c=>{try{c.destroy()}catch(e){}}); LD.charts=[];
+  const body=$('#ldTabBody');
+  if(tab==='order'){
+    const od=LD.orders||[];
+    body.innerHTML=`<div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>오더별 상세</h3>
+      <span class="desc">제품코드(오더) 단위 · ${od.length}건</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table>
+        <thead><tr><th>제품코드</th><th>제품명</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <tbody>${od.map(o=>`<tr>
+          <td class="mono">${o.prod_code}</td>
+          <td class="l">${o.prod_name||'-'}</td>
+          <td><span class="kind-tag ${o.kind==='완제품'?'fin':o.kind==='반제품'?'semi':''}">${o.kind}</span></td>
+          <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
+          <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
+          <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
+        </tr>`).join('')||'<tr><td colspan="7" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+      </table></div></div>`;
+  }else if(tab==='product'){
+    body.innerHTML='<div class="skel" style="height:200px;border-radius:14px"></div>';
+    sb.rpc('line_product_detail',{p_team:LD.team,p_line:LD.line,p_from:LD.from,p_to:LD.to}).then(({data})=>{
+      const pd=data||[];
+      body.innerHTML=`<div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>제품별 상세</h3>
+        <span class="desc">제품 단위 · ${pd.length}건</span></div>
+        <div class="sec-bd" style="overflow-x:auto"><table>
+          <thead><tr><th>제품명</th><th>제품코드</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+          <tbody>${pd.map(o=>`<tr>
+            <td class="l">${o.prod_name||'-'}</td>
+            <td class="mono">${o.prod_code}</td>
+            <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
+            <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
+            <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+            <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
+          </tr>`).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+        </table></div></div>`;
+    });
+  }else if(tab==='loss'){
+    const sc=LD.sc||[], df=LD.df||[];
+    body.innerHTML=`<div class="dash-2col">
       <div class="sec"><div class="sec-hd"><span class="no c5">◆</span><h3>스크랩 유형별</h3></div>
         <div class="sec-bd"><div style="height:240px"><canvas id="ldScrap"></canvas></div>
         <table style="margin-top:12px"><tbody>${sc.map(s=>`<tr><td class="l">${s.scrap_type}</td><td class="mono neg">${fmt(Math.round(s.amt))}원</td><td class="mono">${s.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 스크랩 없음</td></tr>'}</tbody></table>
-        </div>
-      </div>
+        </div></div>
       <div class="sec"><div class="sec-hd"><span class="no c4">◆</span><h3>불량 유형별</h3></div>
         <div class="sec-bd"><div style="height:240px"><canvas id="ldDefect"></canvas></div>
         <table style="margin-top:12px"><tbody>${df.map(d=>`<tr><td class="l">${d.defect_type}</td><td class="mono">${fmt(d.qty)}</td><td class="mono">${d.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 불량 없음</td></tr>'}</tbody></table>
-        </div>
-      </div>
+        </div></div>
     </div>`;
-    // 도넛 차트
     const donutColors=['#4a6784','#4e9a72','#c99a4a','#c17a5a','#8a6da0','#6a9ab5','#b5896a'];
-    if(sc.length){
-      const c=new Chart($('#ldScrap'),{type:'doughnut',
-        data:{labels:sc.map(s=>s.scrap_type),datasets:[{data:sc.map(s=>Math.round(s.amt)),backgroundColor:donutColors}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
-      LD.charts.push(c);
-    }
-    if(df.length){
-      const c=new Chart($('#ldDefect'),{type:'doughnut',
-        data:{labels:df.map(d=>d.defect_type),datasets:[{data:df.map(d=>Math.round(d.qty)),backgroundColor:donutColors}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
-      LD.charts.push(c);
-    }
-  }catch(e){ toast('라인 상세 조회 실패: '+(e.message||e),'err'); }
+    if(sc.length){ const c=new Chart($('#ldScrap'),{type:'doughnut',data:{labels:sc.map(s=>s.scrap_type),datasets:[{data:sc.map(s=>Math.round(s.amt)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); LD.charts.push(c); }
+    if(df.length){ const c=new Chart($('#ldDefect'),{type:'doughnut',data:{labels:df.map(d=>d.defect_type),datasets:[{data:df.map(d=>Math.round(d.qty)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); LD.charts.push(c); }
+  }
 }
 
 /* ============ 경영 대시보드 ============ */
@@ -1346,6 +1402,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='users'?'on':''}" onclick="switchSettingsTab('users')">👤 사용자 관리</button>
     <button class="stab ${SETTINGS_TAB==='appr'?'on':''}" onclick="switchSettingsTab('appr')">✍ 결재라인 구성</button>
     <button class="stab ${SETTINGS_TAB==='notice'?'on':''}" onclick="switchSettingsTab('notice')">📢 공지사항</button>
+    <button class="stab ${SETTINGS_TAB==='capa'?'on':''}" onclick="switchSettingsTab('capa')">⚙ CAPA 관리</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -1356,6 +1413,7 @@ function switchSettingsTab(tab){
   btns.forEach(b=>b.classList.remove('on'));
   if(tab==='users'){ btns[0]&&btns[0].classList.add('on'); renderUserMgmt(); }
   else if(tab==='notice'){ btns[2]&&btns[2].classList.add('on'); renderNoticeMgmt(); }
+  else if(tab==='capa'){ btns[3]&&btns[3].classList.add('on'); renderCapaMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -1501,6 +1559,43 @@ async function unlockUser(id){
   try{ await sb.rpc('unlock_user',{p_user_id:id});
     toast(name+' 잠금해제 완료','ok'); renderUserMgmt();
   }catch(e){ toast('해제 실패: '+(e.message||e),'err'); }
+}
+
+/* --- CAPA 관리 탭 --- */
+async function renderCapaMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
+  let list=[];
+  try{ const {data}=await sb.rpc('get_capa_list',{p_team:null}); list=data||[]; }
+  catch(e){ toast('CAPA 조회 실패: '+(e.message||e),'err'); }
+  const rows=list.map((c,i)=>`<tr>
+    <td class="l"><b>${c.team}</b></td>
+    <td>${c.line}</td>
+    <td><input type="number" id="capa_${i}" value="${c.capa_daily||''}" placeholder="0" style="width:120px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+    <td><input type="number" id="days_${i}" value="${c.work_days_month||22}" style="width:70px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+    <td><button class="rowbtn edit" onclick="saveCapa(${i},'${c.team}','${c.line.replace(/'/g,"")}')">저장</button></td>
+  </tr>`).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    ℹ 라인별 <b>생산능력(CAPA)</b>을 입력하면, 라인 상세 경영현황에서 <b>CAPA 가동률</b>이 계산됩니다.<br>
+    · 일 생산능력(KG): 하루 최대 생산 가능량 · 월 가동일수: 보통 22일<br>
+    · CAPA 가동률 = 월 실적 ÷ (일CAPA × 가동일수) × 100
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>라인별 CAPA (생산능력)</h3>
+    <span class="desc">${list.length}개 라인</span></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>팀</th><th>라인</th><th>일 생산능력(KG)</th><th>월 가동일수</th><th>저장</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+async function saveCapa(i,team,line){
+  const capa=Number($('#capa_'+i).value)||0;
+  const days=Number($('#days_'+i).value)||22;
+  try{
+    const {error}=await sb.rpc('set_capa',{p_team:team,p_line:line,p_capa:capa,p_days:days});
+    if(error)throw error;
+    toast(line+' CAPA 저장완료','ok');
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 
 /* --- 공지사항 관리 탭 --- */
