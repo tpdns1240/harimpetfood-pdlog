@@ -342,6 +342,13 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .kind-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:#f1f4fa;color:var(--sub)}
 .kind-tag.fin{background:var(--blue-soft);color:var(--blue)}
 .kind-tag.semi{background:var(--grn-soft);color:var(--grn)}
+/* 월간일보 필터 세그먼트 */
+.tr-filters{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh)}
+.seg{display:flex;align-items:center;gap:6px}
+.seg-label{font-size:12px;font-weight:700;color:var(--sub);margin-right:2px}
+.seg-btn{padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--sub);background:#f1f4fa;border:1px solid transparent;cursor:pointer;transition:all .12s}
+.seg-btn:hover{background:#e5ebf5}
+.seg-btn.on{background:var(--navy);color:var(--hdr-text,#fff)}
 /* 색상 테마 드롭다운 (상단바) */
 .theme-select{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;outline:none}
 .theme-select option{background:#fff;color:var(--ink)}
@@ -423,7 +430,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 
 <!-- 상단바 -->
 <div class="topbar hidden" id="top">
-  <span class="brandtag">홈 · 캘린더</span>
+  <span class="brandtag" onclick="goHome()" style="cursor:pointer" title="캘린더 홈으로">홈 · 캘린더</span>
   <span class="sys">HARIM PETFOOD · 생산마감 시스템</span>
   <span class="spacer"></span>
   <span class="who">담당 <b id="whoName">-</b></span>
@@ -602,9 +609,11 @@ async function showNoticePopup(){
   }catch(e){ /* 공지 없으면 조용히 무시 */ }
 }
 function showErr(m){const e=$('#loginErr');e.textContent=m;e.classList.remove('hidden');}
+function goHome(){
+  if(S.user){ go('cal'); }
+}
 function doLogout(){
-  S.user=null;
-  ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.add('hidden'));
+  S.user=null;  ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.add('hidden'));
   $('#wrap').innerHTML='';
   $('#login').classList.remove('hidden');
   $('#loginPin').value=''; $('#loginErr').classList.add('hidden');
@@ -983,22 +992,28 @@ function ymRange(ym){
 }
 async function openTeamReport(team,ym){
   const {from,to}=ymRange(ym);
-  TR={team,from,to,ym,charts:[]};
+  TR={team,from,to,ym,unit:'day',kind:null,charts:[]};
   S.view='teamreport';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
   await loadTeamReport();
 }
 async function loadTeamReport(){
   TR.charts.forEach(c=>{try{c.destroy()}catch(e){}}); TR.charts=[];
-  const p={p_team:TR.team,p_from:TR.from,p_to:TR.to};
+  const teamParam = TR.team==='전체' ? null : TR.team;
+  const p={p_team:teamParam,p_from:TR.from,p_to:TR.to,p_kind:TR.kind};
   try{
-    const [sum,daily,lines]=await Promise.all([
-      sb.rpc('team_monthly_summary',p),
-      sb.rpc('team_daily_trend',p),
-      sb.rpc('team_line_detail',p)
+    const [sum,trend,lines]=await Promise.all([
+      sb.rpc('report_summary',p),
+      sb.rpc('report_trend',{...p,p_unit:TR.unit}),
+      sb.rpc('team_line_detail',{p_team:teamParam||TR.team,p_from:TR.from,p_to:TR.to})
     ]);
-    const s=sum.data||{}, dd=daily.data||[], ld=lines.data||[];
-    const [y,m]=TR.ym.split('-').map(Number);
+    const s=sum.data||{}, dd=trend.data||[], ld=lines.data||[];
+    const teamBtns=['전체','생산1팀','생산2팀','공통'].map(t=>
+      `<button class="seg-btn ${TR.team===t?'on':''}" onclick="setTRTeam('${t}')">${t}</button>`).join('');
+    const unitBtns=[['day','일 단위'],['week','주 단위'],['month','월 단위']].map(([u,label])=>
+      `<button class="seg-btn ${TR.unit===u?'on':''}" onclick="setTRUnit('${u}')">${label}</button>`).join('');
+    const kindBtns=[['','전체'],['fin','완제품'],['semi','반제품']].map(([k,label])=>
+      `<button class="seg-btn ${(TR.kind||'')===k?'on':''}" onclick="setTRKind('${k}')">${label}</button>`).join('');
     $('#wrap').innerHTML=`
     <div class="tr-hero">
       <div><div class="tr-crumb" onclick="go('cal')" style="cursor:pointer">← 캘린더</div>
@@ -1011,6 +1026,12 @@ async function loadTeamReport(){
       </div>
     </div>
 
+    <div class="tr-filters">
+      <div class="seg"><span class="seg-label">팀</span>${teamBtns}</div>
+      <div class="seg"><span class="seg-label">집계</span>${unitBtns}</div>
+      <div class="seg"><span class="seg-label">구분</span>${kindBtns}</div>
+    </div>
+
     <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
       <div class="sc"><div class="l">작성 일보수</div><div class="v mono">${s.work_days||0}<span style="font-size:11px">건</span></div></div>
       <div class="sc b"><div class="l">총 생산량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(s.actual_sum))}<span style="font-size:10px">KG</span></div></div>
@@ -1021,15 +1042,15 @@ async function loadTeamReport(){
     </div>
 
     <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>달성률 · 로스금액 추이</h3>
-      <span class="desc">막대=달성률(%), 선=로스금액(원) · 일별</span></div>
+      <span class="desc">막대=달성률(%), 선=로스금액(원) · ${TR.unit==='day'?'일별':TR.unit==='week'?'주별':'월별'}</span></div>
       <div class="sec-bd"><div style="height:300px"><canvas id="trChart"></canvas></div></div>
     </div>
 
-    <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>일자별 상세</h3></div>
+    <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>${TR.unit==='day'?'일자별':TR.unit==='week'?'주별':'월별'} 상세</h3></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>날짜</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>${TR.unit==='day'?'날짜':TR.unit==='week'?'주 시작':'월'}</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>로스금액</th></tr></thead>
         <tbody>${dd.map(d=>`<tr>
-          <td class="l"><b>${d.work_date}</b></td>
+          <td class="l"><b>${d.bucket}</b></td>
           <td class="mono">${fmt(Math.round(d.plan_sum))}</td>
           <td class="mono">${fmt(Math.round(d.actual_sum))}</td>
           <td class="mono ${d.achieve>=100?'pos':'neg'}">${d.achieve}%</td>
@@ -1049,7 +1070,7 @@ async function loadTeamReport(){
       <span class="desc">라인을 클릭하면 상세 경영현황으로 이동</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
         <thead><tr><th>라인</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>순로스</th><th>손실(초과)</th></tr></thead>
-        <tbody>${ld.map(l=>`<tr class="line-row" onclick="openLineDetail('${TR.team}','${l.line.replace(/'/g,"")}')" style="cursor:pointer">
+        <tbody>${ld.map(l=>`<tr class="line-row" onclick="openLineDetail('${(teamParam||TR.team)}','${l.line.replace(/'/g,"")}')" style="cursor:pointer">
           <td class="l"><b>${l.line}</b> <span style="color:var(--blue);font-size:11px">▶</span></td>
           <td class="mono">${fmt(Math.round(l.plan_sum))}</td>
           <td class="mono">${fmt(Math.round(l.actual_sum))}</td>
@@ -1060,11 +1081,10 @@ async function loadTeamReport(){
       </table></div>
     </div>`;
 
-    // 추이 차트
     const ctx=$('#trChart');
     if(ctx){
       const c=new Chart(ctx,{type:'bar',
-        data:{labels:dd.map(d=>d.work_date),datasets:[
+        data:{labels:dd.map(d=>d.bucket),datasets:[
           {type:'bar',label:'달성률(%)',data:dd.map(d=>d.achieve),backgroundColor:'#4a6784',yAxisID:'y',order:2},
           {type:'line',label:'로스금액(원)',data:dd.map(d=>Math.round(d.net_loss)),borderColor:'#d15a4e',backgroundColor:'#d15a4e',yAxisID:'y1',tension:.3,order:1,pointRadius:4}
         ]},
@@ -1075,6 +1095,9 @@ async function loadTeamReport(){
     }
   }catch(e){ toast('월간일보 조회 실패: '+(e.message||e),'err'); }
 }
+function setTRTeam(t){ TR.team=t; loadTeamReport(); }
+function setTRUnit(u){ TR.unit=u; loadTeamReport(); }
+function setTRKind(k){ TR.kind=k||null; loadTeamReport(); }
 function shiftTeamReport(delta){
   let [y,m]=TR.ym.split('-').map(Number);
   m+=delta; while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
@@ -1151,10 +1174,10 @@ async function loadLineDetail(){
       <div class="sc"><div class="l">계획량</div><div class="v mono" style="font-size:15px">${fmt(Math.round(line.plan_sum||0))}<span style="font-size:10px">KG</span></div></div>
       <div class="sc b"><div class="l">실적량</div><div class="v mono" style="font-size:15px">${fmt(Math.round(line.actual_sum||0))}<span style="font-size:10px">KG</span></div></div>
       <div class="sc ${(line.achieve||0)>=100?'g':'r'}"><div class="l">달성률</div><div class="v mono">${line.achieve||0}%</div></div>
-      <div class="sc ${(cp.capa_rate||0)>0?'':''}"><div class="l">CAPA 가동률</div><div class="v mono" style="color:var(--navy2)">${cp.capa_rate||0}%</div></div>
+      <div class="sc"><div class="l">성능가동률</div><div class="v mono" style="color:var(--navy2)">${cp.perf_rate||0}%</div></div>
       <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(line.net_loss)}" style="font-size:13px">${fmtWon(line.net_loss||0)}</div></div>
     </div>
-    ${cp.capa_daily>0?`<div class="capa-note">CAPA 기준: 일 ${fmt(cp.capa_daily)}KG × ${cp.work_days}일 = 월 ${fmt(Math.round(cp.capa_month))}KG · 실적 ${fmt(Math.round(cp.actual))}KG</div>`:`<div class="capa-note warn">⚠ 이 라인의 CAPA(생산능력)가 설정되지 않았습니다. 설정 → CAPA 관리에서 입력하면 가동률이 계산됩니다.</div>`}
+    ${cp.capa_hourly>0?`<div class="capa-note">CAPA 기준: 시간당 ${fmt(cp.capa_hourly)}kg/hr · 실제 가동 ${cp.run_hours}시간 → 이론 생산 ${fmt(Math.round(cp.capa_potential))}kg · 실적 ${fmt(Math.round(cp.actual))}kg${cp.run_hours===0?' (가동시간 미입력)':''}</div>`:`<div class="capa-note warn">⚠ 이 라인의 시간당 CAPA가 설정되지 않았습니다. 설정 → CAPA 관리에서 입력하면 성능가동률이 계산됩니다.</div>`}
 
     <!-- 오더별/제품별 탭 -->
     <div class="ld-tabs">
@@ -1570,29 +1593,29 @@ async function renderCapaMgmt(){
   const rows=list.map((c,i)=>`<tr>
     <td class="l"><b>${c.team}</b></td>
     <td>${c.line}</td>
-    <td><input type="number" id="capa_${i}" value="${c.capa_daily||''}" placeholder="0" style="width:120px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+    <td><input type="number" id="capa_${i}" value="${c.capa_hourly||''}" placeholder="0" style="width:120px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
     <td><input type="number" id="days_${i}" value="${c.work_days_month||22}" style="width:70px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
     <td><button class="rowbtn edit" onclick="saveCapa(${i},'${c.team}','${c.line.replace(/'/g,"")}')">저장</button></td>
   </tr>`).join('');
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ℹ 라인별 <b>생산능력(CAPA)</b>을 입력하면, 라인 상세 경영현황에서 <b>CAPA 가동률</b>이 계산됩니다.<br>
-    · 일 생산능력(KG): 하루 최대 생산 가능량 · 월 가동일수: 보통 22일<br>
-    · CAPA 가동률 = 월 실적 ÷ (일CAPA × 가동일수) × 100
+    ℹ 라인별 <b>시간당 생산능력(kg/hour)</b>을 입력하면, 라인 상세에서 <b>성능가동률</b>이 계산됩니다.<br>
+    · 시간당 능력: 1시간 최대 생산 가능량(kg) · 라인·제품·공정별 성능 비교의 기준<br>
+    · 성능가동률 = 실제 생산량 ÷ (시간당능력 × 실제 가동시간) × 100
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>라인별 CAPA (생산능력)</h3>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>라인별 CAPA (시간당 생산능력)</h3>
     <span class="desc">${list.length}개 라인</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>팀</th><th>라인</th><th>일 생산능력(KG)</th><th>월 가동일수</th><th>저장</th></tr></thead>
+      <thead><tr><th>팀</th><th>라인</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>저장</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 async function saveCapa(i,team,line){
-  const capa=Number($('#capa_'+i).value)||0;
+  const hourly=Number($('#capa_'+i).value)||0;
   const days=Number($('#days_'+i).value)||22;
   try{
-    const {error}=await sb.rpc('set_capa',{p_team:team,p_line:line,p_capa:capa,p_days:days});
+    const {error}=await sb.rpc('set_capa',{p_team:team,p_line:line,p_hourly:hourly,p_days:days});
     if(error)throw error;
     toast(line+' CAPA 저장완료','ok');
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
