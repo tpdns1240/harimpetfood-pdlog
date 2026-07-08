@@ -1102,6 +1102,7 @@ function drawLossChart(data){
 /* ============ 설정 허브 (사용자 관리 + 결재라인) ============ */
 let SETTINGS_TAB='users';
 function renderSettings(){
+  if(S.user.role!=='admin'){ toast('관리자만 접근 가능','err'); go('cal'); return; }
   $('#wrap').innerHTML=`
   <div class="day-hd"><div><h2>설정</h2>
     <div class="en">SETTINGS · 인원 관리 · 결재라인 구성</div></div>
