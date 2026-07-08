@@ -294,6 +294,10 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .settings-tabs{display:flex;gap:8px;margin-bottom:16px}
 .settings-tabs .stab{padding:10px 18px;border-radius:10px;font-weight:700;font-size:14px;color:var(--sub);background:#fff;border:1px solid var(--line)}
 .settings-tabs .stab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.status-toggle{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:800;border:1.5px solid;cursor:pointer;transition:all .15s}
+.status-toggle:hover{transform:scale(1.06)}
+.status-toggle.on{background:var(--grn-soft);color:var(--grn);border-color:var(--grn)}
+.status-toggle.off{background:#f1f4fa;color:var(--mut);border-color:var(--line)}
 /* 개선접수 게시판 */
 .im-filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .im-chip{padding:8px 16px;border-radius:20px;font-weight:700;font-size:13px;color:var(--sub);background:#fff;border:1px solid var(--line);transition:all .15s}
@@ -429,12 +433,11 @@ let ADMIN_MODE=false;
 window.addEventListener('DOMContentLoaded', initLogin);
 async function initLogin(){
   try{
-    const {data,error}=await sb.from('m_users')
-      .select('user_id,name,team,role').eq('active',true);
+    const {data,error}=await sb.rpc('get_users',{p_team:null});
     if(error) throw error;
     const sel=$('#loginName'); sel.innerHTML='<option value="">선택하세요</option>';
-    data.filter(u=>u.role!=='admin')
-      .sort((a,b)=>(a.team+a.name).localeCompare(b.team+b.name,'ko'))
+    (data||[]).filter(u=>u.role!=='admin' && u.active)
+      .sort((a,b)=>((a.team||'')+a.name).localeCompare((b.team||'')+b.name,'ko'))
       .forEach(u=>{
         const o=document.createElement('option');
         o.value=u.user_id;
@@ -1025,7 +1028,8 @@ async function renderUserMgmt(){
     <td>${u.team||'-'}</td>
     <td><span class="type-tag">${roleKo[u.role]||u.role}</span></td>
     <td>${u.pin_set?'<span class="pos">설정됨</span>':'<span style="color:var(--red)">미설정</span>'}</td>
-    <td>${u.is_locked?`<span style="color:var(--red)">🔒 잠김(${u.fail_count}회)</span>`:(u.active?'<span class="pos">활성</span>':'<span style="color:var(--mut)">비활성</span>')}</td>
+    <td>${u.is_locked?`<span style="color:var(--red)">🔒 잠김(${u.fail_count}회)</span>`
+      :`<button class="status-toggle ${u.active?'on':'off'}" onclick="toggleActive('${u.user_id}')" title="클릭하면 상태 전환">${u.active?'● 활성':'○ 비활성'}</button>`}</td>
     <td class="row-actions">
       ${u.is_locked?`<button class="rowbtn edit" onclick="unlockUser('${u.user_id}')">잠금해제</button>`:''}
       <button class="rowbtn edit" onclick="editUser('${u.user_id}')">수정</button>
@@ -1034,7 +1038,9 @@ async function renderUserMgmt(){
   </tr>`).join('');
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ℹ 사용자를 등록하고 <b>권한(역할)</b>을 지정하세요. 권한: 작성자→팀장→본부장→대표 순으로 결재. 지정된 권한에 따라 결재라인에 배치할 수 있습니다.
+    ℹ 사용자를 등록하고 <b>권한(역할)</b>을 지정하세요. 권한: 작성자→팀장→본부장→대표 순으로 결재.<br>
+    · <b>상태 클릭</b>: 활성 ↔ 비활성 전환 (비활성은 로그인 목록에서 숨김, 데이터는 보존)<br>
+    · <b>삭제</b>: DB에서 완전히 제거 (되돌릴 수 없음). 잠시 막을 거면 비활성을 쓰세요.
   </div>
   <div class="sec"><div class="sec-hd"><span class="no c1">＋</span><h3>사용자 등록 / 수정</h3></div>
     <div class="sec-bd"><div class="work-grid">
@@ -1064,12 +1070,49 @@ async function renderUserMgmt(){
 function editUser(userId){
   const u=USERS_CACHE.find(x=>x.user_id===userId);
   if(!u){ toast('사용자를 찾을 수 없습니다','err'); return; }
-  $('#uUserId').value=u.user_id; $('#uName').value=u.name;
-  $('#uPin').value=''; $('#uPin').placeholder='변경 시에만 입력 (미입력=기존 유지)';
-  $('#uTeam').value=u.team; $('#uRole').value=u.role;
-  $('#uName').focus();
-  window.scrollTo({top:0,behavior:'smooth'});
-  toast(u.name+' 정보 불러옴 · 수정 후 저장','ok');
+  const roleOpts=[['writer','작성자'],['lead','팀장'],['division','본부장'],['ceo','대표'],['admin','관리자']]
+    .map(([v,k])=>`<option value="${v}" ${u.role===v?'selected':''}>${k}</option>`).join('');
+  const teamOpts=['생산1팀','생산2팀','공통','ALL']
+    .map(t=>`<option value="${t}" ${u.team===t?'selected':''}>${t==='ALL'?'전체(ALL)':t}</option>`).join('');
+  const m=document.createElement('div');
+  m.id='editUserModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
+  m.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:26px;width:420px;max-width:100%;box-shadow:var(--sh-lg)">
+      <h3 style="margin:0 0 4px;font-size:18px">사용자 수정</h3>
+      <p style="margin:0 0 18px;font-size:13px;color:var(--sub)">${u.name} 정보를 수정합니다.</p>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><label style="font-size:12px;font-weight:700;color:var(--sub)">이름</label>
+          <input id="euName" value="${(u.name||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
+        <div><label style="font-size:12px;font-weight:700;color:var(--sub)">PIN (변경 시에만 입력)</label>
+          <input id="euPin" type="password" placeholder="미입력=기존 유지" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">팀</label>
+            <select id="euTeam" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;margin-top:4px">${teamOpts}</select></div>
+          <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">권한</label>
+            <select id="euRole" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;margin-top:4px">${roleOpts}</select></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button class="tbtn" style="flex:1" onclick="document.getElementById('editUserModal').remove()">취소</button>
+        <button class="tbtn submit" style="flex:1" onclick="submitEditUser('${u.user_id}')">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  setTimeout(()=>$('#euName').focus(),50);
+}
+async function submitEditUser(userId){
+  const name=$('#euName').value.trim(), pin=$('#euPin').value.trim();
+  if(!name){ toast('이름 필수','err'); return; }
+  try{
+    const {error}=await sb.rpc('upsert_user',{
+      p_user_id:userId, p_name:name, p_pin:pin,
+      p_role:$('#euRole').value, p_team:$('#euTeam').value});
+    if(error)throw error;
+    toast('수정완료','ok');
+    document.getElementById('editUserModal').remove();
+    renderUserMgmt();
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
 }
 function resetUserForm(){
   $('#uUserId').value=''; $('#uName').value=''; $('#uPin').value='';
@@ -1078,22 +1121,32 @@ function resetUserForm(){
 }
 async function saveUser(){
   const name=$('#uName').value.trim(), pin=$('#uPin').value.trim();
-  const isEdit=!!$('#uUserId').value;
   if(!name){ toast('이름 필수','err'); return; }
-  if(!isEdit && !pin){ toast('신규 등록은 PIN 필수','err'); return; }
+  if(!pin){ toast('신규 등록은 PIN 필수','err'); return; }
   try{
     const {data,error}=await sb.rpc('upsert_user',{
-      p_user_id:$('#uUserId').value, p_name:name, p_pin:pin,
+      p_user_id:'', p_name:name, p_pin:pin,
       p_role:$('#uRole').value, p_team:$('#uTeam').value});
     if(error)throw error;
-    toast('저장완료','ok'); resetUserForm(); renderUserMgmt();
-  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+    toast('등록완료','ok'); resetUserForm(); renderUserMgmt();
+  }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
+}
+async function toggleActive(id){
+  try{
+    const {data,error}=await sb.rpc('toggle_user_active',{p_user_id:id});
+    if(error)throw error;
+    toast(data.active?'활성화됨':'비활성화됨','ok');
+    renderUserMgmt();
+  }catch(e){ toast('상태 변경 실패: '+(e.message||e),'err'); }
 }
 async function delUser(id){
   const u=USERS_CACHE.find(x=>x.user_id===id);
   const name=u?u.name:'';
-  if(!confirm(name+' 사용자를 비활성화할까요?'))return;
-  try{ await sb.rpc('deactivate_user',{p_user_id:id});
+  if(!confirm(name+' 사용자를 DB에서 완전히 삭제할까요?\n(되돌릴 수 없습니다. 잠시 막으려면 상태를 비활성으로 바꾸세요.)'))return;
+  try{
+    const {data,error}=await sb.rpc('delete_user_hard',{p_user_id:id});
+    if(error)throw error;
+    if(!data.ok){ toast(data.msg||'삭제 불가','err'); return; }
     toast('삭제완료','ok'); renderUserMgmt();
   }catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
 }
@@ -1109,8 +1162,8 @@ async function renderApprLine(){
   $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
   let users=[],teams=['생산1팀','생산2팀','공통'];
   try{
-    const {data}=await sb.from('m_users').select('name,role,team').eq('active',true);
-    users=data||[];
+    const {data}=await sb.rpc('get_users',{p_team:null});
+    users=(data||[]).filter(u=>u.active);
   }catch(e){}
   const lineData={};
   for(const t of teams){
@@ -1122,20 +1175,27 @@ async function renderApprLine(){
   }
   const userOpts=(cur)=>['<option value="">미지정</option>',...users.map(u=>
     `<option value="${u.name}" ${u.name===cur?'selected':''}>${u.name} (${u.role})</option>`)].join('');
-  const teamBlocks=teams.map(t=>`
+  const teamBlocks=teams.map(t=>{
+    const cur=lineData[t];
+    const curTxt=[cur.lead&&`팀장: ${cur.lead}`,cur.division&&`본부장: ${cur.division}`,cur.ceo&&`CEO: ${cur.ceo}`].filter(Boolean).join(' / ');
+    return `
     <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>${t} 결재라인</h3>
       <span class="desc">팀장 → 본부장 → CEO 순서</span></div>
-      <div class="sec-bd"><div class="work-grid">
+      <div class="sec-bd">
+        <div style="background:#f1f4fa;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--sub)">
+          현재 저장된 결재라인: <b style="color:var(--ink)">${curTxt||'미지정'}</b></div>
+        <div class="work-grid">
         <div class="work-field"><label>팀장</label>
-          <select id="al_${t}_lead">${userOpts(lineData[t].lead)}</select></div>
+          <select id="al_${t}_lead">${userOpts(cur.lead)}</select></div>
         <div class="work-field"><label>본부장</label>
-          <select id="al_${t}_division">${userOpts(lineData[t].division)}</select></div>
+          <select id="al_${t}_division">${userOpts(cur.division)}</select></div>
         <div class="work-field"><label>CEO</label>
-          <select id="al_${t}_ceo">${userOpts(lineData[t].ceo)}</select></div>
+          <select id="al_${t}_ceo">${userOpts(cur.ceo)}</select></div>
       </div>
       <button class="tbtn save" style="margin-top:14px" onclick="saveApprLine('${t}')">${t} 결재라인 저장</button>
+      <div id="alsaved_${t}" style="display:none;margin-top:10px;padding:8px 12px;background:var(--grn-soft);color:var(--grn);border-radius:8px;font-size:13px;font-weight:600"></div>
       </div>
-    </div>`).join('');
+    </div>`;}).join('');
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
     ℹ 각 팀의 팀장·본부장·CEO를 지정하면, 그 사람이 로그인 시 자기 차례의 문서를 결재할 수 있습니다.
@@ -1145,13 +1205,22 @@ async function renderApprLine(){
 }
 async function saveApprLine(team){
   const steps=['lead','division','ceo'];
+  const stepKo={lead:'팀장',division:'본부장',ceo:'CEO'};
   try{
+    const saved=[];
     for(const step of steps){
       const name=$(`#al_${team}_${step}`).value;
       if(name){
         const {error}=await sb.rpc('set_approval_line',{p_team:team,p_step:step,p_name:name});
         if(error)throw error;
+        saved.push(`${stepKo[step]}: ${name}`);
       }
+    }
+    // 저장 확인 표시
+    const badge=$(`#alsaved_${team}`);
+    if(badge){
+      badge.innerHTML=`✓ 저장됨 · ${saved.join(' / ')||'미지정'} · ${new Date().toLocaleTimeString('ko-KR')}`;
+      badge.style.display='block';
     }
     toast(team+' 결재라인 저장완료','ok');
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
