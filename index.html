@@ -298,6 +298,24 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .status-toggle:hover{transform:scale(1.06)}
 .status-toggle.on{background:var(--grn-soft);color:var(--grn);border-color:var(--grn)}
 .status-toggle.off{background:#f1f4fa;color:var(--mut);border-color:var(--line)}
+/* 팀별 월 현황 카드 (캘린더 하단) */
+.team-stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.team-stat-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;transition:transform .18s,box-shadow .18s}
+.team-stat-card:hover{transform:translateY(-2px);box-shadow:var(--sh)}
+.tsc-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.tsc-hd h4{margin:0;font-size:15px;color:var(--ink)}
+.tsc-badge{color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px}
+.tsc-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tsc-num{background:#f8fafc;border-radius:8px;padding:10px;text-align:center}
+.tsc-l{font-size:11px;color:var(--mut);margin-bottom:4px}
+.tsc-v{font-size:22px;font-weight:800;color:var(--ink)}
+/* 색상 테마 선택 점 */
+.theme-dots{display:flex;gap:8px;align-items:center}
+.theme-dot{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;display:inline-block}
+.theme-dot:hover{transform:scale(1.2)}
+.theme-dot.on{border-color:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.login-theme{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.lt-label{font-size:12px;color:var(--mut);font-weight:600}
 /* 개선접수 게시판 */
 .im-filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .im-chip{padding:8px 16px;border-radius:20px;font-weight:700;font-size:13px;color:var(--sub);background:#fff;border:1px solid var(--line);transition:all .15s}
@@ -370,6 +388,10 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
     <div class="login-links">
       <span class="admin-link" id="toggleAdmin" onclick="toggleAdminLogin()">관리자로 로그인</span>
     </div>
+    <div class="login-theme">
+      <span class="lt-label">테마</span>
+      <span class="theme-dots" id="loginThemeDots"></span>
+    </div>
   </div>
 </div>
 
@@ -379,6 +401,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <span class="sys">HARIM PETFOOD · 생산마감 시스템</span>
   <span class="spacer"></span>
   <span class="who">담당 <b id="whoName">-</b></span>
+  <span class="theme-dots" id="topThemeDots" style="margin:0 12px"></span>
   <button class="lo" onclick="openChangePin()" style="margin-right:6px">PIN 변경</button>
   <button class="lo" onclick="doLogout()">로그아웃</button>
 </div>
@@ -411,6 +434,31 @@ const SUPABASE_URL = 'https://ovbhqmmisuzmiycagrzy.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92YmhxbW1pc3V6bWl5Y2Fncnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxOTEwODgsImV4cCI6MjA5ODc2NzA4OH0.3-QhO4VEKIej7MXd8XfVNGWnmg0kvJjGx9XQWOlJdMk';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
+/* ===== 색상 테마 시스템 (CSS 변수만 교체 · 로딩 부담 없음) ===== */
+const THEMES={
+  navy:  {name:'남색',  navy:'#1a3a5c', navy2:'#24507e', navy3:'#3a6ea5', blue:'#2670c9', blueSoft:'#eaf2fc', dot:'#1a3a5c'},
+  black: {name:'블랙',  navy:'#1c1c1e', navy2:'#2c2c2e', navy3:'#48484a', blue:'#3a3a3c', blueSoft:'#ebebeb', dot:'#1c1c1e'},
+  slate: {name:'그레이',navy:'#334155', navy2:'#475569', navy3:'#64748b', blue:'#475569', blueSoft:'#eef2f6', dot:'#334155'},
+  orange:{name:'주황',  navy:'#c2410c', navy2:'#ea580c', navy3:'#fb923c', blue:'#ea580c', blueSoft:'#fff1e8', dot:'#ea580c'},
+  green: {name:'녹색',  navy:'#166534', navy2:'#15803d', navy3:'#22c55e', blue:'#15803d', blueSoft:'#e9f7ef', dot:'#15803d'},
+  wine:  {name:'와인',  navy:'#7f1d3a', navy2:'#a01f4a', navy3:'#c94f74', blue:'#a01f4a', blueSoft:'#fbe9f0', dot:'#a01f4a'}
+};
+function applyTheme(key){
+  const t=THEMES[key]||THEMES.navy;
+  const r=document.documentElement.style;
+  r.setProperty('--navy',t.navy); r.setProperty('--navy2',t.navy2); r.setProperty('--navy3',t.navy3);
+  r.setProperty('--blue',t.blue); r.setProperty('--blue-soft',t.blueSoft);
+  try{ localStorage.setItem('harim_theme',key); }catch(e){}
+  document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('on',d.dataset.theme===key));
+}
+function getTheme(){ try{ return localStorage.getItem('harim_theme')||'navy'; }catch(e){ return 'navy'; } }
+function themeDotsHtml(){
+  return Object.keys(THEMES).map(k=>
+    `<span class="theme-dot ${getTheme()===k?'on':''}" data-theme="${k}" style="background:${THEMES[k].dot}" title="${THEMES[k].name}" onclick="applyTheme('${k}')"></span>`
+  ).join('');
+}
+
+
 /* ================= 상태/유틸 ================= */
 const S = { user:null, ym:null, view:'cal' };
 const $ = s => document.querySelector(s);
@@ -432,6 +480,8 @@ function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='show
 let ADMIN_MODE=false;
 window.addEventListener('DOMContentLoaded', initLogin);
 async function initLogin(){
+  applyTheme(getTheme());
+  const ltd=$('#loginThemeDots'); if(ltd) ltd.innerHTML=themeDotsHtml();
   try{
     const {data,error}=await sb.rpc('get_users',{p_team:null});
     if(error) throw error;
@@ -490,9 +540,30 @@ async function doLogin(){
     ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.remove('hidden'));
     const teamTxt=u.role==='admin'?'관리자':(u.team||'-');
     $('#whoName').textContent=`${u.name} (${teamTxt})`;
+    const ttd=$('#topThemeDots'); if(ttd) ttd.innerHTML=themeDotsHtml();
     if(u.role==='admin'){ $('#navUpload').classList.remove('hidden'); $('#navApprLine').classList.remove('hidden'); }
     go('cal');
+    showNoticePopup();
   }catch(e){ showErr('서버 연결 실패: '+(e.message||e)); }
+}
+async function showNoticePopup(){
+  try{
+    const {data}=await sb.rpc('get_active_notice');
+    if(!data || !data.title) return;
+    const m=document.createElement('div');
+    m.id='noticePopup';
+    m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.55);display:grid;place-items:center;z-index:1000;padding:20px';
+    m.innerHTML=`
+      <div style="background:#fff;border-radius:18px;padding:32px;width:520px;max-width:100%;box-shadow:var(--sh-lg);max-height:80vh;overflow-y:auto">
+        <div style="font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.05em;margin-bottom:6px">공지사항</div>
+        <h3 style="margin:0 0 18px;font-size:22px;color:var(--ink)">${data.title}</h3>
+        <div style="font-size:14.5px;line-height:1.7;color:var(--sub);white-space:pre-line">${(data.content||'').replace(/\n/g,'<br>')}</div>
+        <div style="text-align:right;margin-top:24px">
+          <button class="tbtn submit" onclick="document.getElementById('noticePopup').remove()">확인</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+  }catch(e){ /* 공지 없으면 조용히 무시 */ }
 }
 function showErr(m){const e=$('#loginErr');e.textContent=m;e.classList.remove('hidden');}
 function doLogout(){
@@ -621,6 +692,40 @@ async function renderCalendar(){
     html+=`<div class="cal-cell ${isToday?'today':''}"><div class="dn">${d}${isToday?'<span class="today-badge">Today</span>':''}</div>${tags}</div>`;
   }
   html+='</div></div>';
+
+  // ===== 하단: 팀별 월 현황 카드 =====
+  const teamStat={};
+  list.forEach(x=>{
+    const t=x.team||'기타';
+    if(!teamStat[t]) teamStat[t]={plan:new Set(),draft:new Set(),done:new Set()};
+    const d=String(x.work_date).slice(0,10);
+    const st=x.status||'planned';
+    teamStat[t].plan.add(d);  // 계획 있는 날
+    if(st==='done') teamStat[t].done.add(d);
+    else if(st!=='planned') teamStat[t].draft.add(d);  // 작성/결재중
+  });
+  const teamColors={'생산1팀':'#2670c9','생산2팀':'#1a9d5c','공통':'#9b6dc9'};
+  const cards=Object.keys(teamStat).sort().map(t=>{
+    const s=teamStat[t];
+    const badge=teamColors[t]||'#64748b';
+    return `<div class="team-stat-card">
+      <div class="tsc-hd">
+        <h4>${t}</h4>
+        <span class="tsc-badge" style="background:${badge}">${y}.${String(m).padStart(2,'0')}</span>
+      </div>
+      <div class="tsc-nums">
+        <div class="tsc-num"><div class="tsc-l">계획일</div><div class="tsc-v mono">${s.plan.size}</div></div>
+        <div class="tsc-num"><div class="tsc-l">작성일</div><div class="tsc-v mono" style="color:var(--blue)">${s.draft.size}</div></div>
+        <div class="tsc-num"><div class="tsc-l">완료일</div><div class="tsc-v mono" style="color:var(--grn)">${s.done.size}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+  html+=`
+  <div class="sec" style="margin-top:18px"><div class="sec-hd"><span class="no c2">◆</span><h3>팀별 월 현황</h3>
+    <span class="desc">생산계획 있는 팀의 월 누적 요약 · 생산계획 기준</span></div>
+    <div class="sec-bd"><div class="team-stat-grid">${cards||'<div style="color:var(--mut);padding:16px">데이터 없음</div>'}</div></div>
+  </div>`;
+
   $('#wrap').innerHTML=html;
 }
 function shiftMonth(delta){
@@ -1002,6 +1107,7 @@ function renderSettings(){
   <div class="settings-tabs">
     <button class="stab ${SETTINGS_TAB==='users'?'on':''}" onclick="switchSettingsTab('users')">👤 사용자 관리</button>
     <button class="stab ${SETTINGS_TAB==='appr'?'on':''}" onclick="switchSettingsTab('appr')">✍ 결재라인 구성</button>
+    <button class="stab ${SETTINGS_TAB==='notice'?'on':''}" onclick="switchSettingsTab('notice')">📢 공지사항</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -1011,6 +1117,7 @@ function switchSettingsTab(tab){
   const btns=document.querySelectorAll('.stab');
   btns.forEach(b=>b.classList.remove('on'));
   if(tab==='users'){ btns[0]&&btns[0].classList.add('on'); renderUserMgmt(); }
+  else if(tab==='notice'){ btns[2]&&btns[2].classList.add('on'); renderNoticeMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -1156,6 +1263,86 @@ async function unlockUser(id){
   try{ await sb.rpc('unlock_user',{p_user_id:id});
     toast(name+' 잠금해제 완료','ok'); renderUserMgmt();
   }catch(e){ toast('해제 실패: '+(e.message||e),'err'); }
+}
+
+/* --- 공지사항 관리 탭 --- */
+let NOTICE_CACHE=[];
+async function renderNoticeMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
+  let list=[];
+  try{ const {data}=await sb.rpc('get_notices',{p_active_only:false}); list=data||[]; }
+  catch(e){ toast('공지 조회 실패: '+(e.message||e),'err'); }
+  NOTICE_CACHE=list;
+  const rows=list.map(n=>{
+    const dt=new Date(n.created_at).toLocaleDateString('ko-KR',{year:'2-digit',month:'2-digit',day:'2-digit'});
+    return `<tr>
+      <td class="l"><b>${n.title}</b></td>
+      <td>${n.writer||'-'}</td>
+      <td>${dt}</td>
+      <td><button class="status-toggle ${n.active?'on':'off'}" onclick="toggleNotice(${n.id})">${n.active?'● 게시중':'○ 숨김'}</button></td>
+      <td class="row-actions">
+        <button class="rowbtn edit" onclick="editNotice(${n.id})">수정</button>
+        <button class="rowbtn del" onclick="delNotice(${n.id})">삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    ℹ 공지사항을 등록하면 <b>사용자가 로그인할 때 팝업</b>으로 표시됩니다. '게시중'인 공지 중 가장 최근 것이 표시됩니다.
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">＋</span><h3>공지 등록 / 수정</h3></div>
+    <div class="sec-bd">
+      <input type="hidden" id="ntId" value="">
+      <input id="ntTitle" placeholder="공지 제목" style="width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;margin-bottom:10px;box-sizing:border-box">
+      <textarea id="ntContent" placeholder="공지 내용" style="width:100%;min-height:130px;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;cursor:pointer">
+        <input type="checkbox" id="ntActive" checked style="width:16px;height:16px"> 게시중 (로그인 팝업에 표시)</label>
+      <div style="margin-top:14px">
+        <button class="tbtn submit" onclick="saveNotice()">저장</button>
+        <button class="tbtn" onclick="resetNoticeForm()">초기화</button>
+      </div>
+    </div>
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>등록된 공지</h3>
+    <span class="desc">${list.length}건</span></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>제목</th><th>작성자</th><th>작성일</th><th>게시상태</th><th>작업</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">등록된 공지 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+function resetNoticeForm(){
+  $('#ntId').value=''; $('#ntTitle').value=''; $('#ntContent').value=''; $('#ntActive').checked=true;
+}
+function editNotice(id){
+  const n=NOTICE_CACHE.find(x=>x.id===id);
+  if(!n){ toast('공지를 찾을 수 없습니다','err'); return; }
+  $('#ntId').value=n.id; $('#ntTitle').value=n.title;
+  $('#ntContent').value=n.content||''; $('#ntActive').checked=n.active;
+  $('#ntTitle').focus();
+  toast('수정 모드','ok');
+}
+async function saveNotice(){
+  const title=$('#ntTitle').value.trim(), content=$('#ntContent').value.trim();
+  if(!title){ toast('제목을 입력하세요','err'); return; }
+  const id=$('#ntId').value?Number($('#ntId').value):0;
+  try{
+    const {error}=await sb.rpc('upsert_notice',{p_id:id,p_title:title,p_content:content,p_active:$('#ntActive').checked,p_writer:S.user.name});
+    if(error)throw error;
+    toast('저장완료','ok'); resetNoticeForm(); renderNoticeMgmt();
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+async function toggleNotice(id){
+  try{ const {data,error}=await sb.rpc('toggle_notice',{p_id:id});
+    if(error)throw error;
+    toast(data.active?'게시됨':'숨김','ok'); renderNoticeMgmt();
+  }catch(e){ toast('변경 실패','err'); }
+}
+async function delNotice(id){
+  if(!confirm('이 공지를 삭제할까요?'))return;
+  try{ await sb.rpc('del_notice',{p_id:id});
+    toast('삭제완료','ok'); renderNoticeMgmt();
+  }catch(e){ toast('삭제 실패','err'); }
 }
 
 async function renderApprLine(){
