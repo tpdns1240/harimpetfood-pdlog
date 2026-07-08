@@ -309,6 +309,30 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tsc-num{background:#f8fafc;border-radius:8px;padding:10px;text-align:center}
 .tsc-l{font-size:11px;color:var(--mut);margin-bottom:4px}
 .tsc-v{font-size:22px;font-weight:800;color:var(--ink)}
+.tsc-more{margin-top:12px;font-size:12px;color:var(--blue);font-weight:600;text-align:right}
+/* 팀 리포트 드릴다운 */
+.tr-hero{background:linear-gradient(135deg,var(--navy),var(--navy2));color:var(--hdr-text,#fff);border-radius:16px;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.tr-hero h2{margin:6px 0 2px;font-size:24px}
+.tr-hero .en{font-size:11px;opacity:.8;letter-spacing:.05em}
+.tr-crumb{font-size:12px;opacity:.85;margin-bottom:4px}
+.tr-nav{display:flex;gap:8px}
+.tr-nav button{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.tr-nav button:hover{background:rgba(255,255,255,.28)}
+.tr-nav .tr-cal{background:#fff;color:var(--navy)}
+.line-row:hover{background:var(--blue-soft) !important}
+/* 팀별 현황 */
+.ts-grid{display:flex;flex-direction:column;gap:20px}
+.ts-plant-hd{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:var(--ink);margin-bottom:10px}
+.ts-bar{width:4px;height:16px;border-radius:2px;display:inline-block}
+.ts-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--sh);transition:transform .18s,box-shadow .18s;max-width:560px}
+.ts-card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg)}
+.ts-card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.ts-card-hd h4{margin:0;font-size:17px;color:var(--ink)}
+.ts-sub{font-size:12px;color:var(--mut);margin-top:2px}
+.ts-count{background:var(--grn-soft);color:var(--grn);font-size:12px;font-weight:700;padding:4px 10px;border-radius:16px;white-space:nowrap}
+.ts-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.line-chip{background:#f1f4fa;color:var(--sub);font-size:12px;padding:4px 10px;border-radius:6px}
+.ts-open{font-size:13px;color:var(--blue);font-weight:600}
 /* 색상 테마 드롭다운 (상단바) */
 .theme-select{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;outline:none}
 .theme-select option{background:#fff;color:var(--ink)}
@@ -409,6 +433,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
     <button id="navDash" onclick="go('dash')">경영 대시보드</button>
+    <button id="navTeam" onclick="go('team')">팀별 현황</button>
     <button id="navImprove" onclick="go('improve')">개선접수</button>
     <button id="navHoki" onclick="go('hoki')">호기 밸런스</button>
     <button id="navUpload" class="hidden" onclick="go('upload')">계획 업로드</button>
@@ -616,12 +641,14 @@ function go(view){
   S.view=view;
   $('#navCal').classList.toggle('on',view==='cal');
   $('#navDash').classList.toggle('on',view==='dash');
+  $('#navTeam')&&$('#navTeam').classList.toggle('on',view==='team');
   $('#navImprove')&&$('#navImprove').classList.toggle('on',view==='improve');
   $('#navHoki').classList.toggle('on',view==='hoki');
   $('#navUpload').classList.toggle('on',view==='upload');
   $('#navApprLine').classList.toggle('on',view==='settings');
   if(view==='cal') renderCalendar();
   else if(view==='dash') renderDashboard();
+  else if(view==='team') renderTeamStatus();
   else if(view==='improve') renderImprove();
   else if(view==='hoki') renderHoki();
   else if(view==='upload') renderUpload();
@@ -710,7 +737,7 @@ async function renderCalendar(){
   const cards=Object.keys(teamStat).sort().map(t=>{
     const s=teamStat[t];
     const badge=teamColors[t]||'#64748b';
-    return `<div class="team-stat-card">
+    return `<div class="team-stat-card" onclick="openTeamReport('${t}','${y}-${String(m).padStart(2,'0')}')" style="cursor:pointer">
       <div class="tsc-hd">
         <h4>${t}</h4>
         <span class="tsc-badge" style="background:${badge}">${y}.${String(m).padStart(2,'0')}</span>
@@ -720,6 +747,7 @@ async function renderCalendar(){
         <div class="tsc-num"><div class="tsc-l">작성일</div><div class="tsc-v mono" style="color:var(--blue)">${s.draft.size}</div></div>
         <div class="tsc-num"><div class="tsc-l">완료일</div><div class="tsc-v mono" style="color:var(--grn)">${s.done.size}</div></div>
       </div>
+      <div class="tsc-more">월간 종합일보 열기 →</div>
     </div>`;
   }).join('');
   html+=`
@@ -933,6 +961,213 @@ async function submitEditImprove(id){
     document.getElementById('editImModal').remove();
     loadImprove();
   }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+
+/* ============ 팀별 월간 종합일보 (드릴다운) ============ */
+let TR={team:null,from:null,to:null,charts:[]};
+function ymRange(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const from=`${ym}-01`;
+  const last=new Date(y,m,0).getDate();
+  const to=`${ym}-${String(last).padStart(2,'0')}`;
+  return {from,to};
+}
+async function openTeamReport(team,ym){
+  const {from,to}=ymRange(ym);
+  TR={team,from,to,ym,charts:[]};
+  S.view='teamreport';
+  $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
+  await loadTeamReport();
+}
+async function loadTeamReport(){
+  TR.charts.forEach(c=>{try{c.destroy()}catch(e){}}); TR.charts=[];
+  const p={p_team:TR.team,p_from:TR.from,p_to:TR.to};
+  try{
+    const [sum,daily,lines]=await Promise.all([
+      sb.rpc('team_monthly_summary',p),
+      sb.rpc('team_daily_trend',p),
+      sb.rpc('team_line_detail',p)
+    ]);
+    const s=sum.data||{}, dd=daily.data||[], ld=lines.data||[];
+    const [y,m]=TR.ym.split('-').map(Number);
+    $('#wrap').innerHTML=`
+    <div class="tr-hero">
+      <div><div class="tr-crumb" onclick="go('cal')" style="cursor:pointer">← 캘린더</div>
+        <h2>월간 종합일보</h2>
+        <div class="en">MONTHLY SUMMARY · ${TR.team} · ${TR.ym}</div></div>
+      <div class="tr-nav">
+        <button onclick="shiftTeamReport(-1)">이전 월</button>
+        <button onclick="shiftTeamReport(1)">다음 월</button>
+        <button class="tr-cal" onclick="go('cal')">캘린더</button>
+      </div>
+    </div>
+
+    <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
+      <div class="sc"><div class="l">작성 일보수</div><div class="v mono">${s.work_days||0}<span style="font-size:11px">건</span></div></div>
+      <div class="sc b"><div class="l">총 생산량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(s.actual_sum))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc"><div class="l">총 계획량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(s.plan_sum))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc ${s.achieve>=100?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${s.achieve||0}%</div></div>
+      <div class="sc"><div class="l">완제품 실적</div><div class="v mono" style="font-size:15px">${fmt(Math.round(s.fin_actual))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:14px">${fmtWon(s.net_loss)}</div></div>
+    </div>
+
+    <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>달성률 · 로스금액 추이</h3>
+      <span class="desc">막대=달성률(%), 선=로스금액(원) · 일별</span></div>
+      <div class="sec-bd"><div style="height:300px"><canvas id="trChart"></canvas></div></div>
+    </div>
+
+    <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>일자별 상세</h3></div>
+      <div class="sec-bd" style="overflow-x:auto"><table>
+        <thead><tr><th>날짜</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <tbody>${dd.map(d=>`<tr>
+          <td class="l"><b>${d.work_date}</b></td>
+          <td class="mono">${fmt(Math.round(d.plan_sum))}</td>
+          <td class="mono">${fmt(Math.round(d.actual_sum))}</td>
+          <td class="mono ${d.achieve>=100?'pos':'neg'}">${d.achieve}%</td>
+          <td class="mono ${wonCls(d.net_loss)}">${fmtWon(d.net_loss)}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--navy);font-weight:800;background:#f8fafc">
+          <td class="l">합계</td>
+          <td class="mono">${fmt(Math.round(s.plan_sum))}</td>
+          <td class="mono">${fmt(Math.round(s.actual_sum))}</td>
+          <td class="mono">${s.achieve}%</td>
+          <td class="mono ${wonCls(s.net_loss)}">${fmtWon(s.net_loss)}</td>
+        </tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="sec"><div class="sec-hd"><span class="no c3">◆</span><h3>라인별 상세</h3>
+      <span class="desc">라인을 클릭하면 상세 경영현황으로 이동</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table>
+        <thead><tr><th>라인</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>순로스</th><th>손실(초과)</th></tr></thead>
+        <tbody>${ld.map(l=>`<tr class="line-row" onclick="openLineDetail('${TR.team}','${l.line.replace(/'/g,"")}')" style="cursor:pointer">
+          <td class="l"><b>${l.line}</b> <span style="color:var(--blue);font-size:11px">▶</span></td>
+          <td class="mono">${fmt(Math.round(l.plan_sum))}</td>
+          <td class="mono">${fmt(Math.round(l.actual_sum))}</td>
+          <td class="mono ${l.achieve>=100?'pos':'neg'}">${l.achieve}%</td>
+          <td class="mono ${wonCls(l.net_loss)}">${fmtWon(l.net_loss)}</td>
+          <td class="mono neg">${fmt(Math.round(l.over_loss))}원</td>
+        </tr>`).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+
+    // 추이 차트
+    const ctx=$('#trChart');
+    if(ctx){
+      const c=new Chart(ctx,{type:'bar',
+        data:{labels:dd.map(d=>d.work_date),datasets:[
+          {type:'bar',label:'달성률(%)',data:dd.map(d=>d.achieve),backgroundColor:'#4a6784',yAxisID:'y',order:2},
+          {type:'line',label:'로스금액(원)',data:dd.map(d=>Math.round(d.net_loss)),borderColor:'#d15a4e',backgroundColor:'#d15a4e',yAxisID:'y1',tension:.3,order:1,pointRadius:4}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          scales:{y:{title:{display:true,text:'달성률 %'},min:0},y1:{position:'right',title:{display:true,text:'로스금액 원'},grid:{drawOnChartArea:false}}},
+          plugins:{legend:{position:'top'}}}});
+      TR.charts.push(c);
+    }
+  }catch(e){ toast('월간일보 조회 실패: '+(e.message||e),'err'); }
+}
+function shiftTeamReport(delta){
+  let [y,m]=TR.ym.split('-').map(Number);
+  m+=delta; while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  openTeamReport(TR.team,`${y}-${String(m).padStart(2,'0')}`);
+}
+
+/* ============ 팀별 현황 (팀→라인 드릴다운) ============ */
+async function renderTeamStatus(){
+  $('#wrap').innerHTML='<div class="skel" style="height:400px;border-radius:14px"></div>';
+  // 이번 달 기준
+  const now=new Date();
+  const ym=now.toISOString().slice(0,7);
+  const {from,to}=ymRange(ym);
+  let teams=[];
+  try{ const {data}=await sb.rpc('team_list_overview',{p_from:from,p_to:to}); teams=data||[]; }
+  catch(e){ toast('팀 목록 조회 실패: '+(e.message||e),'err'); }
+  const teamColors={'생산1팀':'#4a6784','생산2팀':'#4e9a72','공통':'#8a6da0'};
+  const blocks=teams.map(t=>{
+    const lines=(t.lines||'').split(', ').filter(Boolean);
+    const chips=lines.map(l=>`<span class="line-chip">${l}</span>`).join('');
+    return `<div class="ts-plant">
+      <div class="ts-plant-hd"><span class="ts-bar" style="background:${teamColors[t.team]||'#64748b'}"></span>${t.team}</div>
+      <div class="ts-card" onclick="openTeamReport('${t.team}','${ym}')" style="cursor:pointer">
+        <div class="ts-card-hd">
+          <div><h4>${t.team}</h4><div class="ts-sub">${t.line_count}개 라인 · ${t.day_count}일 작성</div></div>
+          <span class="ts-count">일보 ${t.day_count}일</span>
+        </div>
+        <div class="ts-chips">${chips}</div>
+        <div class="ts-open">월간 종합일보 열기 →</div>
+      </div>
+    </div>`;
+  }).join('');
+  $('#wrap').innerHTML=`
+  <div class="day-hd"><div><h2>팀별 현황</h2>
+    <div class="en">TEAM STATUS · 팀 → 라인 드릴다운</div></div>
+    <div class="meta">${ym} 기준</div></div>
+  <div class="ts-grid">${blocks||'<div style="color:var(--mut);padding:30px">데이터 없음</div>'}</div>`;
+}
+
+/* 라인 상세 경영현황 */
+let LD={team:null,line:null,from:null,to:null,charts:[]};
+async function openLineDetail(team,line){
+  const now=new Date();
+  const ym=(TR.ym)||now.toISOString().slice(0,7);
+  const {from,to}=ymRange(ym);
+  LD={team,line,from,to,ym,charts:[]};
+  S.view='linedetail';
+  $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
+  await loadLineDetail();
+}
+async function loadLineDetail(){
+  LD.charts.forEach(c=>{try{c.destroy()}catch(e){}}); LD.charts=[];
+  // 라인 상세는 팀 라인 목록에서 해당 라인만 필터
+  const p={p_team:LD.team,p_from:LD.from,p_to:LD.to};
+  try{
+    const [lines,scrap,defect]=await Promise.all([
+      sb.rpc('team_line_detail',p),
+      sb.rpc('team_scrap_types',p),
+      sb.rpc('team_defect_types',p)
+    ]);
+    const line=(lines.data||[]).find(l=>l.line===LD.line)||{};
+    const sc=scrap.data||[], df=defect.data||[];
+    $('#wrap').innerHTML=`
+    <div class="tr-hero">
+      <div><div class="tr-crumb" onclick="openTeamReport('${LD.team}','${LD.ym}')" style="cursor:pointer">← ${LD.team} 월간일보</div>
+        <h2>${LD.line} 경영현황</h2>
+        <div class="en">LINE DETAIL · ${LD.team} · ${LD.ym}</div></div>
+      <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div>
+    </div>
+    <div class="score-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="sc"><div class="l">계획량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(line.plan_sum||0))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc b"><div class="l">실적량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(line.actual_sum||0))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc ${(line.achieve||0)>=100?'g':'r'}"><div class="l">달성률</div><div class="v mono">${line.achieve||0}%</div></div>
+      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(line.net_loss)}" style="font-size:14px">${fmtWon(line.net_loss||0)}</div></div>
+    </div>
+    <div class="dash-2col">
+      <div class="sec"><div class="sec-hd"><span class="no c5">◆</span><h3>스크랩 유형별</h3></div>
+        <div class="sec-bd"><div style="height:240px"><canvas id="ldScrap"></canvas></div>
+        <table style="margin-top:12px"><tbody>${sc.map(s=>`<tr><td class="l">${s.scrap_type}</td><td class="mono neg">${fmt(Math.round(s.amt))}원</td><td class="mono">${s.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 스크랩 없음</td></tr>'}</tbody></table>
+        </div>
+      </div>
+      <div class="sec"><div class="sec-hd"><span class="no c4">◆</span><h3>불량 유형별</h3></div>
+        <div class="sec-bd"><div style="height:240px"><canvas id="ldDefect"></canvas></div>
+        <table style="margin-top:12px"><tbody>${df.map(d=>`<tr><td class="l">${d.defect_type}</td><td class="mono">${fmt(d.qty)}</td><td class="mono">${d.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 불량 없음</td></tr>'}</tbody></table>
+        </div>
+      </div>
+    </div>`;
+    // 도넛 차트
+    const donutColors=['#4a6784','#4e9a72','#c99a4a','#c17a5a','#8a6da0','#6a9ab5','#b5896a'];
+    if(sc.length){
+      const c=new Chart($('#ldScrap'),{type:'doughnut',
+        data:{labels:sc.map(s=>s.scrap_type),datasets:[{data:sc.map(s=>Math.round(s.amt)),backgroundColor:donutColors}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
+      LD.charts.push(c);
+    }
+    if(df.length){
+      const c=new Chart($('#ldDefect'),{type:'doughnut',
+        data:{labels:df.map(d=>d.defect_type),datasets:[{data:df.map(d=>Math.round(d.qty)),backgroundColor:donutColors}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}});
+      LD.charts.push(c);
+    }
+  }catch(e){ toast('라인 상세 조회 실패: '+(e.message||e),'err'); }
 }
 
 /* ============ 경영 대시보드 ============ */
