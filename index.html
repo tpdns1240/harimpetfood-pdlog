@@ -2319,6 +2319,69 @@ function parsePaste(text){
 /* ================= 하림산업식 통합 마감화면 (일자 클릭) ================= */
 const pct = n => (n==null||isNaN(n))?'–':(n*100).toFixed(1)+'%';
 let CUR_DAY={date:null,team:null,lines:[],orders:[],losses:[],defects:[],downtime:[],manpower:[],pareto:[]};
+let PARETO_CHART=null;
+async function openParetoDetail(line, curRate){
+  const team=CUR_DAY.team, date=CUR_DAY.date;
+  const m=document.createElement('div');
+  m.id='paretoModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.55);display:grid;place-items:center;z-index:1000;padding:20px';
+  m.innerHTML=`<div style="background:#fff;border-radius:18px;padding:26px 28px;width:820px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:var(--sh-lg)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div><h3 style="margin:0;font-size:20px">${line} 가동률 최근 30일 추세</h3>
+        <div id="pdRange" style="font-size:12px;color:var(--mut);margin-top:3px">불러오는 중...</div></div>
+      <button onclick="document.getElementById('paretoModal').remove()" style="background:#f1f4fa;border:none;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:#f8fafc;border-radius:12px;padding:16px;margin:14px 0">
+      <div style="text-align:center"><div style="font-size:12px;color:var(--mut)">현재</div><div id="pdCur" style="font-size:22px;font-weight:800;color:var(--navy2)">${curRate}%</div></div>
+      <div style="text-align:center"><div style="font-size:12px;color:var(--mut)">30일 평균</div><div id="pdAvg" style="font-size:22px;font-weight:800;color:var(--navy2)">–</div></div>
+      <div style="text-align:center"><div style="font-size:12px;color:var(--mut)">목표</div><div style="font-size:22px;font-weight:800;color:var(--grn)">95.0%</div></div>
+    </div>
+    <div style="height:240px;margin-bottom:18px"><canvas id="pdChart"></canvas></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="sec" style="margin:0"><div class="sec-hd"><h3 style="font-size:15px">오늘의 비계획정지</h3><span class="sp"></span><span id="pdTodayCnt" class="desc">–</span></div>
+        <div class="sec-bd" id="pdToday" style="padding:12px 16px"><div class="skel" style="height:80px;border-radius:8px"></div></div></div>
+      <div class="sec" style="margin:0"><div class="sec-hd"><h3 style="font-size:15px">최근 30일 비계획정지 TOP 3</h3></div>
+        <div class="sec-bd" id="pdTop" style="padding:12px 16px;max-height:180px;overflow-y:auto"><div class="skel" style="height:80px;border-radius:8px"></div></div></div>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+
+  try{
+    const [trend,today,top]=await Promise.all([
+      sb.rpc('line_run_trend',{p_team:team,p_line:line,p_to:date}),
+      sb.rpc('line_downtime_day',{p_team:team,p_line:line,p_date:date}),
+      sb.rpc('line_downtime_top',{p_team:team,p_line:line,p_to:date,p_limit:3})
+    ]);
+    const tr=trend.data||[], td=today.data||[], tp=top.data||[];
+    // 기간·평균
+    if(tr.length){
+      $('#pdRange').textContent=`${tr[0].work_date} ~ ${tr[tr.length-1].work_date}`;
+      const avg=tr.reduce((a,b)=>a+Number(b.run_rate),0)/tr.length;
+      $('#pdAvg').textContent=avg.toFixed(1)+'%';
+    } else { $('#pdRange').textContent='추세 데이터 없음'; }
+    // 차트
+    const ctx=$('#pdChart');
+    if(ctx){
+      if(PARETO_CHART){try{PARETO_CHART.destroy()}catch(e){}}
+      PARETO_CHART=new Chart(ctx,{type:'line',
+        data:{labels:tr.map(x=>String(x.work_date).slice(5)),datasets:[
+          {label:'가동률(%)',data:tr.map(x=>x.run_rate),borderColor:'#2670c9',backgroundColor:'rgba(38,112,201,.1)',tension:.3,pointRadius:3,fill:true},
+          {label:'목표 95%',data:tr.map(()=>95),borderColor:'#d15a4e',borderDash:[5,4],pointRadius:0,borderWidth:1.5}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:111}},plugins:{legend:{position:'top',labels:{font:{size:11}}}}}});
+    }
+    // 오늘 비계획정지
+    $('#pdTodayCnt').textContent=td.length+'건';
+    $('#pdToday').innerHTML=td.length?td.map(d=>`<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--red);font-weight:700;font-size:13px">${d.reason_type} <span style="color:var(--mut);font-weight:400">${d.start_time||''}~${d.end_time||''}</span></span><b style="color:var(--red)">${fmt(d.dmin)}분</b></div>
+      ${d.memo?`<div style="font-size:12px;color:var(--sub);margin-top:2px">${d.memo}</div>`:''}</div>`).join(''):'<div style="color:var(--mut);padding:16px;text-align:center;font-size:13px">오늘 비계획정지 없음</div>';
+    // TOP 3
+    $('#pdTop').innerHTML=tp.length?tp.map((d,i)=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+      <span style="flex-shrink:0;width:22px;height:22px;background:${i===0?'#d15a4e':'#3b556e'};color:#fff;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800">${i+1}</span>
+      <div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--mut)">${String(d.work_date).slice(5)} <b style="color:var(--red)">${d.reason_type}</b> ${d.start_time||''}~${d.end_time||''}</span><b style="color:var(--red)">${fmt(d.dmin)}분</b></div>
+      ${d.memo?`<div style="font-size:12px;color:var(--sub);margin-top:2px">${d.memo}</div>`:''}</div></div>`).join(''):'<div style="color:var(--mut);padding:16px;text-align:center;font-size:13px">최근 비계획정지 없음</div>';
+  }catch(e){ toast('상세 조회 실패: '+(e.message||e),'err'); }
+}
 async function openDay(date, team){
   CUR_DAY={date,team,lines:[],orders:[],losses:[],defects:[],downtime:[],manpower:[],pareto:[]};
   S.view='day';
@@ -2674,7 +2737,7 @@ function renderMoreSections(){
     // 가동률: (기준480분 - 정지) / 480 가정
     const stdMin=480, totStop=Number(d.plan_min||0)+Number(d.unplan_min||0)+Number(d.sudden_min||0);
     const runRate=stdMin>0?Math.max(0,(stdMin-totStop)/stdMin*100):0;
-    return `<div class="pareto-card">
+    return `<div class="pareto-card" onclick="openParetoDetail('${l.line_name.replace(/'/g,"")}',${runRate.toFixed(1)})" style="cursor:pointer">
       <div class="pc-hd"><span class="pc-no">${idx+1}</span><b>${l.line_name}</b></div>
       <div class="pc-grid">
         <div><div class="pc-l">계획정지</div><div class="pc-v mono">${planH.toFixed(1)} hr</div></div>
