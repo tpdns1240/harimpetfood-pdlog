@@ -314,7 +314,8 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tr-hero{background:linear-gradient(135deg,var(--navy),var(--navy2));color:var(--hdr-text,#fff);border-radius:16px;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
 .tr-hero h2{margin:6px 0 2px;font-size:24px}
 .tr-hero .en{font-size:11px;opacity:.8;letter-spacing:.05em}
-.tr-crumb{font-size:12px;opacity:.85;margin-bottom:4px}
+.tr-crumb{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;margin-bottom:10px;padding:7px 14px;border-radius:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:var(--hdr-text,#fff);transition:background .15s}
+.tr-crumb:hover{background:rgba(255,255,255,.32)}
 .tr-nav{display:flex;gap:8px}
 .tr-nav button{background:rgba(255,255,255,.15);color:var(--hdr-text,#fff);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
 .tr-nav button:hover{background:rgba(255,255,255,.28)}
@@ -660,6 +661,9 @@ async function doLogin(){
     const teamTxt=u.role==='admin'?'관리자':(u.team||'-');
     $('#whoName').textContent=`${u.name} (${teamTxt})`;
     const ttw=$('#topThemeWrap'); if(ttw){ ttw.innerHTML=themeSelectHtml(); applyTheme(getTheme()); }
+    // 관리자 메뉴: 매 로그인마다 먼저 숨기고, 관리자일 때만 표시 (재로그인 시 이전 상태 잔존 방지)
+    $('#navUpload').classList.add('hidden');
+    $('#navApprLine').classList.add('hidden');
     if(u.role==='admin'){ $('#navUpload').classList.remove('hidden'); $('#navApprLine').classList.remove('hidden'); }
     go('cal');
     showNoticePopup();
@@ -690,6 +694,7 @@ function goHome(){
 }
 function doLogout(){
   S.user=null;  ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.add('hidden'));
+  $('#navUpload').classList.add('hidden'); $('#navApprLine').classList.add('hidden');
   $('#wrap').innerHTML='';
   $('#login').classList.remove('hidden');
   $('#loginPin').value=''; $('#loginErr').classList.add('hidden');
@@ -1175,7 +1180,7 @@ async function loadTeamReport(){
       `<button class="seg-btn ${(TR.kind||'')===k?'on':''}" onclick="setTRKind('${k}')">${label}</button>`).join('');
     $('#wrap').innerHTML=`
     <div class="tr-hero">
-      <div><div class="tr-crumb" onclick="go('cal')" style="cursor:pointer">← 캘린더</div>
+      <div><div class="tr-crumb" onclick="go('cal')" style="cursor:pointer">← 뒤로 · 캘린더</div>
         <h2>월간 종합일보</h2>
         <div class="en">MONTHLY SUMMARY · ${TR.team} · ${TR.ym}</div></div>
       <div class="tr-nav">
@@ -1334,7 +1339,7 @@ async function loadTeamDetail(){
 
     $('#wrap').innerHTML=`
     <div class="tr-hero">
-      <div><div class="tr-crumb" onclick="go('team')" style="cursor:pointer">← 팀별 현황</div>
+      <div><div class="tr-crumb" onclick="go('team')" style="cursor:pointer">← 뒤로 · 팀별 현황</div>
         <h2>${TD.team} 생산경영현황</h2>
         <div class="en">저장된 일보 ${M.work_days||0}건 · 조회기간 ${TD.from} ~ ${TD.to}</div></div>
       <div class="tr-nav">
@@ -1565,7 +1570,7 @@ async function openTDDrill(kind){
       const od=data||[];
       $('#wrap').innerHTML=`
       <div class="tr-hero"><div>
-        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← ${TD.team} 경영현황</div>
+        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
         <h2>오더별 드릴다운</h2><div class="en">제품코드(오더) 단위 전체 · ${od.length}건 · ${TD.from} ~ ${TD.to}</div></div>
         <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
       <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
@@ -1583,7 +1588,7 @@ async function openTDDrill(kind){
       const pd=data||[];
       $('#wrap').innerHTML=`
       <div class="tr-hero"><div>
-        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← ${TD.team} 경영현황</div>
+        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
         <h2>제품별 드릴다운</h2><div class="en">제품명 단위 전체 · ${pd.length}건 · ${TD.from} ~ ${TD.to}</div></div>
         <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
       <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
@@ -1625,7 +1630,7 @@ async function loadLineDetail(){
     LD.orders=od;
     $('#wrap').innerHTML=`
     <div class="tr-hero">
-      <div><div class="tr-crumb" onclick="openTeamReport('${LD.team}','${LD.ym}')" style="cursor:pointer">← ${LD.team} 월간일보</div>
+      <div><div class="tr-crumb" onclick="openTeamReport('${LD.team}','${LD.ym}')" style="cursor:pointer">← 뒤로 · ${LD.team} 월간일보</div>
         <h2>${LD.line} 경영현황</h2>
         <div class="en">LINE DETAIL · ${LD.team} · ${LD.ym}</div></div>
       <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div>
