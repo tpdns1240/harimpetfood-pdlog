@@ -373,6 +373,39 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .rank-s{font-size:11px;color:var(--mut);margin-top:2px}
 .rank-v{font-size:15px;font-weight:800;color:var(--ink)}
 .rank-v.neg{color:var(--red)}
+/* 도움말 */
+.help-hero{background:linear-gradient(135deg,var(--navy),var(--navy2));color:var(--hdr-text,#fff);border-radius:16px;padding:28px 30px;margin-bottom:16px}
+.help-hero h2{margin:8px 0 4px;font-size:24px}
+.help-hero .en{font-size:13px;opacity:.85}
+.help-badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.1em;background:rgba(255,255,255,.15);padding:5px 12px;border-radius:16px}
+.help-toc{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.help-chip{padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;color:var(--sub);background:#fff;border:1px solid var(--line);cursor:pointer}
+.help-chip:hover{background:var(--blue-soft);color:var(--blue);border-color:var(--blue)}
+.help-body p{font-size:14px;color:var(--ink);margin-bottom:10px;line-height:1.65}
+.help-body b{color:var(--navy2)}
+.help-nav-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hnav{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fff}
+.hnav h4{font-size:15px;font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.hnav p{font-size:13px;color:var(--sub);margin:0;line-height:1.55}
+.hnav.admin{background:#fdfbfb;border-color:#f0dede}
+.hadmin{font-size:10px;font-weight:700;background:#fdf1ef;color:var(--red);padding:2px 8px;border-radius:5px}
+.help-steps{display:flex;flex-direction:column;gap:10px;margin:16px 0}
+.hstep{display:flex;gap:12px;align-items:flex-start}
+.hstep span{flex-shrink:0;width:26px;height:26px;background:var(--navy);color:#fff;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800}
+.hstep div{font-size:13.5px;color:var(--sub);padding-top:2px}
+.hstep b{color:var(--ink)}
+.help-note{border-radius:9px;padding:12px 16px;margin-top:14px;font-size:13px;line-height:1.55}
+.help-note.tip{background:var(--grn-soft);border-left:3px solid var(--grn);color:#1a6e44}
+.help-note.warn{background:#fffbeb;border-left:3px solid var(--amber,#b5892a);color:#8a6612}
+.help-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:18px;background:#f8fafc;border-radius:10px}
+.hnode{background:#fff;border:1.5px solid var(--navy3);color:var(--navy2);font-weight:700;font-size:13px;padding:9px 16px;border-radius:8px}
+.harr{color:var(--mut);font-weight:700}
+.help-faq{border-bottom:1px solid var(--line);padding:12px 0}
+.help-faq:last-child{border-bottom:none}
+.help-faq b{font-size:14px;color:var(--ink);display:block;margin-bottom:4px}
+.help-faq b::before{content:"Q ";color:var(--blue);font-weight:800}
+.help-faq p{font-size:13px;color:var(--sub);margin:0}
+@media(max-width:640px){.help-nav-grid{grid-template-columns:1fr}}
 /* 월간일보 필터 세그먼트 */
 .tr-filters{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh)}
 .seg{display:flex;align-items:center;gap:6px}
@@ -482,6 +515,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
     <button id="navDash" onclick="go('dash')">경영 대시보드</button>
     <button id="navTeam" onclick="go('team')">팀별 현황</button>
     <button id="navImprove" onclick="go('improve')">개선접수</button>
+    <button id="navHelp" onclick="go('help')">도움말</button>
     <button id="navHoki" onclick="go('hoki')">호기 밸런스</button>
     <button id="navUpload" class="hidden" onclick="go('upload')">계획 업로드</button>
     <button id="navApprLine" class="hidden" onclick="go('settings')">설정</button>
@@ -703,6 +737,7 @@ function go(view){
   $('#navDash').classList.toggle('on',view==='dash');
   $('#navTeam')&&$('#navTeam').classList.toggle('on',view==='team');
   $('#navImprove')&&$('#navImprove').classList.toggle('on',view==='improve');
+  $('#navHelp')&&$('#navHelp').classList.toggle('on',view==='help');
   $('#navHoki').classList.toggle('on',view==='hoki');
   $('#navUpload').classList.toggle('on',view==='upload');
   $('#navApprLine').classList.toggle('on',view==='settings');
@@ -710,6 +745,7 @@ function go(view){
   else if(view==='dash') renderDashboard();
   else if(view==='team') renderTeamStatus();
   else if(view==='improve') renderImprove();
+  else if(view==='help') renderHelp();
   else if(view==='hoki') renderHoki();
   else if(view==='upload') renderUpload();
   else if(view==='settings') renderSettings();
@@ -857,6 +893,87 @@ async function renderHoki(){
 }
 
 /* ================= 관리자: 계획 업로드 ================= */
+/* ============ 도움말 ============ */
+function renderHelp(){
+  $('#wrap').innerHTML=`
+  <div class="help-hero">
+    <div class="help-badge">사용 안내</div>
+    <h2>일일 생산마감 시스템 도움말</h2>
+    <div class="en">생산 계획 대비 실적·로스·불량·비가동을 매일 기록하고 결재하는 시스템입니다.</div>
+  </div>
+
+  <div class="help-toc">
+    ${[['시작하기','h_start'],['메뉴 안내','h_nav'],['마감 작성','h_write'],['결재 흐름','h_appr'],['분석 화면','h_analysis'],['자주 묻는 질문','h_faq']]
+      .map(([t,id])=>`<button class="help-chip" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth',block:'start'})">${t}</button>`).join('')}
+  </div>
+
+  <div class="sec" id="h_start"><div class="sec-hd"><span class="no c1">1</span><h3>시작하기</h3></div>
+    <div class="sec-bd help-body">
+      <p><b>로그인</b> — 드롭다운에서 본인 이름을 고르고 6자리 PIN을 입력합니다. PIN은 관리자가 발급합니다.</p>
+      <p><b>PIN 변경</b> — 오른쪽 위 'PIN 변경'에서 바꿀 수 있습니다. 5회 틀리면 15분 잠기며 관리자가 해제합니다.</p>
+      <p><b>테마</b> — 오른쪽 위 드롭다운에서 화면 색(짙은/옅은 계열)을 고릅니다. 본인 브라우저에만 저장되어 각자 다른 색을 쓸 수 있습니다.</p>
+      <p><b>홈으로</b> — 왼쪽 위 '홈·캘린더'를 누르면 언제든 캘린더로 돌아옵니다.</p>
+    </div>
+  </div>
+
+  <div class="sec" id="h_nav"><div class="sec-hd"><span class="no c2">2</span><h3>메뉴 안내</h3></div>
+    <div class="sec-bd help-body"><div class="help-nav-grid">
+      <div class="hnav"><h4>마감 캘린더</h4><p>월별 달력에서 팀·날짜별 마감 상태를 봅니다. 날짜를 누르면 마감 작성, 달력 아래 팀 카드를 누르면 월간 종합일보가 열립니다.</p></div>
+      <div class="hnav"><h4>경영 대시보드</h4><p>기간·팀·완반 기준 달성률·로스·불량·비가동을 그래프로 봅니다.</p></div>
+      <div class="hnav"><h4>팀별 현황</h4><p>팀 카드를 누르면 그 팀의 생산경영현황(오더별·제품별 상세 포함)이 열립니다.</p></div>
+      <div class="hnav"><h4>개선접수</h4><p>현장 개선 의견을 등록하고 관리자가 답변합니다.</p></div>
+      <div class="hnav"><h4>호기 밸런스</h4><p>호기(설비)별 생산 배분을 확인합니다.</p></div>
+      <div class="hnav admin"><h4>계획 업로드 <span class="hadmin">관리자</span></h4><p>생산 계획을 붙여넣어 등록합니다.</p></div>
+      <div class="hnav admin"><h4>설정 <span class="hadmin">관리자</span></h4><p>사용자·결재라인·공지·CAPA를 관리합니다.</p></div>
+    </div></div>
+  </div>
+
+  <div class="sec" id="h_write"><div class="sec-hd"><span class="no c3">3</span><h3>마감 작성</h3></div>
+    <div class="sec-bd help-body">
+      <p>캘린더에서 날짜를 누르면 작성 화면이 열립니다. 위 요약 카드는 자동 계산되며, 아래 구역을 순서대로 확인·입력합니다.</p>
+      <div class="help-steps">
+        <div class="hstep"><span>1</span><div><b>라인별 가동 요약</b> — 라인별 오더·계획·실적·달성률 자동 집계(확인용)</div></div>
+        <div class="hstep"><span>2</span><div><b>로스(편차) 관리</b> — 편차 자재에 로스유형·사유 입력 후 저장. 손실은 빨강, 절감은 초록</div></div>
+        <div class="hstep"><span>3</span><div><b>불량 등록</b> — 라인·제품·유형·수량·사유 입력</div></div>
+        <div class="hstep"><span>4</span><div><b>비가동 등록</b> — '+비가동 등록' → 라인·구분·사유·시간 입력</div></div>
+        <div class="hstep"><span>5</span><div><b>비가동 요약</b> — 라인별 정지시간 집계(확인용)</div></div>
+        <div class="hstep"><span>6</span><div><b>파트별 투입인원</b> — 라인별 계획·정규직·파견 인원 입력 후 저장</div></div>
+      </div>
+      <div class="help-note tip">각 구역의 저장 버튼을 누르면 그 부분만 바로 반영됩니다. 다 되면 '제출'로 결재를 올립니다.</div>
+    </div>
+  </div>
+
+  <div class="sec" id="h_appr"><div class="sec-hd"><span class="no c4">4</span><h3>결재 흐름</h3></div>
+    <div class="sec-bd help-body">
+      <div class="help-flow">
+        <span class="hnode">작성</span><span class="harr">→</span>
+        <span class="hnode">팀장</span><span class="harr">→</span>
+        <span class="hnode">본부장</span><span class="harr">→</span>
+        <span class="hnode">CEO</span>
+      </div>
+      <p>제출하면 팀장부터 순서대로 결재합니다. 반려되면 작성자에게 돌아오며 수정 후 다시 제출합니다. 결재 이력은 마감 화면의 '결재 이력'에서 봅니다.</p>
+    </div>
+  </div>
+
+  <div class="sec" id="h_analysis"><div class="sec-hd"><span class="no c5">5</span><h3>분석 화면</h3></div>
+    <div class="sec-bd help-body">
+      <p><b>월간 종합일보</b> — 캘린더 아래 팀 카드 → 팀/집계(일·주·월)/완반 필터로 달성률·로스 추이와 라인별 상세. 라인을 누르면 더 내려갑니다.</p>
+      <p><b>팀 생산경영현황</b> — 팀별 현황 → 팀 카드 → 기간조회 + 핵심지표 6종 + 경영요약·손실구조 + 도넛 + 라인별 성과표 + 오더별/제품별 상세(전체보기 드릴다운).</p>
+      <div class="help-note warn">가동시간·인원·불량을 마감에서 입력해야 계획가동률·비계획정지율·생산성·불량률이 계산됩니다. 데이터가 쌓이면 자동으로 채워집니다.</div>
+    </div>
+  </div>
+
+  <div class="sec" id="h_faq"><div class="sec-hd"><span class="no c6">6</span><h3>자주 묻는 질문</h3></div>
+    <div class="sec-bd help-body">
+      <div class="help-faq"><b>PIN을 잊었어요</b><p>관리자가 설정→사용자 관리에서 잠금 해제·재발급합니다.</p></div>
+      <div class="help-faq"><b>저장했는데 안 보여요</b><p>각 구역 저장 버튼을 눌렀는지 확인하세요. 그래도 안 되면 새로고침(Ctrl+Shift+R).</p></div>
+      <div class="help-faq"><b>달성률이 100%가 넘어요</b><p>계획보다 실적이 많으면 초과 생산으로 100%를 넘습니다.</p></div>
+      <div class="help-faq"><b>로스금액이 +/-로 나와요</b><p>손실(초과 사용)은 빨강 -, 절감은 초록 +입니다.</p></div>
+      <div class="help-faq"><b>분석에 0이 많아요</b><p>가동시간·인원·불량을 입력해야 계산됩니다. 매일 기록하면 채워집니다.</p></div>
+    </div>
+  </div>`;
+}
+
 /* ============ 개선접수 게시판 ============ */
 let IMPROVE_FILTER=null;
 let IMPROVE_CACHE=[];
