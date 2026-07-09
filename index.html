@@ -2510,6 +2510,7 @@ function renderMoreSections(){
     ${downDetail?`<div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
       <thead><tr><th>라인</th><th>구분</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th></th></tr></thead>
       <tbody>${downDetail}</tbody></table></div>`:''}
+    <div id="downFormSlot"></div>
   </div>
 
   <!-- ⑤ 비가동 파레토: 라인별 스코어카드 (캡쳐1 스타일) -->
@@ -2613,9 +2614,13 @@ async function delDefect(id){
 
 /* ⑤ 비가동 입력 폼 */
 function openDownForm(){
-  $('#inputForm').innerHTML=`
-  <div class="sec" style="border:2px solid var(--navy)"><div class="sec-hd"><h3>비가동 등록</h3>
-    <span class="sp"></span><button class="tbtn" onclick="$('#inputForm').innerHTML=''">닫기</button></div>
+  const slot=$('#downFormSlot');
+  if(!slot) return;
+  // 이미 열려있으면 닫기(토글)
+  if(slot.innerHTML.trim()!==''){ slot.innerHTML=''; return; }
+  slot.innerHTML=`
+  <div class="sec" style="border:2px solid var(--navy);margin-top:12px"><div class="sec-hd"><h3>비가동 등록</h3>
+    <span class="sp"></span><button class="tbtn" onclick="$('#downFormSlot').innerHTML=''">닫기</button></div>
     <div class="sec-bd"><div class="work-grid">
       <div class="work-field"><label>라인</label><select id="dtLine">${CUR_DAY._lineOpts}</select></div>
       <div class="work-field"><label>구분</label><select id="dtCat">
