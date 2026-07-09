@@ -342,6 +342,29 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .kind-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:#f1f4fa;color:var(--sub)}
 .kind-tag.fin{background:var(--blue-soft);color:var(--blue)}
 .kind-tag.semi{background:var(--grn-soft);color:var(--grn)}
+/* 팀 상세 종합지표 */
+.sc-sub{font-size:10.5px;color:var(--mut);margin-top:3px;font-weight:600}
+.dash-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.capa-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.capa-box{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center}
+.capa-t{font-size:13px;color:var(--sub);font-weight:700;margin-bottom:8px}
+.capa-v{font-size:32px;font-weight:800;color:var(--red);font-family:var(--mono,monospace)}
+.capa-s{font-size:11px;color:var(--mut);margin-top:6px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sum-card{border-radius:10px;padding:12px 14px;border:1px solid transparent}
+.sum-card.sc-red{background:#fdf1ef;border-color:#f7d7d0}
+.sum-card.sc-blue{background:var(--blue-soft);border-color:#c7dbff}
+.sum-card.sc-amber{background:#fffbeb;border-color:#fde68a}
+.sum-hd{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px;display:flex;justify-content:space-between}
+.sum-hd b{color:var(--navy2)}
+.sum-body{font-size:11.5px;color:var(--sub);line-height:1.5}
+.loss-list{display:flex;flex-direction:column;gap:10px}
+.loss-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#f8fafc;border-radius:10px}
+.loss-t{font-size:11px;color:var(--mut);margin-bottom:3px}
+.loss-n{font-size:15px;font-weight:800;color:var(--ink)}
+.loss-s{font-size:11px;color:var(--mut);margin-top:2px}
+.loss-pct{font-size:22px;font-weight:800;color:var(--navy2);font-family:var(--mono,monospace)}
+@media(max-width:900px){.dash-3col{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr}.capa-2col{grid-template-columns:1fr}}
 /* 월간일보 필터 세그먼트 */
 .tr-filters{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh)}
 .seg{display:flex;align-items:center;gap:6px}
@@ -1156,60 +1179,152 @@ async function openTeamDetail(team,ym){
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
   await loadTeamDetail();
 }
+function shiftTeamDetail(delta){
+  let [y,m]=TD.ym.split('-').map(Number);
+  m+=delta; while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  openTeamDetail(TD.team,`${y}-${String(m).padStart(2,'0')}`);
+}
+function applyTDPeriod(){
+  const f=$('#tdFrom').value, t=$('#tdTo').value;
+  if(f&&t){ TD.from=f; TD.to=t; TD.ym=f.slice(0,7); loadTeamDetail(); }
+}
 async function loadTeamDetail(){
   TD.charts.forEach(c=>{try{c.destroy()}catch(e){}}); TD.charts=[];
-  const p={p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:TD.kind};
   try{
-    const [sum,scrap,defect]=await Promise.all([
+    const [met,sum,scrap,defect,downtime]=await Promise.all([
+      sb.rpc('team_full_metrics',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
       sb.rpc('report_summary',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:TD.kind}),
       sb.rpc('team_scrap_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
-      sb.rpc('team_defect_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to})
+      sb.rpc('team_defect_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
+      sb.rpc('team_downtime_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to})
     ]);
-    const s=sum.data||{}, sc=scrap.data||[], df=defect.data||[];
-    TD.sc=sc; TD.df=df;
-    const kindBtns=[['','전체'],['fin','완제품'],['semi','반제품']].map(([k,label])=>
-      `<button class="seg-btn ${(TD.kind||'')===k?'on':''}" onclick="setTDKind('${k}')">${label}</button>`).join('');
+    const M=met.data||{}, s=sum.data||{}, sc=scrap.data||[], df=defect.data||[], dt=downtime.data||[];
+    TD.sc=sc; TD.df=df; TD.dt=dt;
+
+    // 경영요약 자동 코멘트
+    const topScrap=sc[0], topDefect=df[0], topDown=dt[0];
+    const scrapTotal=sc.reduce((a,b)=>a+Number(b.amt),0);
+    const defectTotal=df.reduce((a,b)=>a+Number(b.qty),0);
+    const downTotal=dt.reduce((a,b)=>a+Number(b.total_min),0);
+
     $('#wrap').innerHTML=`
     <div class="tr-hero">
       <div><div class="tr-crumb" onclick="go('team')" style="cursor:pointer">← 팀별 현황</div>
         <h2>${TD.team} 생산경영현황</h2>
-        <div class="en">TEAM DETAIL · ${TD.team} · ${TD.ym}</div></div>
+        <div class="en">저장된 일보 ${M.work_days||0}건 · 조회기간 ${TD.from} ~ ${TD.to}</div></div>
       <div class="tr-nav">
         <button onclick="openTeamReport('${TD.team}','${TD.ym}')">월간일보</button>
         <button class="tr-cal" onclick="go('cal')">캘린더</button>
       </div>
     </div>
-    <div class="score-row" style="grid-template-columns:repeat(5,1fr)">
-      <div class="sc"><div class="l">계획대비 달성</div><div class="v mono ${s.achieve>=100?'g':'r'}" style="color:${s.achieve>=100?'var(--grn)':'var(--red)'}">${s.achieve||0}%</div></div>
-      <div class="sc b"><div class="l">총 실적</div><div class="v mono" style="font-size:15px">${fmt(Math.round(s.actual_sum))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc"><div class="l">완제품</div><div class="v mono" style="font-size:15px">${fmt(Math.round(s.fin_actual))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc"><div class="l">반제품</div><div class="v mono" style="font-size:15px">${fmt(Math.round(s.semi_actual))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:13px">${fmtWon(s.net_loss)}</div></div>
+
+    <!-- 기간 조회 -->
+    <div class="tr-filters" style="justify-content:space-between">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="seg-label">조회기간</span>
+        <input type="date" id="tdFrom" value="${TD.from}" style="padding:6px 10px;border:1.5px solid var(--line);border-radius:7px">
+        <span>~</span>
+        <input type="date" id="tdTo" value="${TD.to}" style="padding:6px 10px;border:1.5px solid var(--line);border-radius:7px">
+        <button class="seg-btn on" onclick="applyTDPeriod()">조회</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="seg-btn" onclick="shiftTeamDetail(-1)">‹ 전월</button>
+        <button class="seg-btn" onclick="openTeamDetail('${TD.team}',kstMonth())">이번달</button>
+        <button class="seg-btn" onclick="shiftTeamDetail(1)">다음월 ›</button>
+      </div>
     </div>
 
-    <!-- 스크랩/불량 도넛 -->
+    <!-- 스코어카드 6 -->
+    <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
+      <div class="sc ${M.achieve>=100?'g':'r'}"><div class="l">계획대비</div><div class="v mono">${M.achieve||0}%</div><div class="sc-sub">${fmt(Math.round(M.actual))} / ${fmt(Math.round(M.plan))}</div></div>
+      <div class="sc b"><div class="l">계획가동률</div><div class="v mono">${M.run_rate||0}%</div><div class="sc-sub">${M.run_hours||0}hr 가동</div></div>
+      <div class="sc"><div class="l">비계획정지율</div><div class="v mono" style="color:var(--red)">${M.unplan_rate||0}%</div><div class="sc-sub">${fmt(M.unplan_min||0)}분</div></div>
+      <div class="sc"><div class="l">생산성</div><div class="v mono">${fmt(M.productivity||0)}</div><div class="sc-sub">기본단위/hr</div></div>
+      <div class="sc"><div class="l">스크랩률</div><div class="v mono">${M.scrap_rate||0}%</div><div class="sc-sub">${fmtWon(M.scrap_amt||0)}</div></div>
+      <div class="sc"><div class="l">불량률</div><div class="v mono">${M.defect_rate||0}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
+    </div>
+
+    <!-- CAPA 가동률 -->
+    <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>성능가동률 (CAPA 기준)</h3>
+      <span class="desc">시간당 능력 × 실제 가동시간 기준</span></div>
+      <div class="sec-bd"><div class="capa-2col">
+        <div class="capa-box">
+          <div class="capa-t">성능가동률</div>
+          <div class="capa-v">${M.perf_rate||0}%</div>
+          <div class="capa-s">${fmt(Math.round(M.actual))} / ${fmt(Math.round(M.capa_potential))} KG</div>
+        </div>
+        <div class="capa-box">
+          <div class="capa-t">시간당 능력 합계</div>
+          <div class="capa-v" style="color:var(--navy2)">${fmt(M.capa_hourly||0)}<span style="font-size:14px">kg/hr</span></div>
+          <div class="capa-s">${M.capa_hourly>0?'설정됨':'미설정 · 설정→CAPA관리'}</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 경영요약 | 손실구조 요약 -->
     <div class="dash-2col">
+      <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>경영 요약</h3>
+        <span class="desc">성과·품질·손실 핵심 지표</span></div>
+        <div class="sec-bd"><div class="summary-grid">
+          <div class="sum-card sc-red"><div class="sum-hd">생산계획 달성 <b>${M.achieve||0}%</b></div>
+            <div class="sum-body">목표 대비 ${M.achieve>=100?'초과 달성':(100-(M.achieve||0)).toFixed(1)+'%p 미달'}. 주요 오더·라인별 손실을 회수 구간으로 확인하세요.</div></div>
+          <div class="sum-card sc-blue"><div class="sum-hd">계획가동률 <b>${M.run_rate||0}%</b></div>
+            <div class="sum-body">비계획정지(${fmt(M.unplan_min||0)}분)와 분리해 해석합니다. 반복 사유가 개선 후보입니다.</div></div>
+          <div class="sum-card sc-amber"><div class="sum-hd">스크랩 집중도 <b>${topScrap?topScrap.scrap_type:'-'}</b></div>
+            <div class="sum-body">${topScrap?'TOP 유형이 스크랩 내부 '+(scrapTotal>0?(topScrap.amt/scrapTotal*100).toFixed(1):0)+'%. 재투입·계량·작업조건 확인 후보.':'저장된 스크랩 데이터 없음'}</div></div>
+          <div class="sum-card sc-amber"><div class="sum-hd">불량 손실 비중 <b>${topDefect?topDefect.defect_type:'-'}</b></div>
+            <div class="sum-body">${topDefect?'TOP 유형 불량 내부 '+(defectTotal>0?(topDefect.qty/defectTotal*100).toFixed(1):0)+'%. 제품별 품질과 연결해 확인.':'저장된 불량 데이터 없음'}</div></div>
+          <div class="sum-card sc-red"><div class="sum-hd">비계획정지 영향 <b>${fmt(M.unplan_min||0)}분</b></div>
+            <div class="sum-body">${topDown?topDown.reason_type+' 사유가 비계획정지 중 가장 큽니다. 반복 지점을 확인하세요.':'저장된 비계획정지 없음'}</div></div>
+        </div></div>
+      </div>
+      <div class="sec"><div class="sec-hd"><span class="no c3">◆</span><h3>손실 구조 요약</h3>
+        <span class="desc">각 손실군 내부 비중</span></div>
+        <div class="sec-bd"><div class="loss-list">
+          <div class="loss-row"><div><div class="loss-t">스크랩 회수 후보 1위</div><div class="loss-n">${topScrap?topScrap.scrap_type:'-'}</div><div class="loss-s">${sc.length}개 유형 · 스크랩 내부 비중</div></div>
+            <div class="loss-pct">${topScrap&&scrapTotal>0?(topScrap.amt/scrapTotal*100).toFixed(1):0}%</div></div>
+          <div class="loss-row"><div><div class="loss-t">불량 손실 비중 1위</div><div class="loss-n">${topDefect?topDefect.defect_type:'-'}</div><div class="loss-s">${df.length}개 유형 · 불량 내부 비중</div></div>
+            <div class="loss-pct">${topDefect&&defectTotal>0?(topDefect.qty/defectTotal*100).toFixed(1):0}%</div></div>
+          <div class="loss-row"><div><div class="loss-t">비계획정지 TOP 유형</div><div class="loss-n">${topDown?topDown.reason_type:'-'}</div><div class="loss-s">비계획정지 ${fmt(M.unplan_min||0)}분 · 우선 개선 후보</div></div>
+            <div class="loss-pct">${topDown&&downTotal>0?(topDown.total_min/downTotal*100).toFixed(1):0}%</div></div>
+          <div class="loss-row"><div><div class="loss-t">평균 투입 인원</div><div class="loss-n">${M.manpower||0}명</div><div class="loss-s">기간 평균 · 생산성 ${fmt(M.productivity||0)}/hr</div></div>
+            <div class="loss-pct" style="color:var(--navy2)">${M.work_days||0}일</div></div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- 스크랩/불량/비계획정지 도넛 3개 -->
+    <div class="dash-3col">
       <div class="sec"><div class="sec-hd"><span class="no c5">◆</span><h3>스크랩 유형별</h3></div>
-        <div class="sec-bd"><div style="height:220px"><canvas id="tdScrap"></canvas></div></div></div>
+        <div class="sec-bd"><div style="height:200px"><canvas id="tdScrap"></canvas></div></div></div>
       <div class="sec"><div class="sec-hd"><span class="no c4">◆</span><h3>불량 유형별</h3></div>
-        <div class="sec-bd"><div style="height:220px"><canvas id="tdDefect"></canvas></div></div></div>
+        <div class="sec-bd"><div style="height:200px"><canvas id="tdDefect"></canvas></div></div></div>
+      <div class="sec"><div class="sec-hd"><span class="no c6">◆</span><h3>비계획정지 사유별</h3></div>
+        <div class="sec-bd"><div style="height:200px"><canvas id="tdDown"></canvas></div></div></div>
     </div>
 
     <!-- 오더별/제품별 탭 -->
     <div class="ld-tabs">
       <button class="ldtab ${TD.tab==='order'?'on':''}" id="tdtab_order" onclick="setTDTab('order')">오더별 현황</button>
       <button class="ldtab ${TD.tab==='product'?'on':''}" id="tdtab_product" onclick="setTDTab('product')">제품별 현황</button>
-    </div>
-    <div class="tr-filters" style="margin-bottom:14px">
-      <div class="seg"><span class="seg-label">구분</span>${kindBtns}</div>
+      <div style="flex:1"></div>
+      <div class="seg"><span class="seg-label">구분</span>
+        ${[['','전체'],['fin','완제품'],['semi','반제품']].map(([k,label])=>`<button class="seg-btn ${(TD.kind||'')===k?'on':''}" onclick="setTDKind('${k}')">${label}</button>`).join('')}
+      </div>
     </div>
     <div id="tdTabBody"></div>`;
 
-    const donutColors=['#4a6784','#4e9a72','#c99a4a','#c17a5a','#8a6da0','#6a9ab5','#b5896a'];
-    if(sc.length){ const c=new Chart($('#tdScrap'),{type:'doughnut',data:{labels:sc.map(x=>x.scrap_type),datasets:[{data:sc.map(x=>Math.round(x.amt)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); TD.charts.push(c); }
-    else { $('#tdScrap').parentElement.innerHTML='<div style="color:var(--mut);padding:40px;text-align:center">저장된 스크랩 데이터 없음</div>'; }
-    if(df.length){ const c=new Chart($('#tdDefect'),{type:'doughnut',data:{labels:df.map(x=>x.defect_type),datasets:[{data:df.map(x=>Math.round(x.qty)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); TD.charts.push(c); }
-    else { $('#tdDefect').parentElement.innerHTML='<div style="color:var(--mut);padding:40px;text-align:center">저장된 불량 데이터 없음</div>'; }
+    const donutColors=['#4a6784','#4e9a72','#c99a4a','#c17a5a','#8a6da0','#6a9ab5','#b5896a','#7a9a4e'];
+    const mkDonut=(id,labels,data)=>{
+      const el=$('#'+id); if(!el)return;
+      if(!labels.length){ el.parentElement.innerHTML='<div style="color:var(--mut);padding:40px;text-align:center;font-size:13px">저장된 데이터 없음</div>'; return; }
+      const c=new Chart(el,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:donutColors}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}}}}});
+      TD.charts.push(c);
+    };
+    mkDonut('tdScrap',sc.map(x=>x.scrap_type),sc.map(x=>Math.round(x.amt)));
+    mkDonut('tdDefect',df.map(x=>x.defect_type),df.map(x=>Math.round(x.qty)));
+    mkDonut('tdDown',dt.map(x=>x.reason_type),dt.map(x=>Math.round(x.total_min)));
 
     loadTDTab();
   }catch(e){ toast('팀 상세 조회 실패: '+(e.message||e),'err'); }
