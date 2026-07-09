@@ -677,15 +677,18 @@ async function showNoticePopup(){
     m.id='noticePopup';
     m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.55);display:grid;place-items:center;z-index:1000;padding:20px';
     m.innerHTML=`
-      <div style="background:#fff;border-radius:18px;padding:32px;width:520px;max-width:100%;box-shadow:var(--sh-lg);max-height:80vh;overflow-y:auto">
+      <div style="background:#fff;border-radius:18px;padding:32px;width:520px;max-width:100%;box-shadow:var(--sh-lg);max-height:80vh;overflow-y:auto;position:relative">
+        <button onclick="document.getElementById('noticePopup').remove()" style="position:absolute;top:18px;right:18px;background:#f1f4fa;border:none;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:16px;color:var(--sub)" title="닫기">✕</button>
         <div style="font-size:12px;font-weight:800;color:var(--blue);letter-spacing:.05em;margin-bottom:6px">공지사항</div>
-        <h3 style="margin:0 0 18px;font-size:22px;color:var(--ink)">${data.title}</h3>
+        <h3 style="margin:0 0 14px;font-size:22px;color:var(--ink);padding-bottom:14px;border-bottom:2px solid var(--red)">${data.title}</h3>
         <div style="font-size:14.5px;line-height:1.7;color:var(--sub);white-space:pre-line">${(data.content||'').replace(/\n/g,'<br>')}</div>
         <div style="text-align:right;margin-top:24px">
           <button class="tbtn submit" onclick="document.getElementById('noticePopup').remove()">확인</button>
         </div>
       </div>`;
     document.body.appendChild(m);
+    // 바깥 클릭으로도 닫기
+    m.addEventListener('click',ev=>{ if(ev.target===m) m.remove(); });
   }catch(e){ /* 공지 없으면 조용히 무시 */ }
 }
 function showErr(m){const e=$('#loginErr');e.textContent=m;e.classList.remove('hidden');}
@@ -1529,7 +1532,7 @@ async function loadTDTab(){
     body.innerHTML=`<div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>오더별 현황</h3>
       <span class="desc">제품코드(오더) 단위 · ${od.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>생산성</th><th>스크랩률</th><th>불량률</th><th>비계획정지</th><th>로스금액</th></tr></thead>
         <tbody>${od.map(o=>`<tr>
           <td class="mono">${o.prod_code}</td>
           <td class="l">${o.prod_name||'-'}</td>
@@ -1538,8 +1541,12 @@ async function loadTDTab(){
           <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
           <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
           <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono">${o.productivity>0?fmt(o.productivity):'–'}</td>
+          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
+          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
+          <td class="mono">${o.unplan_min>0?fmt(o.unplan_min)+'분':'–'}</td>
           <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
-        </tr>`).join('')||'<tr><td colspan="8" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+        </tr>`).join('')||'<tr><td colspan="12" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
       </table></div></div>`;
   }else{
     const {data}=await sb.rpc('team_product_detail',p);
@@ -1547,15 +1554,17 @@ async function loadTDTab(){
     body.innerHTML=`<div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>제품별 현황</h3>
       <span class="desc">제품명 단위 · ${pd.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>스크랩률</th><th>불량률</th><th>로스금액</th></tr></thead>
         <tbody>${pd.map(o=>`<tr>
           <td class="l">${o.prod_name||'-'}</td>
           <td class="mono">${o.order_cnt}</td>
           <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
           <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
           <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
+          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
           <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
-        </tr>`).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+        </tr>`).join('')||'<tr><td colspan="8" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
       </table></div></div>`;
   }
 }
@@ -1574,13 +1583,17 @@ async function openTDDrill(kind){
         <h2>오더별 드릴다운</h2><div class="en">제품코드(오더) 단위 전체 · ${od.length}건 · ${TD.from} ~ ${TD.to}</div></div>
         <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
       <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>생산성</th><th>스크랩률</th><th>불량률</th><th>비계획정지</th><th>로스금액</th></tr></thead>
         <tbody>${od.map(o=>`<tr>
           <td class="mono">${o.prod_code}</td><td class="l">${o.prod_name||'-'}</td>
           <td style="font-size:12px;color:var(--sub)">${o.line}</td>
           <td><span class="kind-tag ${o.kind==='완제품'?'fin':o.kind==='반제품'?'semi':''}">${o.kind}</span></td>
           <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
           <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono">${o.productivity>0?fmt(o.productivity):'–'}</td>
+          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
+          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
+          <td class="mono">${o.unplan_min>0?fmt(o.unplan_min)+'분':'–'}</td>
           <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
         </tr>`).join('')}</tbody></table></div></div>`;
     }else{
@@ -1592,11 +1605,13 @@ async function openTDDrill(kind){
         <h2>제품별 드릴다운</h2><div class="en">제품명 단위 전체 · ${pd.length}건 · ${TD.from} ~ ${TD.to}</div></div>
         <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
       <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>스크랩률</th><th>불량률</th><th>로스금액</th></tr></thead>
         <tbody>${pd.map(o=>`<tr>
           <td class="l">${o.prod_name||'-'}</td><td class="mono">${o.order_cnt}</td>
           <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
           <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
+          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
           <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
         </tr>`).join('')}</tbody></table></div></div>`;
     }
