@@ -365,6 +365,14 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .loss-s{font-size:11px;color:var(--mut);margin-top:2px}
 .loss-pct{font-size:22px;font-weight:800;color:var(--navy2);font-family:var(--mono,monospace)}
 @media(max-width:900px){.dash-3col{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr}.capa-2col{grid-template-columns:1fr}}
+.linkbtn{background:none;border:none;color:var(--blue);font-size:13px;font-weight:700;cursor:pointer;padding:4px 8px}
+.linkbtn:hover{text-decoration:underline}
+.rank-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.rank-row:last-child{border-bottom:none}
+.rank-t{font-size:14px;font-weight:700;color:var(--ink)}
+.rank-s{font-size:11px;color:var(--mut);margin-top:2px}
+.rank-v{font-size:15px;font-weight:800;color:var(--ink)}
+.rank-v.neg{color:var(--red)}
 /* 월간일보 필터 세그먼트 */
 .tr-filters{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh)}
 .seg{display:flex;align-items:center;gap:6px}
@@ -1303,6 +1311,27 @@ async function loadTeamDetail(){
         <div class="sec-bd"><div style="height:200px"><canvas id="tdDown"></canvas></div></div></div>
     </div>
 
+    <!-- 라인별 성과와 손실 표 -->
+    <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>라인별 성과와 손실</h3>
+      <span class="desc">라인별 생산성과 손실 집중도를 한 번에 비교</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table id="linePerfTable">
+        <thead><tr><th>라인</th><th>계획대비</th><th>실적(KG)</th><th>계획가동률</th><th>비계획정지</th><th>스크랩률</th><th>불량률</th><th>인력</th><th>오더</th></tr></thead>
+        <tbody><tr><td colspan="9" style="color:var(--mut);padding:16px">로딩중...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- 오더별 리스크 | 제품별 품질 우선순위 -->
+    <div class="dash-2col">
+      <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>오더별 리스크 우선순위</h3>
+        <span class="sp"></span><button class="linkbtn" onclick="openTDDrill('order')">전체보기 →</button></div>
+        <div class="sec-bd" id="orderRiskBody"><div class="skel" style="height:120px;border-radius:10px"></div></div>
+      </div>
+      <div class="sec"><div class="sec-hd"><span class="no c3">◆</span><h3>제품별 품질 우선순위</h3>
+        <span class="sp"></span><button class="linkbtn" onclick="openTDDrill('product')">전체보기 →</button></div>
+        <div class="sec-bd" id="productQualBody"><div class="skel" style="height:120px;border-radius:10px"></div></div>
+      </div>
+    </div>
+
     <!-- 오더별/제품별 탭 -->
     <div class="ld-tabs">
       <button class="ldtab ${TD.tab==='order'?'on':''}" id="tdtab_order" onclick="setTDTab('order')">오더별 현황</button>
@@ -1325,6 +1354,43 @@ async function loadTeamDetail(){
     mkDonut('tdScrap',sc.map(x=>x.scrap_type),sc.map(x=>Math.round(x.amt)));
     mkDonut('tdDefect',df.map(x=>x.defect_type),df.map(x=>Math.round(x.qty)));
     mkDonut('tdDown',dt.map(x=>x.reason_type),dt.map(x=>Math.round(x.total_min)));
+
+    // 라인별 성과표
+    sb.rpc('team_line_performance',{p_team:TD.team,p_from:TD.from,p_to:TD.to}).then(({data})=>{
+      const lp=data||[];
+      const tb=$('#linePerfTable')&&$('#linePerfTable').querySelector('tbody');
+      if(tb) tb.innerHTML=lp.map(l=>`<tr>
+        <td class="l"><b>${l.line}</b></td>
+        <td class="mono ${l.achieve>=100?'pos':'neg'}">${l.achieve}%</td>
+        <td class="mono">${fmt(Math.round(l.actual))}</td>
+        <td class="mono">${l.run_rate}%</td>
+        <td class="mono">${fmt(l.unplan_min)}분 (${l.unplan_pct}%)</td>
+        <td class="mono">${l.scrap_rate}%</td>
+        <td class="mono">${l.defect_rate}%</td>
+        <td class="mono">${l.manpower}</td>
+        <td class="mono">${l.order_cnt}</td>
+      </tr>`).join('')||'<tr><td colspan="9" style="color:var(--mut);padding:16px">데이터 없음</td></tr>';
+    });
+
+    // 오더별 리스크 우선순위
+    sb.rpc('team_order_risk',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_limit:8}).then(({data})=>{
+      const od=data||[];
+      const el=$('#orderRiskBody');
+      if(el) el.innerHTML=od.map(o=>`<div class="rank-row">
+        <div><div class="rank-t">${o.prod_code}</div><div class="rank-s">${o.line} · ${o.prod_name||'-'}</div></div>
+        <div style="text-align:right"><div class="rank-v ${o.defect_qty>0?'neg':''}">불량 ${fmt(o.defect_qty)}</div><div class="rank-s">스크랩 ${fmtWon(o.scrap_amt)}</div></div>
+      </div>`).join('')||'<div style="color:var(--mut);padding:16px">데이터 없음</div>';
+    });
+
+    // 제품별 품질 우선순위
+    sb.rpc('team_product_quality',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_limit:8}).then(({data})=>{
+      const pd=data||[];
+      const el=$('#productQualBody');
+      if(el) el.innerHTML=pd.map(p=>`<div class="rank-row">
+        <div><div class="rank-t">${p.prod_name||'-'}</div><div class="rank-s">${p.order_cnt}개 오더 · 실적 ${fmt(Math.round(p.actual))}</div></div>
+        <div style="text-align:right"><div class="rank-v ${p.defect_rate>0?'neg':''}">${p.defect_rate}%</div><div class="rank-s">불량 ${fmt(p.defect_qty)}</div></div>
+      </div>`).join('')||'<div style="color:var(--mut);padding:16px">데이터 없음</div>';
+    });
 
     loadTDTab();
   }catch(e){ toast('팀 상세 조회 실패: '+(e.message||e),'err'); }
@@ -1370,6 +1436,49 @@ async function loadTDTab(){
         </tr>`).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
       </table></div></div>`;
   }
+}
+/* 전체보기 → 오더별/제품별 드릴다운 전체화면 */
+async function openTDDrill(kind){
+  S.view='tddrill';
+  $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
+  const p={p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null};
+  try{
+    if(kind==='order'){
+      const {data}=await sb.rpc('team_order_detail',p);
+      const od=data||[];
+      $('#wrap').innerHTML=`
+      <div class="tr-hero"><div>
+        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← ${TD.team} 경영현황</div>
+        <h2>오더별 드릴다운</h2><div class="en">제품코드(오더) 단위 전체 · ${od.length}건 · ${TD.from} ~ ${TD.to}</div></div>
+        <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
+      <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
+        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <tbody>${od.map(o=>`<tr>
+          <td class="mono">${o.prod_code}</td><td class="l">${o.prod_name||'-'}</td>
+          <td style="font-size:12px;color:var(--sub)">${o.line}</td>
+          <td><span class="kind-tag ${o.kind==='완제품'?'fin':o.kind==='반제품'?'semi':''}">${o.kind}</span></td>
+          <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
+          <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+    }else{
+      const {data}=await sb.rpc('team_product_detail',p);
+      const pd=data||[];
+      $('#wrap').innerHTML=`
+      <div class="tr-hero"><div>
+        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← ${TD.team} 경영현황</div>
+        <h2>제품별 드릴다운</h2><div class="en">제품명 단위 전체 · ${pd.length}건 · ${TD.from} ~ ${TD.to}</div></div>
+        <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
+      <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
+        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
+        <tbody>${pd.map(o=>`<tr>
+          <td class="l">${o.prod_name||'-'}</td><td class="mono">${o.order_cnt}</td>
+          <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
+          <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
+          <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
+        </tr>`).join('')}</tbody></table></div></div>`;
+    }
+  }catch(e){ toast('드릴다운 조회 실패: '+(e.message||e),'err'); }
 }
 
 /* 라인 상세 경영현황 */
