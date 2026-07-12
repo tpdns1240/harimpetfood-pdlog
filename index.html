@@ -2281,9 +2281,10 @@ async function checkUpload(){
     const {data,error}=await sb.rpc('check_plan_impact',{p_rows:rows});
     if(error)throw error;
     let warn='';
-    if(data.locked_count>0) warn+=`⚠ 결재 진행/완료된 마감 ${data.locked_count}건이 포함됩니다. 덮어쓰면 그 데이터가 바뀝니다.\n`;
-    if(data.scrap_count>0) warn+=`⚠ 기존 로스 사유 ${data.scrap_count}건이 있는 범위입니다. 계획이 바뀌면 사유가 안 맞을 수 있습니다.\n`;
-    const msg=`[업로드 대상]\n· ${rows.length}행\n· 날짜: ${data.dates}\n\n${warn||'✓ 결재·사유 충돌 없음'}\n\n진행할까요?`;
+    if(data.done_count>0) warn+=`🔴 결재 완료된 마감 ${data.done_count}건이 포함됩니다: ${data.done_dates}\n   → 덮어쓰면 완료된 계획·실적이 변경됩니다. 작성한 로스·불량·비가동·인원은 유지됩니다.\n\n`;
+    if(data.submitted_count>0) warn+=`🟡 결재 진행중 마감 ${data.submitted_count}건이 포함됩니다.\n   → 계획·실적이 변경됩니다.\n\n`;
+    if(data.scrap_count>0) warn+=`ℹ 기존 로스 사유 ${data.scrap_count}건 범위입니다. 편차가 사라진 자재의 사유는 자동 정리됩니다.\n\n`;
+    const msg=`[업로드 대상]\n· ${rows.length}행\n· 날짜: ${data.dates}\n\n${warn||'✓ 결재·사유 충돌 없음\n\n'}진행할까요?`;
     if(confirm(msg)){ doUpload(rows); }
     else { res.className='upload-result';res.style.background='#f1f4fa';res.style.color='var(--sub)';res.textContent='취소되었습니다.'; }
   }catch(e){ res.className='upload-result err';res.textContent='확인 실패: '+(e.message||e); }
@@ -2296,7 +2297,8 @@ async function doUpload(rows){
     const {data,error}=await sb.rpc('replace_plan_partial',{p_rows:rows});
     if(error)throw error;
     res.className='upload-result ok';
-    res.textContent=`✓ 교체 완료 · 기존 ${data.deleted}행 삭제 → 새 ${data.inserted}행 삽입`;
+    res.textContent=`✓ 교체 완료 · 기존 ${data.deleted}행 삭제 → 새 ${data.inserted}행 삽입`
+      + (data.scrap_cleaned>0?` · 편차 사라진 로스사유 ${data.scrap_cleaned}건 자동정리`:'');
     toast('업로드 완료','ok');
     $('#upPaste').value='';
   }catch(e){
