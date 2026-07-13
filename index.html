@@ -2250,7 +2250,27 @@ async function saveApprLine(team){
 
 function renderUpload(){
   if(S.user.role!=='admin'){ toast('관리자만 접근 가능','err'); go('cal'); return; }
+  const _mesDate = kstToday ? kstToday() : new Date().toISOString().slice(0,10);
   $('#wrap').innerHTML=`
+  <div class="panel" style="margin-bottom:18px">
+    <div class="panel-hd"><h2>MES 가동시간 가져오기 (관리자)</h2>
+      <div class="en">구글시트(요약탭·log탭) → 가동·정지 자동 반영 · 하루 4회(07/11/15/19시) 자동</div></div>
+    <div class="panel-bd">
+      <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+        🔄 평소엔 <b>07:00 / 11:00 / 15:00 / 19:00</b>에 자동 반영됩니다. 급할 때만 아래 버튼으로 즉시 가져오세요.<br>
+        자동 반영분(<b>auto</b>)은 시트가 정답이며, 화면에서 직접 등록·수정한 건(<b>수동</b>)은 덮이지 않고 보존됩니다.
+      </div>
+      <div class="pick" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label>가져올 날짜</label>
+          <input id="mesDate" type="date" value="${_mesDate}" style="padding:9px 12px;border:1px solid var(--bd);border-radius:9px;font-size:14px">
+        </div>
+        <button class="btn-lg" id="mesBtn" onclick="fetchMES()" style="margin:0">MES 시간 가져오기</button>
+      </div>
+      <div class="upload-result" id="mesResult"></div>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="panel-hd"><h2>생산계획 업로드 (관리자)</h2>
       <div class="en">기간 붙여넣기 · 일자+팀+공정 단위 부분 교체</div></div>
@@ -2268,6 +2288,42 @@ function renderUpload(){
       <div class="upload-result" id="upResult"></div>
     </div>
   </div>`;
+}
+
+/* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
+const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
+function fetchMES(){
+  const date=$('#mesDate').value;
+  const res=$('#mesResult'); const btn=$('#mesBtn');
+  if(!date){ res.className='upload-result err'; res.textContent='날짜를 선택하세요.'; return; }
+  btn.disabled=true; const _t=btn.textContent; btn.textContent='가져오는 중…';
+  res.className='upload-result'; res.style.display='block'; res.style.background='#eff6ff'; res.style.color='#2563eb';
+  res.textContent=`${date} 데이터를 구글시트에서 가져오는 중입니다…`;
+
+  // Apps Script 웹앱은 CORS 제약이 있어 JSONP 콜백 방식으로 호출
+  const cb='mesCb_'+Date.now();
+  const done=(data)=>{
+    delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); clearTimeout(timer);
+    btn.disabled=false; btn.textContent=_t;
+    if(data&&data.ok){
+      res.className='upload-result ok';
+      res.textContent=`✓ 완료 · ${data.date} — 가동 ${data.run}건, 정지 ${data.stops}건 반영 (${(data.teams||[]).join(', ')})`;
+      toast('MES 데이터 반영 완료','ok');
+    }else{
+      res.className='upload-result err';
+      res.textContent='실패: '+((data&&data.error)||'응답 오류');
+    }
+  };
+  window[cb]=done;
+  const s=document.createElement('script');
+  s.src=`${MES_WEBAPP_URL}?date=${encodeURIComponent(date)}&callback=${cb}`;
+  s.onerror=()=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); clearTimeout(timer);
+    btn.disabled=false; btn.textContent=_t;
+    res.className='upload-result err'; res.textContent='웹앱 호출 실패 — 배포 상태·URL을 확인하세요.'; };
+  const timer=setTimeout(()=>{ if(window[cb]){ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s);
+    btn.disabled=false; btn.textContent=_t;
+    res.className='upload-result err'; res.textContent='시간 초과 — 잠시 후 다시 시도하세요.'; } },30000);
+  document.body.appendChild(s);
 }
 /* 1단계: 영향 확인 → 경고 → 확인 시 업로드 */
 async function checkUpload(){
@@ -2814,6 +2870,10 @@ function renderMoreSections(){
   <div class="sec"><div class="sec-hd"><span class="no c5">5</span><h3>라인 가동/비가동 현황</h3>
     <span class="desc">파트별 정지시간 집계(분)</span><span class="sp"></span>
     <button class="tbtn save" onclick="openDownForm()">+ 비가동 등록</button></div>
+    <div style="margin:0 0 10px;padding:9px 13px;background:var(--blue-soft);border:1px solid #c7dbff;border-radius:9px;font-size:12.5px;color:var(--blue);line-height:1.55">
+      🔄 이 현황의 가동시간·정지 데이터는 MES 구글시트에서 <b>매일 07:00 / 11:00 / 15:00 / 19:00 자동 반영</b>됩니다.
+      자동 반영분은 시트가 정답이며, 여기서 직접 <b>+비가동 등록</b>으로 추가·수정한 건은 자동 업데이트에 덮이지 않고 보존됩니다.
+    </div>
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인(파트)</th><th>계획정지</th><th>비계획정지</th><th>돌발정지</th><th>합계</th></tr></thead>
       <tbody>${downFixedRows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
