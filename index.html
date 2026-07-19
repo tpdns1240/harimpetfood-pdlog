@@ -219,6 +219,11 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+.cap-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
+.cap-badge.on{background:var(--grn-soft);color:var(--grn)}
+.cap-badge.off{background:#f1f3f6;color:#8a93a3}
+.cap-linehd td{background:#f7f9fc;border-top:2px solid var(--line);font-size:13.5px}
+.rowbtn:disabled{opacity:.4;cursor:not-allowed}
 .rowbtn{padding:5px 11px;border-radius:7px;font-weight:700;font-size:12px;margin:0 2px;border:1px solid var(--line)}
 .rowbtn.save{background:var(--navy);color:#fff;border-color:var(--navy)}
 .rowbtn.edit{background:var(--blue-soft);color:var(--blue);border-color:#c7dbff}
@@ -2063,41 +2068,98 @@ async function unlockUser(id){
   }catch(e){ toast('해제 실패: '+(e.message||e),'err'); }
 }
 
-/* --- CAPA 관리 탭 --- */
+/* --- CAPA 관리 탭 (호기별 + 활성/비활성) --- */
+let CAPA_LIST=[];
 async function renderCapaMgmt(){
   $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
-  let list=[];
-  try{ const {data}=await sb.rpc('get_capa_list',{p_team:null}); list=data||[]; }
-  catch(e){ toast('CAPA 조회 실패: '+(e.message||e),'err'); }
-  const rows=list.map((c,i)=>`<tr>
-    <td class="l"><b>${c.team}</b></td>
-    <td>${c.line}</td>
-    <td><input type="number" id="capa_${i}" value="${c.capa_hourly||''}" placeholder="0" style="width:120px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-    <td><input type="number" id="days_${i}" value="${c.work_days_month||22}" style="width:70px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-    <td><button class="rowbtn edit" onclick="saveCapa(${i},'${c.team}','${c.line.replace(/'/g,"")}')">저장</button></td>
-  </tr>`).join('');
+  try{ const {data}=await sb.rpc('get_capa_list',{p_team:null}); CAPA_LIST=data||[]; }
+  catch(e){ toast('CAPA 조회 실패: '+(e.message||e),'err'); CAPA_LIST=[]; }
+
+  // 팀 > 라인 단위로 그룹핑
+  const groups={};
+  CAPA_LIST.forEach((c,i)=>{
+    const k=c.team+'||'+c.line;
+    if(!groups[k])groups[k]={team:c.team,line:c.line,line_active:c.line_active!==false,items:[]};
+    groups[k].items.push({...c,_i:i});
+  });
+  const gk=Object.keys(groups);
+  let offCnt=0; CAPA_LIST.forEach(c=>{ if(c.active===false||c.line_active===false)offCnt++; });
+
+  const body=gk.map(k=>{
+    const g=groups[k]; const lOff=!g.line_active;
+    const esc=s=>String(s).replace(/'/g,"\\'");
+    const rows=g.items.map(c=>{
+      const off=lOff||c.active===false;
+      return `<tr style="${off?'opacity:.45;background:#fafafa':''}">
+        <td class="l" style="padding-left:22px">${c.hoki?`<b>${c.hoki}</b>호기`:'<span style="color:var(--mut)">호기 미지정</span>'}</td>
+        <td><input type="number" id="capa_${c._i}" value="${c.capa_hourly||''}" placeholder="0" ${off?'disabled':''}
+          style="width:110px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+        <td><input type="number" id="days_${c._i}" value="${c.work_days_month||22}" ${off?'disabled':''}
+          style="width:66px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+        <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${c._i})">저장</button>
+          <button class="rowbtn ${c.active===false?'':'del'}" ${lOff?'disabled':''}
+            onclick="toggleHoki(${c._i})">${c.active===false?'활성화':'비활성'}</button>
+        </td></tr>`;
+    }).join('');
+    return `<tr class="cap-linehd" style="${lOff?'opacity:.5':''}">
+        <td class="l"><b>${g.line}</b> <span style="color:var(--mut);font-size:12px">· ${g.team} · 호기 ${g.items.length}</span></td>
+        <td colspan="3"></td>
+        <td><button class="rowbtn ${lOff?'edit':'del'}" onclick="toggleLine('${esc(g.team)}','${esc(g.line)}',${lOff})">
+          ${lOff?'라인 활성화':'라인 전체 비활성'}</button></td>
+      </tr>${rows}`;
+  }).join('');
+
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ℹ 라인별 <b>시간당 생산능력(kg/hour)</b>을 입력하면, 라인 상세에서 <b>성능가동률</b>이 계산됩니다.<br>
-    · 시간당 능력: 1시간 최대 생산 가능량(kg) · 라인·제품·공정별 성능 비교의 기준<br>
-    · 성능가동률 = 실제 생산량 ÷ (시간당능력 × 실제 가동시간) × 100
+    ℹ <b>호기별</b> 시간당 생산능력(kg/hr)을 입력하면 성능가동률이 계산됩니다. (예: EP 1호기·2호기 능력이 다를 때)<br>
+    · <b>비활성</b> 처리하면 해당 호기(또는 라인 전체)는 <b>계획·실적·가동시간·비가동·생산량 등 모든 지표에서 제외</b>됩니다.<br>
+    · 성능가동률 = 실제 생산량 ÷ (호기 CAPA 합계 × 실제 가동시간) × 100
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>라인별 CAPA (시간당 생산능력)</h3>
-    <span class="desc">${list.length}개 라인</span></div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>호기별 CAPA · 활성 관리</h3>
+    <span class="desc">${gk.length}개 라인 · ${CAPA_LIST.length}개 호기${offCnt?` · <b style="color:var(--red)">비활성 ${offCnt}</b>`:''}</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>팀</th><th>라인</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>저장</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+      <thead><tr><th>라인 / 호기</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>${body||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
-async function saveCapa(i,team,line){
+async function saveCapa(i){
+  const c=CAPA_LIST[i]; if(!c)return;
   const hourly=Number($('#capa_'+i).value)||0;
   const days=Number($('#days_'+i).value)||22;
   try{
-    const {error}=await sb.rpc('set_capa',{p_team:team,p_line:line,p_hourly:hourly,p_days:days});
+    const {error}=await sb.rpc('set_capa',{p_team:c.team,p_line:c.line,p_hoki:c.hoki||'',
+      p_hourly:hourly,p_days:days,p_active:c.active!==false});
     if(error)throw error;
-    toast(line+' CAPA 저장완료','ok');
+    c.capa_hourly=hourly; c.work_days_month=days;
+    toast(`${c.line}${c.hoki?' '+c.hoki+'호기':''} 저장완료`,'ok');
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+async function toggleHoki(i){
+  const c=CAPA_LIST[i]; if(!c)return;
+  const next=!(c.active!==false);
+  const label=`${c.line}${c.hoki?' '+c.hoki+'호기':''}`;
+  if(!next && !confirm(`[${label}]를 비활성화합니다.\n\n계획·실적·가동시간·비가동 등 모든 지표에서 제외됩니다.\n(과거 데이터 포함)\n\n진행할까요?`))return;
+  try{
+    const {error}=await sb.rpc('set_capa',{p_team:c.team,p_line:c.line,p_hoki:c.hoki||'',
+      p_hourly:Number($('#capa_'+i).value)||c.capa_hourly||0,
+      p_days:Number($('#days_'+i).value)||c.work_days_month||22,p_active:next});
+    if(error)throw error;
+    toast(`${label} ${next?'활성화':'비활성'}`,'ok');
+    renderCapaMgmt();
+  }catch(e){ toast('변경 실패: '+(e.message||e),'err'); }
+}
+async function toggleLine(team,line,isOff){
+  const next=isOff;
+  if(!next && !confirm(`[${line}] 라인 전체를 비활성화합니다.\n\n이 라인의 모든 호기(호기 미지정 포함)가\n계획·실적·가동시간·비가동 등 모든 지표에서 제외됩니다.\n\n진행할까요?`))return;
+  try{
+    const {error}=await sb.rpc('set_line_active',{p_team:team,p_line:line,p_active:next});
+    if(error)throw error;
+    toast(`${line} 라인 ${next?'활성화':'전체 비활성'}`,'ok');
+    renderCapaMgmt();
+  }catch(e){ toast('변경 실패: '+(e.message||e),'err'); }
 }
 
 /* --- 공지사항 관리 탭 --- */
