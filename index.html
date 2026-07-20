@@ -1960,6 +1960,7 @@ async function renderUserMgmt(){
     <td class="l"><b>${u.name}</b></td>
     <td>${u.team||'-'}</td>
     <td><span class="type-tag">${roleKo[u.role]||u.role}</span></td>
+    <td class="l" style="font-size:12px">${u.email?`<span style="color:var(--grn)">✉ ${u.email}</span>`:'<span style="color:var(--mut)">미등록</span>'}</td>
     <td>${u.pin_set?'<span class="pos">설정됨</span>':'<span style="color:var(--red)">미설정</span>'}</td>
     <td>${u.is_locked?`<span style="color:var(--red)">🔒 잠김(${u.fail_count}회)</span>`
       :`<button class="status-toggle ${u.active?'on':'off'}" onclick="toggleActive('${u.user_id}')" title="클릭하면 상태 전환">${u.active?'● 활성':'○ 비활성'}</button>`}</td>
@@ -1995,7 +1996,7 @@ async function renderUserMgmt(){
   <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>등록된 사용자</h3>
     <span class="desc">${users.length}명</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>이름</th><th>팀</th><th>권한</th><th>PIN설정</th><th>상태</th><th>작업</th></tr></thead>
+      <thead><tr><th>이름</th><th>팀</th><th>권한</th><th>이메일</th><th>PIN설정</th><th>상태</th><th>작업</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">사용자 없음</td></tr>'}</tbody>
     </table></div>
   </div>`;
@@ -2019,6 +2020,8 @@ function editUser(userId){
           <input id="euName" value="${(u.name||'').replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
         <div><label style="font-size:12px;font-weight:700;color:var(--sub)">PIN (변경 시에만 입력)</label>
           <input id="euPin" type="password" placeholder="미입력=기존 유지" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
+        <div><label style="font-size:12px;font-weight:700;color:var(--sub)">이메일 <span style="font-weight:500;color:var(--mut)">· 결재 알림 수신용</span></label>
+          <input id="euEmail" type="email" value="${(u.email||'').replace(/"/g,'&quot;')}" placeholder="name@harim.com" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
         <div style="display:flex;gap:10px">
           <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">팀</label>
             <select id="euTeam" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;margin-top:4px">${teamOpts}</select></div>
@@ -2036,12 +2039,15 @@ function editUser(userId){
 }
 async function submitEditUser(userId){
   const name=$('#euName').value.trim(), pin=$('#euPin').value.trim();
+  const email=($('#euEmail')?$('#euEmail').value.trim():'');
   if(!name){ toast('이름 필수','err'); return; }
   try{
     const {error}=await sb.rpc('upsert_user',{
       p_user_id:userId, p_name:name, p_pin:pin,
       p_role:$('#euRole').value, p_team:$('#euTeam').value});
     if(error)throw error;
+    // 이메일은 별도 업데이트 (결재 알림 수신용)
+    await sb.from('m_users').update({email:email||null}).eq('user_id',userId);
     toast('수정완료','ok');
     document.getElementById('editUserModal').remove();
     renderUserMgmt();
@@ -2656,6 +2662,30 @@ function renderApprovalBar(){
     ${commentBox}
   </div>`;
 }
+/* 결재 알림 메일: 다음 결재자에게 자동 발송 (Apps Script 웹앱 경유) */
+async function notifyNextApprover(date,team,newStatus,actorName){
+  // 다음 결재 단계가 없으면(완료·반려) 발송 안 함
+  if(!['submitted','lead_ok','div_ok'].includes(newStatus)) return;
+  try{
+    const {data,error}=await sb.rpc('get_next_approver',{p_team:team,p_status:newStatus});
+    if(error||!data||!data.length) return;
+    const n=data[0];
+    if(!n.email){ toast(`${n.approver_name||'다음 결재자'} 이메일 미등록 — 알림 미발송`,'err'); return; }
+    const q=new URLSearchParams({
+      action:'mail', to:n.email, name:n.approver_name||'',
+      role:n.role_label||'', team, date,
+      from_name:actorName||'', url:location.origin
+    });
+    // JSONP로 호출 (응답 대기 안 함 — 결재 흐름을 막지 않기 위해)
+    const cb='mailCb_'+Date.now();
+    window[cb]=(r)=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s);
+      if(r&&r.ok&&r.sent) toast(`${n.approver_name}님께 결재 알림 발송`,'ok'); };
+    const s=document.createElement('script');
+    s.src=`${MES_WEBAPP_URL}?${q.toString()}&callback=${cb}`;
+    s.onerror=()=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); };
+    document.body.appendChild(s);
+  }catch(e){ /* 알림 실패가 결재를 막지 않도록 조용히 처리 */ }
+}
 async function doApprove(){
   const {date,team}=CUR_DAY;
   const memo=prompt('결재 의견 (선택). 예: "코터기 수율저하 별도 보고"\n없으면 그냥 확인:');
@@ -2666,7 +2696,10 @@ async function doApprove(){
       p_actor:S.user.name,p_role:S.user.role,p_memo:memo||null});
     if(error)throw error;
     if(!data.ok){ toast(data.msg||'승인 불가','err'); return; }
-    toast('승인 완료','ok'); openDay(date,team);
+    toast('승인 완료','ok');
+    // 다음 결재자에게 메일 알림
+    notifyNextApprover(date,team,data.status||data.new_status,S.user.name);
+    openDay(date,team);
   }catch(e){ toast('승인 실패: '+(e.message||e),'err'); }
 }
 async function doReject(){
@@ -3442,6 +3475,8 @@ async function saveClosing(submit){
         action:'submit', actor:S.user.name, actor_role:S.user.role||'writer', memo:comment
       });
       toast('제출 완료 · '+(data.doc_no||''),'ok');
+      // 팀장에게 결재 알림 메일
+      notifyNextApprover(date,team,'submitted',S.user.name);
       openDay(date,team);
     }else{
       const st=$('#tbStatus'); if(st) st.textContent='임시저장됨';
