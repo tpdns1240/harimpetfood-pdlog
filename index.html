@@ -289,16 +289,25 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tb-status.rej{background:#fef2f2;color:var(--red)}
 /* 결재 진행바 */
 .appr-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px;box-shadow:var(--sh)}
-.appr-flow{display:flex;align-items:center;justify-content:center;gap:0}
-.appr-step{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:80px}
-.as-dot{width:34px;height:34px;border-radius:50%;background:#eef3f8;color:var(--mut);display:grid;place-items:center;font-weight:800;font-size:14px;border:2px solid #e0e7f0;transition:all .2s}
-.appr-step.done .as-dot{background:linear-gradient(135deg,var(--grn),#22a55a);color:#fff;border-color:var(--grn)}
-.appr-step.active .as-dot{background:linear-gradient(135deg,var(--blue),#4a90d9);color:#fff;border-color:var(--blue);box-shadow:0 0 0 4px rgba(38,112,201,.15);animation:pulse 1.6s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(38,112,201,.15)}50%{box-shadow:0 0 0 7px rgba(38,112,201,.06)}}
-.as-txt{text-align:center;font-size:12px;line-height:1.3}
-.as-txt b{display:block;color:var(--ink)}
-.as-txt span{font-size:10.5px;color:var(--mut)}
-.appr-line{flex:1;height:2px;background:#e0e7f0;margin:0 4px;margin-bottom:22px;min-width:24px}
+.appr-flow{display:flex;align-items:flex-start;justify-content:center;gap:0}
+.appr-step{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:96px}
+/* 둥근 네모 스텝 */
+.as-dot{width:46px;height:40px;border-radius:12px;background:#eef3f8;color:#96a1b2;display:grid;place-items:center;font-weight:800;font-size:15px;border:2px solid #e0e7f0;transition:all .22s}
+.appr-step.done .as-dot{background:linear-gradient(135deg,var(--grn),#22a55a);color:#fff;border-color:var(--grn);box-shadow:0 3px 10px rgba(22,163,74,.24)}
+.appr-step.active .as-dot{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border-color:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.18);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,.18)}50%{box-shadow:0 0 0 8px rgba(245,158,11,.05)}}
+.as-txt{text-align:center;font-size:12px;line-height:1.35;display:flex;flex-direction:column;align-items:center;gap:2px}
+.as-txt b{display:block;color:var(--ink);font-size:12.5px}
+/* 담당자 이름: 완료=초록 / 대기=주황 / 예정=회색 */
+.as-who{font-size:11.5px;font-weight:700;color:#7c8697}
+.as-who.ok{color:var(--grn)}
+.as-who.now{color:#c2410c}
+.as-who.none{color:#c3cad6;font-weight:500;font-style:italic}
+.as-badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.02em}
+.as-badge.ok{background:var(--grn-soft);color:var(--grn)}
+.as-badge.now{background:#fff7ed;color:#c2410c}
+.appr-line{flex:1;height:3px;border-radius:2px;background:#e0e7f0;margin:0 6px;margin-top:19px;min-width:20px;transition:background .3s}
+.appr-line.fill{background:linear-gradient(90deg,var(--grn),#22a55a)}
 .tbtn.approve{background:var(--grn);color:#fff;border-color:var(--grn)}
 .tbtn.reject{background:#fff;color:var(--red);border-color:#fecaca}
 .reject-box{margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:9px;color:var(--red);font-size:13px;font-weight:600}
@@ -2565,6 +2574,12 @@ async function openDay(date, team){
     CUR_DAY.lineDown=ldRes.data||[];
     CUR_DAY.savedScraps=cl.scraps||[];
     CUR_DAY.closing=cl.closing||null;
+    // 결재라인(예정 결재자) 조회 — 아직 결재 전 단계에도 담당자 이름 표시용
+    try{
+      const {data:al}=await sb.rpc('get_approval_line',{p_team:team});
+      const map={}; (al||[]).forEach(r=>{ map[r.step]=r.approver_name; });
+      CUR_DAY.apprLine=map;
+    }catch(e){ CUR_DAY.apprLine={}; }
   }catch(e){ toast('조회 실패: '+(e.message||e),'err'); return; }
   renderClosing();
 }
@@ -2574,29 +2589,38 @@ function renderApprovalBar(){
   const c=CUR_DAY.closing||{};
   const status=c.status||'none';
   const role=S.user.role||'writer';
+  const AL=CUR_DAY.apprLine||{};
   const steps=[
-    {key:'draft',label:'작성',by:c.writer},
-    {key:'lead_ok',label:'팀장',by:c.lead_by},
-    {key:'div_ok',label:'본부장',by:c.div_by},
-    {key:'done',label:'CEO',by:c.ceo_by}
+    {key:'draft',  label:'작성',  by:c.writer,  plan:AL.writer||AL.draft||''},
+    {key:'lead_ok',label:'팀장',  by:c.lead_by, plan:AL.lead||''},
+    {key:'div_ok', label:'본부장',by:c.div_by,  plan:AL.division||''},
+    {key:'done',   label:'CEO',   by:c.ceo_by,  plan:AL.ceo||''}
   ];
   const order=['draft','submitted','lead_ok','div_ok','done'];
   const curIdx=order.indexOf(status);
-  const stepHtml=steps.map((s,i)=>{
-    let done=false, active=false;
-    if(s.key==='draft') done = curIdx>=1;
-    if(s.key==='lead_ok') done = curIdx>=2;
-    if(s.key==='div_ok') done = curIdx>=3;
-    if(s.key==='done') done = curIdx>=4;
-    if(status==='submitted'&&s.key==='lead_ok') active=true;
-    if(status==='lead_ok'&&s.key==='div_ok') active=true;
-    if(status==='div_ok'&&s.key==='done') active=true;
-    if(status==='draft'&&s.key==='draft') active=true;
-    return `<div class="appr-step ${done?'done':''} ${active?'active':''}">
+  const stepDone=(k)=>({draft:curIdx>=1,lead_ok:curIdx>=2,div_ok:curIdx>=3,done:curIdx>=4}[k]||false);
+  const stepActive=(k)=>(
+    (status==='draft'&&k==='draft')||
+    (status==='submitted'&&k==='lead_ok')||
+    (status==='lead_ok'&&k==='div_ok')||
+    (status==='div_ok'&&k==='done')
+  );
+  const parts=[];
+  steps.forEach((s,i)=>{
+    const done=stepDone(s.key), active=stepActive(s.key);
+    const who = done ? (s.by||s.plan||'') : (s.plan||s.by||'');
+    const whoCls = done ? 'ok' : (active?'now':'');
+    const badge = done?'완료':(active?'대기':'');
+    if(i>0) parts.push(`<div class="appr-line ${stepDone(steps[i-1].key)?'fill':''}"></div>`);
+    parts.push(`<div class="appr-step ${done?'done':''} ${active?'active':''}">
       <div class="as-dot">${done?'✓':i+1}</div>
-      <div class="as-txt"><b>${s.label}</b>${s.by?`<span>${s.by}</span>`:''}</div>
-    </div>`;
-  }).join('<div class="appr-line"></div>');
+      <div class="as-txt"><b>${s.label}</b>
+        ${who?`<span class="as-who ${whoCls}">${who}</span>`:'<span class="as-who none">미지정</span>'}
+        ${badge?`<span class="as-badge ${done?'ok':'now'}">${badge}</span>`:''}
+      </div>
+    </div>`);
+  });
+  const stepFlow=parts.join('');
   const statusLabel={
     none:'미작성',draft:'작성 중',submitted:'팀장 결재 대기',
     lead_ok:'본부장 결재 대기',div_ok:'CEO 결재 대기',done:'최종 완료',rejected:'반려됨'
@@ -2614,7 +2638,7 @@ function renderApprovalBar(){
     ? `<div class="comment-box">💬 작성자 의견: ${c.submit_comment}</div>` : '';
   return `
   <div class="appr-wrap">
-    <div class="appr-flow">${stepHtml}</div>
+    <div class="appr-flow">${stepFlow}</div>
     <div class="toolbar" style="margin-top:12px;margin-bottom:0">
       <span class="tb-status ${statusCls}" id="tbStatus">${statusLabel}</span>
       <button class="tbtn" onclick="showApprovalLog()">결재이력</button>
