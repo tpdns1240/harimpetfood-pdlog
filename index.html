@@ -219,6 +219,10 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+/* 데이터 출처 배지 (시트 자동 / 사이트 직접) */
+.src-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:800;cursor:help}
+.src-tag.auto{background:#eef2f7;color:#64748b;border:1px solid #dde3ec}
+.src-tag.manual{background:var(--blue-soft);color:var(--blue);border:1px solid #c7dbff}
 /* 수정 팝업 다이얼로그 */
 .dlg-back{position:fixed;inset:0;background:rgba(12,35,80,.42);backdrop-filter:blur(3px);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;animation:dlgIn .16s ease}
 @keyframes dlgIn{from{opacity:0}to{opacity:1}}
@@ -288,26 +292,42 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tb-status.done{background:var(--grn-soft);color:var(--grn)}
 .tb-status.rej{background:#fef2f2;color:var(--red)}
 /* 결재 진행바 */
-.appr-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px;box-shadow:var(--sh)}
+.appr-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;margin-bottom:16px;box-shadow:var(--sh)}
 .appr-flow{display:flex;align-items:flex-start;justify-content:center;gap:0}
-.appr-step{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:96px}
-/* 둥근 네모 스텝 */
-.as-dot{width:46px;height:40px;border-radius:12px;background:#eef3f8;color:#96a1b2;display:grid;place-items:center;font-weight:800;font-size:15px;border:2px solid #e0e7f0;transition:all .22s}
-.appr-step.done .as-dot{background:linear-gradient(135deg,var(--grn),#22a55a);color:#fff;border-color:var(--grn);box-shadow:0 3px 10px rgba(22,163,74,.24)}
-.appr-step.active .as-dot{background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;border-color:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.18);animation:pulse 1.6s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(245,158,11,.18)}50%{box-shadow:0 0 0 8px rgba(245,158,11,.05)}}
-.as-txt{text-align:center;font-size:12px;line-height:1.35;display:flex;flex-direction:column;align-items:center;gap:2px}
-.as-txt b{display:block;color:var(--ink);font-size:12.5px}
-/* 담당자 이름: 완료=초록 / 대기=주황 / 예정=회색 */
-.as-who{font-size:11.5px;font-weight:700;color:#7c8697}
-.as-who.ok{color:var(--grn)}
-.as-who.now{color:#c2410c}
-.as-who.none{color:#c3cad6;font-weight:500;font-style:italic}
-.as-badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.02em}
-.as-badge.ok{background:var(--grn-soft);color:var(--grn)}
-.as-badge.now{background:#fff7ed;color:#c2410c}
-.appr-line{flex:1;height:3px;border-radius:2px;background:#e0e7f0;margin:0 6px;margin-top:19px;min-width:20px;transition:background .3s}
+.appr-step{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:112px}
+/* 이름이 들어가는 큰 둥근 네모 카드 */
+.as-card{width:112px;padding:11px 8px;border-radius:14px;background:#f4f6fa;border:2px solid #e2e8f2;
+  text-align:center;transition:all .24s cubic-bezier(.2,.8,.3,1)}
+.as-role{font-size:11px;font-weight:700;color:#9aa5b5;letter-spacing:.03em;margin-bottom:3px}
+.as-name{font-size:15px;font-weight:800;color:#b3bccb;line-height:1.25;word-break:keep-all}
+/* 완료: 초록 */
+.appr-step.done .as-card{background:linear-gradient(135deg,#ecfdf3,#dcfce7);border-color:var(--grn)}
+.appr-step.done .as-role{color:#3f9e63}
+.appr-step.done .as-name{color:var(--grn)}
+/* 진행 중(현재 차례): 초록 + 확대 강조 */
+.appr-step.now .as-card{background:linear-gradient(135deg,var(--grn),#22a55a);border-color:#15803d;
+  transform:scale(1.14);box-shadow:0 8px 22px rgba(22,163,74,.32);animation:nowPulse 2s infinite}
+.appr-step.now .as-role{color:rgba(255,255,255,.85)}
+.appr-step.now .as-name{color:#fff;font-size:16px}
+@keyframes nowPulse{0%,100%{box-shadow:0 8px 22px rgba(22,163,74,.32)}50%{box-shadow:0 8px 30px rgba(22,163,74,.5)}}
+/* 다음 차례(대기): 주황 */
+.appr-step.next .as-card{background:#fff7ed;border-color:#fdba74}
+.appr-step.next .as-role{color:#c2410c}
+.appr-step.next .as-name{color:#ea580c}
+/* 예정: 회색 (기본) */
+.as-badge{padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.02em}
+.as-badge.done{background:var(--grn-soft);color:var(--grn)}
+.as-badge.now{background:var(--grn);color:#fff;box-shadow:0 2px 6px rgba(22,163,74,.3)}
+.as-badge.next{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.as-badge.idle{background:#f1f3f6;color:#aab3c0}
+.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 6px;margin-top:32px;min-width:18px;transition:background .3s}
 .appr-line.fill{background:linear-gradient(90deg,var(--grn),#22a55a)}
+@media(max-width:760px){
+  .appr-flow{flex-wrap:wrap;gap:10px}
+  .appr-line{display:none}
+  .appr-step{min-width:calc(50% - 8px)}
+  .as-card{width:100%}
+}
 .tbtn.approve{background:var(--grn);color:#fff;border-color:var(--grn)}
 .tbtn.reject{background:#fff;color:var(--red);border-color:#fecaca}
 .reject-box{margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:9px;color:var(--red);font-size:13px;font-weight:600}
@@ -2021,7 +2041,7 @@ function editUser(userId){
         <div><label style="font-size:12px;font-weight:700;color:var(--sub)">PIN (변경 시에만 입력)</label>
           <input id="euPin" type="password" placeholder="미입력=기존 유지" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
         <div><label style="font-size:12px;font-weight:700;color:var(--sub)">이메일 <span style="font-weight:500;color:var(--mut)">· 결재 알림 수신용</span></label>
-          <input id="euEmail" type="email" value="${(u.email||'').replace(/"/g,'&quot;')}" placeholder="name@harim.com" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
+          <input id="euEmail" type="email" value="${(u.email||'').replace(/"/g,'&quot;')}" placeholder="name@harimpetfood.com" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:4px"></div>
         <div style="display:flex;gap:10px">
           <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">팀</label>
             <select id="euTeam" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;margin-top:4px">${teamOpts}</select></div>
@@ -2596,8 +2616,9 @@ function renderApprovalBar(){
   const status=c.status||'none';
   const role=S.user.role||'writer';
   const AL=CUR_DAY.apprLine||{};
+  const writerName = c.writer || (S.user&&S.user.name) || '';
   const steps=[
-    {key:'draft',  label:'작성',  by:c.writer,  plan:AL.writer||AL.draft||''},
+    {key:'draft',  label:'작성',  by:c.writer,  plan:writerName},
     {key:'lead_ok',label:'팀장',  by:c.lead_by, plan:AL.lead||''},
     {key:'div_ok', label:'본부장',by:c.div_by,  plan:AL.division||''},
     {key:'done',   label:'CEO',   by:c.ceo_by,  plan:AL.ceo||''}
@@ -2605,25 +2626,32 @@ function renderApprovalBar(){
   const order=['draft','submitted','lead_ok','div_ok','done'];
   const curIdx=order.indexOf(status);
   const stepDone=(k)=>({draft:curIdx>=1,lead_ok:curIdx>=2,div_ok:curIdx>=3,done:curIdx>=4}[k]||false);
-  const stepActive=(k)=>(
-    (status==='draft'&&k==='draft')||
+  // 현재 진행 중(=지금 이 사람 차례)
+  const stepNow=(k)=>(
+    ((status==='none'||status==='draft'||status==='rejected')&&k==='draft')||
     (status==='submitted'&&k==='lead_ok')||
     (status==='lead_ok'&&k==='div_ok')||
     (status==='div_ok'&&k==='done')
   );
+  // 다음 차례(대기)
+  const nextKey=(()=>{
+    const ks=['draft','lead_ok','div_ok','done'];
+    const ni=ks.findIndex(k=>stepNow(k));
+    return ni>=0&&ni<ks.length-1?ks[ni+1]:null;
+  })();
   const parts=[];
   steps.forEach((s,i)=>{
-    const done=stepDone(s.key), active=stepActive(s.key);
+    const done=stepDone(s.key), now=stepNow(s.key), next=(s.key===nextKey);
     const who = done ? (s.by||s.plan||'') : (s.plan||s.by||'');
-    const whoCls = done ? 'ok' : (active?'now':'');
-    const badge = done?'완료':(active?'대기':'');
+    const cls = done?'done':(now?'now':(next?'next':'idle'));
+    const badge = done?'완료':(now?'진행 중':(next?'대기':''));
     if(i>0) parts.push(`<div class="appr-line ${stepDone(steps[i-1].key)?'fill':''}"></div>`);
-    parts.push(`<div class="appr-step ${done?'done':''} ${active?'active':''}">
-      <div class="as-dot">${done?'✓':i+1}</div>
-      <div class="as-txt"><b>${s.label}</b>
-        ${who?`<span class="as-who ${whoCls}">${who}</span>`:'<span class="as-who none">미지정</span>'}
-        ${badge?`<span class="as-badge ${done?'ok':'now'}">${badge}</span>`:''}
+    parts.push(`<div class="appr-step ${cls}">
+      <div class="as-card">
+        <div class="as-role">${s.label}</div>
+        <div class="as-name">${who||'미지정'}</div>
       </div>
+      ${badge?`<div class="as-badge ${cls}">${done?'✓ ':''}${badge}</div>`:'<div class="as-badge idle">예정</div>'}
     </div>`);
   });
   const stepFlow=parts.join('');
@@ -2938,11 +2966,15 @@ function renderMoreSections(){
     const catKo={run:'가동',plan:'계획정지',unplan:'비계획정지',sudden:'돌발정지'}[t.category]||t.category;
     const isRun=t.category==='run';
     const shiftKo=t.shift?`<span class="type-tag" style="background:#eef2f7;color:#5b6675">${t.shift}</span>`:'';
+    const srcBadge=t.source==='auto'
+      ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
+      : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
     return `<tr data-down="${t.id}">
       <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
       <td class="mono">${t.hoki||'–'}</td>
       <td>${shiftKo}</td>
       <td><span class="type-tag ${isRun?'':'neg'}">${catKo}</span></td>
+      <td>${srcBadge}</td>
       <td>${t.reason_type||'–'}</td>
       <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
       <td class="mono">${diffMin(t.start_time,t.end_time)}분</td>
@@ -3029,8 +3061,9 @@ function renderMoreSections(){
     <span class="desc">파트별 정지시간 집계(분)</span><span class="sp"></span>
     <button class="tbtn save" onclick="openDownForm()">+ 비가동 등록</button></div>
     <div style="margin:0 0 10px;padding:9px 13px;background:var(--blue-soft);border:1px solid #c7dbff;border-radius:9px;font-size:12.5px;color:var(--blue);line-height:1.55">
-      🔄 이 현황의 가동시간·정지 데이터는 MES 구글시트에서 <b>매일 07:00 / 11:00 / 15:00 / 19:00 자동 반영</b>됩니다.
-      자동 반영분은 시트가 정답이며, 여기서 직접 <b>+비가동 등록</b>으로 추가·수정한 건은 자동 업데이트에 덮이지 않고 보존됩니다.
+      🔄 이 현황의 가동시간·정지 데이터는 MES 구글시트에서 <b>매일 07:00 / 11:00 / 15:00 / 19:00 자동 반영</b>됩니다.<br>
+      <span class="src-tag auto">시트</span> 구글시트에서 자동 반영 (시트가 정답, 매 회차 갱신) ·
+      <span class="src-tag manual">직접</span> 이 화면에서 입력·수정 (자동 업데이트에 <b>덮이지 않음</b>)
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인(파트)</th><th>가동시간</th><th>계획정지</th><th>비계획정지</th><th>실가동</th><th>가동률</th></tr></thead>
@@ -3040,7 +3073,7 @@ function renderMoreSections(){
       ※ 가동시간 = 요약탭 생산시작~종료 · 실가동 = 가동시간 − (계획정지 + 비계획정지) · <b>가동률 = 실가동 ÷ 가동시간</b>
     </div></div>
     ${downDetail?`<div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
-      <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
+      <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>출처</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
       <tbody>${downDetail}</tbody></table></div>`:''}
     <div id="downFormSlot" style="padding:0 16px 4px"></div>
   </div>
