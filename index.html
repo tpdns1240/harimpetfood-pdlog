@@ -219,6 +219,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+/* 인원표 관리자 행 (공정 공통, 1/n 배분) */
+.mp-mgr td{background:#f7f9fc;border-top:2px solid #dde5f0}
+.mp-mgr td.l{box-shadow:inset 3px 0 0 var(--blue)}
 /* 데이터 출처 배지 (시트 자동 / 사이트 직접) */
 .src-tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:800;cursor:help}
 .src-tag.auto{background:#eef2f7;color:#64748b;border:1px solid #dde3ec}
@@ -296,32 +299,36 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .appr-flow{display:flex;align-items:flex-start;justify-content:center;gap:0}
 .appr-step{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:112px}
 /* 이름이 들어가는 큰 둥근 네모 카드 */
-.as-card{width:112px;padding:11px 8px;border-radius:14px;background:#f4f6fa;border:2px solid #e2e8f2;
+.as-card{width:118px;padding:11px 8px 9px;border-radius:14px;background:#f4f6fa;border:2px solid #e2e8f2;
   text-align:center;transition:all .24s cubic-bezier(.2,.8,.3,1)}
 .as-role{font-size:11px;font-weight:700;color:#9aa5b5;letter-spacing:.03em;margin-bottom:3px}
 .as-name{font-size:15px;font-weight:800;color:#b3bccb;line-height:1.25;word-break:keep-all}
-/* 완료: 초록 */
-.appr-step.done .as-card{background:linear-gradient(135deg,#ecfdf3,#dcfce7);border-color:var(--grn)}
-.appr-step.done .as-role{color:#3f9e63}
-.appr-step.done .as-name{color:var(--grn)}
-/* 진행 중(현재 차례): 초록 + 확대 강조 */
-.appr-step.now .as-card{background:linear-gradient(135deg,var(--grn),#22a55a);border-color:#15803d;
-  transform:scale(1.14);box-shadow:0 8px 22px rgba(22,163,74,.32);animation:nowPulse 2s infinite}
-.appr-step.now .as-role{color:rgba(255,255,255,.85)}
+.as-en{font-size:9.5px;font-weight:600;color:#c2cad6;letter-spacing:.04em;margin-top:3px;text-transform:uppercase}
+/* 완료: 아주 연한 세이지 */
+.appr-step.done .as-card{background:#f2f8f4;border-color:#bcd9c6}
+.appr-step.done .as-role{color:#7ba58c}
+.appr-step.done .as-name{color:#4a8c66}
+.appr-step.done .as-en{color:#a6c8b4}
+/* 진행 중(현재 차례): 차분한 세이지 그린 + 확대 */
+.appr-step.now .as-card{background:linear-gradient(135deg,#5faa7d,#4d9670);border-color:#41855f;
+  transform:scale(1.13);box-shadow:0 8px 20px rgba(77,150,112,.26);animation:nowPulse 2.4s infinite}
+.appr-step.now .as-role{color:rgba(255,255,255,.82)}
 .appr-step.now .as-name{color:#fff;font-size:16px}
-@keyframes nowPulse{0%,100%{box-shadow:0 8px 22px rgba(22,163,74,.32)}50%{box-shadow:0 8px 30px rgba(22,163,74,.5)}}
-/* 다음 차례(대기): 주황 */
-.appr-step.next .as-card{background:#fff7ed;border-color:#fdba74}
-.appr-step.next .as-role{color:#c2410c}
-.appr-step.next .as-name{color:#ea580c}
+.appr-step.now .as-en{color:rgba(255,255,255,.6)}
+@keyframes nowPulse{0%,100%{box-shadow:0 8px 20px rgba(77,150,112,.26)}50%{box-shadow:0 8px 28px rgba(77,150,112,.42)}}
+/* 다음 차례(결재예정): 부드러운 앰버 */
+.appr-step.next .as-card{background:#fdf8f0;border-color:#e8c89a}
+.appr-step.next .as-role{color:#b08046}
+.appr-step.next .as-name{color:#a9752f}
+.appr-step.next .as-en{color:#d0b189}
 /* 예정: 회색 (기본) */
 .as-badge{padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.02em}
-.as-badge.done{background:var(--grn-soft);color:var(--grn)}
-.as-badge.now{background:var(--grn);color:#fff;box-shadow:0 2px 6px rgba(22,163,74,.3)}
-.as-badge.next{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.as-badge.done{background:#eaf3ee;color:#4a8c66}
+.as-badge.now{background:#4d9670;color:#fff;box-shadow:0 2px 6px rgba(77,150,112,.26)}
+.as-badge.next{background:#fdf8f0;color:#a9752f;border:1px solid #e8c89a}
 .as-badge.idle{background:#f1f3f6;color:#aab3c0}
-.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 6px;margin-top:32px;min-width:18px;transition:background .3s}
-.appr-line.fill{background:linear-gradient(90deg,var(--grn),#22a55a)}
+.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 6px;margin-top:36px;min-width:18px;transition:background .3s}
+.appr-line.fill{background:linear-gradient(90deg,#9ac7ac,#7ab894)}
 @media(max-width:760px){
   .appr-flow{flex-wrap:wrap;gap:10px}
   .appr-line{display:none}
@@ -1128,26 +1135,32 @@ async function addImprove(){
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
 }
 function openAnswer(id){
+  const im=(IMPROVE_CACHE||[]).find(x=>String(x.id)===String(id))||{};
+  const cur=im.answer||''; const curSt=im.status||'received';
+  const sel=(v)=>curSt===v?' selected':'';
+  const esc=s=>String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const m=document.createElement('div');
   m.id='answerModal';
   m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
   m.innerHTML=`
     <div style="background:#fff;border-radius:16px;padding:26px;width:460px;max-width:100%;box-shadow:var(--sh-lg)">
-      <h3 style="margin:0 0 16px;font-size:18px">답변 / 상태 변경</h3>
+      <h3 style="margin:0 0 16px;font-size:18px">${cur?'답변 수정':'답변'} / 상태 변경</h3>
+      ${cur?`<div style="font-size:11.5px;color:var(--mut);margin-bottom:12px">기존 답변을 수정합니다 · 최초 작성 ${im.answer_by||''}</div>`:''}
       <label style="font-size:12px;font-weight:700;color:var(--sub)">상태</label>
       <select id="anStatus" style="width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;margin:6px 0 14px">
-        <option value="received">접수</option>
-        <option value="review">검토중</option>
-        <option value="done">완료</option>
+        <option value="received"${sel('received')}>접수</option>
+        <option value="review"${sel('review')}>검토중</option>
+        <option value="done"${sel('done')}>완료</option>
       </select>
       <label style="font-size:12px;font-weight:700;color:var(--sub)">관리자 답변</label>
-      <textarea id="anText" placeholder="답변 내용" style="width:100%;min-height:100px;padding:11px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:6px;resize:vertical;font-family:inherit"></textarea>
+      <textarea id="anText" placeholder="답변 내용" style="width:100%;min-height:110px;padding:11px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;margin-top:6px;resize:vertical;font-family:inherit">${esc(cur)}</textarea>
       <div style="display:flex;gap:8px;margin-top:16px">
         <button class="tbtn" style="flex:1" onclick="document.getElementById('answerModal').remove()">취소</button>
         <button class="tbtn submit" style="flex:1" onclick="submitAnswer(${id})">저장</button>
       </div>
     </div>`;
   document.body.appendChild(m);
+  setTimeout(()=>{const t=$('#anText'); if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}},60);
 }
 async function submitAnswer(id){
   const answer=$('#anText').value.trim(), status=$('#anStatus').value;
@@ -2618,10 +2631,10 @@ function renderApprovalBar(){
   const AL=CUR_DAY.apprLine||{};
   const writerName = c.writer || (S.user&&S.user.name) || '';
   const steps=[
-    {key:'draft',  label:'작성',  by:c.writer,  plan:writerName},
-    {key:'lead_ok',label:'팀장',  by:c.lead_by, plan:AL.lead||''},
-    {key:'div_ok', label:'본부장',by:c.div_by,  plan:AL.division||''},
-    {key:'done',   label:'CEO',   by:c.ceo_by,  plan:AL.ceo||''}
+    {key:'draft',  label:'작성자', en:'Preparer',       by:c.writer,  plan:writerName},
+    {key:'lead_ok',label:'팀장',   en:'Reviewer',       by:c.lead_by, plan:AL.lead||''},
+    {key:'div_ok', label:'본부장', en:'Approver',       by:c.div_by,  plan:AL.division||''},
+    {key:'done',   label:'CEO',    en:'Final Approver', by:c.ceo_by,  plan:AL.ceo||''}
   ];
   const order=['draft','submitted','lead_ok','div_ok','done'];
   const curIdx=order.indexOf(status);
@@ -2644,12 +2657,13 @@ function renderApprovalBar(){
     const done=stepDone(s.key), now=stepNow(s.key), next=(s.key===nextKey);
     const who = done ? (s.by||s.plan||'') : (s.plan||s.by||'');
     const cls = done?'done':(now?'now':(next?'next':'idle'));
-    const badge = done?'완료':(now?'진행 중':(next?'대기':''));
+    const badge = done?'완료':(now?'진행 중':(next?'결재예정':''));
     if(i>0) parts.push(`<div class="appr-line ${stepDone(steps[i-1].key)?'fill':''}"></div>`);
     parts.push(`<div class="appr-step ${cls}">
       <div class="as-card">
         <div class="as-role">${s.label}</div>
         <div class="as-name">${who||'미지정'}</div>
+        <div class="as-en">${s.en}</div>
       </div>
       ${badge?`<div class="as-badge ${cls}">${done?'✓ ':''}${badge}</div>`:'<div class="as-badge idle">예정</div>'}
     </div>`);
@@ -2660,12 +2674,24 @@ function renderApprovalBar(){
     lead_ok:'본부장 결재 대기',div_ok:'CEO 결재 대기',done:'최종 완료',rejected:'반려됨'
   }[status]||status;
   const statusCls={none:'',draft:'',submitted:'wait',lead_ok:'wait',div_ok:'wait',done:'done',rejected:'rej'}[status]||'';
+  // ── 권한 판정: 결재라인에 등록된 '본인'만 결재 가능 (관리자는 예외) ──
+  const me=(S.user&&S.user.name)||'';
+  const isAdmin=role==='admin';
+  const isLineMember=(step)=>isAdmin||(AL[step]&&AL[step]===me);
   const canApprove=(
-    (status==='submitted'&&['lead','admin'].includes(role))||
-    (status==='lead_ok'&&['division','admin'].includes(role))||
-    (status==='div_ok'&&['ceo','admin'].includes(role))
+    (status==='submitted'&&['lead','admin'].includes(role)&&isLineMember('lead'))||
+    (status==='lead_ok'&&['division','admin'].includes(role)&&isLineMember('division'))||
+    (status==='div_ok'&&['ceo','admin'].includes(role)&&isLineMember('ceo'))
   );
-  const isWriter=['writer','admin'].includes(role);
+  // 작성/제출: 해당 팀 결재라인에 속한 사람만 (작성자·팀장·본부장·CEO 중 본인)
+  const inTeamLine = isAdmin || [AL.writer,AL.lead,AL.division,AL.ceo].filter(Boolean).includes(me)
+    || (c.writer && c.writer===me);
+  const isWriter=['writer','admin'].includes(role) && inTeamLine;
+  // 권한 없음 안내
+  const noPermNote = (!isAdmin && !inTeamLine && ['none','draft','rejected'].includes(status))
+    ? `<div class="lock-banner" style="background:#f8f9fb;border-color:#e2e8f2;color:#7b8595;margin-top:10px">
+        🔒 <b>${CUR_DAY.team||''} 결재라인에 등록되지 않아</b> 작성·제출할 수 없습니다. 관리자에게 결재라인 등록을 요청하세요.
+       </div>` : '';
   const rejectBox = status==='rejected'
     ? `<div class="reject-box">⚠ 반려 (${c.reject_by||''}): ${c.reject_reason||''}</div>` : '';
   const commentBox = c.submit_comment
@@ -2688,6 +2714,7 @@ function renderApprovalBar(){
     </div>
     ${rejectBox}
     ${commentBox}
+    ${noPermNote}
   </div>`;
 }
 /* 결재 알림 메일: 다음 결재자에게 자동 발송 (Apps Script 웹앱 경유) */
@@ -2771,7 +2798,7 @@ function renderClosing(){
   const {date,team,lines,orders,losses}=CUR_DAY;
   // 결재 진행/완료 시 작성자 수정 잠금 (draft/rejected/none만 편집 가능)
   const cst=(CUR_DAY.closing||{}).status||'none';
-  const isLocked=cst==='done';   // 결재 '완료'만 잠금 (제출·중간결재 단계는 수정 가능)
+  const isLocked=cst==='done' && S.user.role!=='admin';   // 결재 완료만 잠금 (관리자는 예외)
   CUR_DAY.locked=isLocked;
   // 합계 계산
   let totPlan=0,totActual=0,totOrders=0,totScrap=0,totLoss=0;
@@ -2856,7 +2883,8 @@ function renderClosing(){
   </div>
   ${renderApprovalBar()}
   ${isLocked?`<div class="lock-banner">🔒 <b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.</div>`
-   :(['submitted','lead_ok','div_ok'].includes(cst)?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">✎ 결재 진행 중입니다. <b>최종 완료 전까지는 수정할 수 있습니다.</b> 수정 시 결재자에게 내용이 달라짐을 알려주세요.</div>`:'')}
+   :(cst==='done'?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ <b>결재 완료된 문서를 관리자 권한으로 열었습니다.</b> 수정 시 확정된 실적이 변경되니 주의하세요.</div>`
+   :(['submitted','lead_ok','div_ok'].includes(cst)?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">✎ 결재 진행 중입니다. <b>최종 완료 전까지는 수정할 수 있습니다.</b> 수정 시 결재자에게 내용이 달라짐을 알려주세요.</div>`:''))}
   <div class="closing-body ${isLocked?'locked':''}">
 
   <!-- 스코어카드 -->
@@ -3013,13 +3041,27 @@ function renderMoreSections(){
     </div>`;
   }).join('');
 
-  // ⑥ 투입인원: 계획 + 정규직/파견 구분
+  // ⑥ 투입인원: 계획 + 정규직/파견 구분 + 관리자(1/n 배분)
   const manByLine={};
   (manpower||[]).forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
+  // 관리자 행: proc_sub1='관리' 로 저장 (라인 목록엔 없는 고정 행)
+  const MGR_KEYS=[['관리','관리자1'],['관리','관리자2']];
+  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{regular_head:0,dispatch_head:0,memo:''});
+  const mgrTotal=mgrRows.reduce((a,m)=>a+Number(m.regular_head||0)+Number(m.dispatch_head||0),0);
+  // 배분 대상 = 인원이 입력된 공정만
+  const linesWithMan=lines.filter(l=>{
+    const m=manByLine[l.line_name]; if(!m)return false;
+    return (Number(m.regular_head||0)+Number(m.dispatch_head||0))>0;
+  });
+  const share = linesWithMan.length>0 ? mgrTotal/linesWithMan.length : 0;
+  const shareOf = (ln)=> linesWithMan.some(l=>l.line_name===ln) ? share : 0;
+
   let totPlanH=0,totReg=0,totDisp=0;
   const manFixedRows=lines.map(l=>{
     const m=manByLine[l.line_name]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''};
     const inputH=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    const sh=shareOf(l.line_name);
+    const eff=inputH+sh;   // 실공수 = 투입 + 관리자 배분
     totPlanH+=Number(m.plan_head||0); totReg+=Number(m.regular_head||0); totDisp+=Number(m.dispatch_head||0);
     return `<tr>
       <td class="l"><b>${l.line_name}</b></td>
@@ -3027,7 +3069,24 @@ function renderMoreSections(){
       <td><input class="inp-cell mp-reg" data-line="${l.line_name}" value="${m.regular_head||''}" placeholder="0"></td>
       <td><input class="inp-cell mp-disp" data-line="${l.line_name}" value="${m.dispatch_head||''}" placeholder="0"></td>
       <td class="mono mp-total"><b>${inputH||'–'}</b></td>
-      <td><input class="inp-cell mp-memo" data-line="${l.line_name}" style="width:150px;text-align:left" value="${m.memo||''}" placeholder="비고"></td>
+      <td class="mono mp-eff"><b style="color:${sh?'var(--blue)':'inherit'}">${eff?eff.toFixed(2).replace(/\.00$/,''):'–'}</b></td>
+      <td><input class="inp-cell mp-memo" data-line="${l.line_name}" style="width:140px;text-align:left" value="${m.memo||''}" placeholder="비고"></td>
+    </tr>`;
+  }).join('');
+  // 관리자 고정 행 (하단)
+  const mgrFixedRows=MGR_KEYS.map(([s1,s2],i)=>{
+    const m=mgrRows[i];
+    const inputH=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    const ln=s1+'/'+s2;
+    totReg+=Number(m.regular_head||0); totDisp+=Number(m.dispatch_head||0);
+    return `<tr class="mp-mgr">
+      <td class="l"><b>${s2}</b> <span style="font-size:11px;color:var(--mut)">· 공정 공통</span></td>
+      <td style="color:var(--mut);font-size:11px">–</td>
+      <td><input class="inp-cell mp-reg" data-line="${ln}" value="${m.regular_head||''}" placeholder="0"></td>
+      <td><input class="inp-cell mp-disp" data-line="${ln}" value="${m.dispatch_head||''}" placeholder="0"></td>
+      <td class="mono mp-total"><b>${inputH||'–'}</b></td>
+      <td class="mono" style="color:var(--mut);font-size:11px">1/n 배분</td>
+      <td><input class="inp-cell mp-memo" data-line="${ln}" style="width:140px;text-align:left" value="${m.memo||''}" placeholder="반장·공정관리자 등"></td>
     </tr>`;
   }).join('');
 
@@ -3089,16 +3148,22 @@ function renderMoreSections(){
 
   <!-- ⑥ 투입인원: 계획 + 정규직/파견 구분 -->
   <div class="sec"><div class="sec-hd"><span class="no c6">6</span><h3>파트별 투입인원</h3>
-    <span class="desc">계획 · 정규직 · 파견/일용 구분</span><span class="sp"></span>
+    <span class="desc">계획 · 정규직 · 파견/일용 · 관리자 1/n 배분</span><span class="sp"></span>
     <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인(파트)</th><th>계획인원</th><th>정규직</th><th>파견/일용</th><th>투입계</th><th>비고</th></tr></thead>
-      <tbody>${manFixedRows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+      <thead><tr><th>라인(파트)</th><th>계획인원</th><th>정규직</th><th>파견/일용</th><th>투입계</th><th>실공수</th><th>비고</th></tr></thead>
+      <tbody>${manFixedRows||'<tr><td colspan="7" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}${mgrFixedRows}</tbody>
       <tfoot><tr id="manFooter" style="background:#f1f4fa;font-weight:800">
         <td class="l">합계</td><td class="mono">${totPlanH}</td><td class="mono">${totReg}</td>
-        <td class="mono">${totDisp}</td><td class="mono">${totReg+totDisp}</td><td></td>
+        <td class="mono">${totDisp}</td><td class="mono">${totReg+totDisp}</td>
+        <td class="mono">${(totReg+totDisp).toFixed(2).replace(/\.00$/,'')}</td><td></td>
       </tr></tfoot>
-    </table></div>
+    </table>
+    <div style="padding:8px 4px 0;font-size:11.5px;color:var(--mut);line-height:1.55">
+      ※ <b>관리자1·2</b>는 특정 공정에 속하지 않는 반장·공정관리자 등입니다. 입력한 인원은
+      <b>인원이 투입된 공정 수로 나누어(1/n)</b> 각 공정 <b>실공수</b>에 더해집니다.
+      ${mgrTotal>0&&linesWithMan.length>0?`<br>현재: 관리자 ${mgrTotal}명 ÷ ${linesWithMan.length}개 공정 = 공정당 <b style="color:var(--blue)">+${share.toFixed(2).replace(/\.00$/,'')}</b>명`:''}
+    </div></div>
   </div>
 
   <div id="inputForm"></div>`;
@@ -3295,13 +3360,17 @@ async function delDown(id){
 async function saveManpowerAll(){
   const {date,team}=CUR_DAY;
   const rows=[];
-  document.querySelectorAll('.mp-plan').forEach(inp=>{
+  // mp-reg 기준으로 순회 (관리자 행은 mp-plan이 없으므로)
+  document.querySelectorAll('.mp-reg').forEach(inp=>{
     const line=inp.dataset.line;
     const [s1,s2]=line.split('/');
-    const plan=Number(inp.value)||0;
-    const reg=Number(document.querySelector(`.mp-reg[data-line="${line}"]`).value)||0;
-    const disp=Number(document.querySelector(`.mp-disp[data-line="${line}"]`).value)||0;
-    const memo=document.querySelector(`.mp-memo[data-line="${line}"]`).value||'';
+    const planEl=document.querySelector(`.mp-plan[data-line="${line}"]`);
+    const plan=planEl?(Number(planEl.value)||0):0;
+    const reg=Number(inp.value)||0;
+    const dispEl=document.querySelector(`.mp-disp[data-line="${line}"]`);
+    const disp=dispEl?(Number(dispEl.value)||0):0;
+    const memoEl=document.querySelector(`.mp-memo[data-line="${line}"]`);
+    const memo=memoEl?(memoEl.value||''):'';
     if(plan||reg||disp||memo) rows.push({work_date:date,team,proc_sub1:s1,proc_sub2:s2,
       plan_head:plan,regular_head:reg,dispatch_head:disp,input_head:reg+disp,memo});
   });
@@ -3310,8 +3379,8 @@ async function saveManpowerAll(){
     const {error}=await sb.from('t_cl_manpower').upsert(rows,{onConflict:'work_date,team,proc_sub1,proc_sub2'});
     if(error)throw error;
     CUR_DAY.manpower=rows;  // 즉시 반영
-    updateManpowerFooter();  // 합계만 갱신
     toast('인원 저장완료','ok');
+    openDay(date,team);     // 1/n 배분 재계산을 위해 갱신
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* 인원 합계 footer만 즉시 갱신 (새로고침 없이) */
