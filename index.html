@@ -2982,14 +2982,19 @@ function renderMoreSections(){
     else if(t.category==='sudden')d.sudden+=dur;
   });
   const hm=m=>{ if(!m)return '–'; const h=Math.floor(m/60),x=m%60; return h?`${h}h ${x}m`:`${x}m`; };
-  const downFixedRows=lines.map(l=>{
-    const k=l.line_name, d=downByLine[k]||{run:0,plan:0,unplan:0,sudden:0};
+  // 집계 대상 라인 = 계획 라인(lines) + 가동/정지만 있는 라인(downtime) 합집합
+  const dtLineNames=Object.keys(downByLine);
+  const planNames=lines.map(l=>l.line_name);
+  const allLineNames=[...planNames, ...dtLineNames.filter(n=>!planNames.includes(n))];
+  const downFixedRows=allLineNames.map(name=>{
+    const d=downByLine[name]||{run:0,plan:0,unplan:0,sudden:0};
+    const noPlan=!planNames.includes(name);
     const stop=d.plan+d.unplan+d.sudden;
     const net=Math.max(d.run-stop,0);              // 실가동 = 가동시간 - 정지
     const rate=d.run>0?(net/d.run*100):0;          // 가동률 = 실가동 / 가동시간
     const rc=rate>=90?'var(--grn)':rate>=70?'var(--org,#d97706)':'var(--red)';
     return `<tr>
-      <td class="l"><b>${l.line_name}</b></td>
+      <td class="l"><b>${name}</b>${noPlan?' <span class="type-tag" style="background:#fff7ed;color:#c2410c;font-size:10px">계획없음</span>':''}</td>
       <td class="mono">${hm(d.run)}</td>
       <td class="mono">${hm(d.plan)}</td>
       <td class="mono ${d.unplan?'neg':''}">${hm(d.unplan+d.sudden)}</td>
