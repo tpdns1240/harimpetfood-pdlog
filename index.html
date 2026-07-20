@@ -219,6 +219,15 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+/* 비가동 상세 라인 필터 */
+.dt-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:11px 14px;background:#f7f9fc;border-top:1px solid var(--line)}
+.dtf-label{font-size:11.5px;font-weight:800;color:var(--mut);margin-right:4px;letter-spacing:.02em}
+.dtf-chip{padding:5px 11px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--sub);
+  font-size:12px;font-weight:700;cursor:pointer;transition:all .16s;white-space:nowrap}
+.dtf-chip b{font-weight:800;opacity:.6;margin-left:2px;font-size:11px}
+.dtf-chip:hover{border-color:var(--navy);color:var(--navy)}
+.dtf-chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.dtf-chip.on b{opacity:.75}
 /* 인원표 관리자 행 (공정 공통, 1/n 배분) */
 .mp-mgr td{background:#f7f9fc;border-top:2px solid #dde5f0}
 .mp-mgr td.l{box-shadow:inset 3px 0 0 var(--blue)}
@@ -2997,7 +3006,7 @@ function renderMoreSections(){
     const srcBadge=t.source==='auto'
       ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
       : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
-    return `<tr data-down="${t.id}">
+    return `<tr data-down="${t.id}" data-ln="${(t.proc_sub1||'')+'/'+(t.proc_sub2||'')}">
       <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
       <td class="mono">${t.hoki||'–'}</td>
       <td>${shiftKo}</td>
@@ -3131,9 +3140,18 @@ function renderMoreSections(){
     <div style="padding:8px 4px 0;font-size:11.5px;color:var(--mut);line-height:1.5">
       ※ 가동시간 = 요약탭 생산시작~종료 · 실가동 = 가동시간 − (계획정지 + 비계획정지) · <b>가동률 = 실가동 ÷ 가동시간</b>
     </div></div>
-    ${downDetail?`<div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
+    ${downDetail?`
+    <div class="dt-filter" id="dtFilterBar">
+      <span class="dtf-label">라인 선택</span>
+      <button class="dtf-chip on" data-ln="" onclick="filterDownLine('')">전체 <b>${(downtime||[]).length}</b></button>
+      ${(()=>{const cnt={};(downtime||[]).forEach(t=>{const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
+        return Object.keys(cnt).sort().map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterDownLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('');})()}
+    </div>
+    <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
       <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>출처</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
-      <tbody>${downDetail}</tbody></table></div>`:''}
+      <tbody id="dtDetailBody">${downDetail}</tbody></table>
+      <div id="dtEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
+    </div>`:''}
     <div id="downFormSlot" style="padding:0 16px 4px"></div>
   </div>
 
@@ -3282,6 +3300,19 @@ async function saveDownNew(){
     if(error)throw error;
     toast('비가동 등록 완료','ok'); openDay(date,team);
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+/* ⑤ 비가동 상세: 라인 필터 (스크롤 부담 해소) */
+function filterDownLine(ln){
+  document.querySelectorAll('#dtFilterBar .dtf-chip').forEach(b=>{
+    b.classList.toggle('on', (b.dataset.ln||'')===ln);
+  });
+  let shown=0;
+  document.querySelectorAll('#dtDetailBody tr').forEach(tr=>{
+    const hit = !ln || tr.dataset.ln===ln;
+    tr.style.display = hit?'':'none';
+    if(hit) shown++;
+  });
+  const em=$('#dtEmptyMsg'); if(em) em.style.display = shown?'none':'block';
 }
 /* ⑤ 비가동/가동 수정 팝업 */
 function openDownEdit(id){
