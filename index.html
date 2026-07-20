@@ -219,10 +219,24 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+/* 수정 팝업 다이얼로그 */
+.dlg-back{position:fixed;inset:0;background:rgba(12,35,80,.42);backdrop-filter:blur(3px);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;animation:dlgIn .16s ease}
+@keyframes dlgIn{from{opacity:0}to{opacity:1}}
+.dlg{background:#fff;border-radius:16px;box-shadow:0 24px 60px rgba(12,35,80,.28);width:100%;max-width:620px;max-height:90vh;overflow:auto;animation:dlgUp .2s cubic-bezier(.2,.8,.3,1)}
+@keyframes dlgUp{from{transform:translateY(14px);opacity:.6}to{transform:none;opacity:1}}
+.dlg-hd{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;border-radius:16px 16px 0 0}
+.dlg-hd h3{margin:0;font-size:16px;font-weight:800;color:var(--navy)}
+.dlg-bd{padding:18px 20px 22px}
 .cap-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
 .cap-badge.on{background:var(--grn-soft);color:var(--grn)}
 .cap-badge.off{background:#f1f3f6;color:#8a93a3}
 .cap-linehd td{background:#f7f9fc;border-top:2px solid var(--line);font-size:13.5px}
+/* 비활성 행: 텍스트·입력칸만 흐리게, 버튼(cap-act)은 선명하게 유지 */
+.cap-off td{background:#fafbfc}
+.cap-off td:not(.cap-act){opacity:.45}
+.cap-off td.l{box-shadow:inset 3px 0 0 #b9c0cc}
+.rowbtn.act{background:var(--grn-soft);color:var(--grn);border-color:var(--grn);font-weight:800}
+.rowbtn.act:hover{background:var(--grn);color:#fff}
 .rowbtn:disabled{opacity:.4;cursor:not-allowed}
 .rowbtn{padding:5px 11px;border-radius:7px;font-weight:700;font-size:12px;margin:0 2px;border:1px solid var(--line)}
 .rowbtn.save{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -2090,24 +2104,24 @@ async function renderCapaMgmt(){
     const esc=s=>String(s).replace(/'/g,"\\'");
     const rows=g.items.map(c=>{
       const off=lOff||c.active===false;
-      return `<tr style="${off?'opacity:.45;background:#fafafa':''}">
+      return `<tr class="${off?'cap-off':''}">
         <td class="l" style="padding-left:22px">${c.hoki?`<b>${c.hoki}</b>호기`:'<span style="color:var(--mut)">호기 미지정</span>'}</td>
         <td><input type="number" id="capa_${c._i}" value="${c.capa_hourly||''}" placeholder="0" ${off?'disabled':''}
           style="width:110px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
         <td><input type="number" id="days_${c._i}" value="${c.work_days_month||22}" ${off?'disabled':''}
           style="width:66px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
         <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
-        <td style="white-space:nowrap">
+        <td style="white-space:nowrap" class="cap-act">
           <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${c._i})">저장</button>
-          <button class="rowbtn ${c.active===false?'':'del'}" ${lOff?'disabled':''}
-            onclick="toggleHoki(${c._i})">${c.active===false?'활성화':'비활성'}</button>
+          <button class="rowbtn ${c.active===false?'act':'del'}" ${lOff?'disabled':''}
+            onclick="toggleHoki(${c._i})">${c.active===false?'↻ 활성화':'비활성'}</button>
         </td></tr>`;
     }).join('');
-    return `<tr class="cap-linehd" style="${lOff?'opacity:.5':''}">
+    return `<tr class="cap-linehd ${lOff?'cap-off':''}">
         <td class="l"><b>${g.line}</b> <span style="color:var(--mut);font-size:12px">· ${g.team} · 호기 ${g.items.length}</span></td>
         <td colspan="3"></td>
-        <td><button class="rowbtn ${lOff?'edit':'del'}" onclick="toggleLine('${esc(g.team)}','${esc(g.line)}',${lOff})">
-          ${lOff?'라인 활성화':'라인 전체 비활성'}</button></td>
+        <td class="cap-act"><button class="rowbtn ${lOff?'act':'del'}" onclick="toggleLine('${esc(g.team)}','${esc(g.line)}',${lOff})">
+          ${lOff?'↻ 라인 활성화':'라인 전체 비활성'}</button></td>
       </tr>${rows}`;
   }).join('');
 
@@ -2135,6 +2149,11 @@ async function saveCapa(i){
     if(error)throw error;
     c.capa_hourly=hourly; c.work_days_month=days;
     toast(`${c.line}${c.hoki?' '+c.hoki+'호기':''} 저장완료`,'ok');
+    // 버튼에 잠깐 체크 표시 → 저장됐음을 눈으로 확인
+    const btns=document.querySelectorAll(`button[onclick="saveCapa(${i})"]`);
+    btns.forEach(b=>{ const o=b.textContent; b.textContent='✓ 저장됨';
+      b.style.background='var(--grn)'; b.style.color='#fff'; b.style.borderColor='var(--grn)';
+      setTimeout(()=>{ b.textContent=o; b.style.background=''; b.style.color=''; b.style.borderColor=''; },1400); });
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 async function toggleHoki(i){
@@ -2667,7 +2686,7 @@ function renderClosing(){
   const {date,team,lines,orders,losses}=CUR_DAY;
   // 결재 진행/완료 시 작성자 수정 잠금 (draft/rejected/none만 편집 가능)
   const cst=(CUR_DAY.closing||{}).status||'none';
-  const isLocked=['submitted','lead_ok','div_ok','done'].includes(cst);
+  const isLocked=cst==='done';   // 결재 '완료'만 잠금 (제출·중간결재 단계는 수정 가능)
   CUR_DAY.locked=isLocked;
   // 합계 계산
   let totPlan=0,totActual=0,totOrders=0,totScrap=0,totLoss=0;
@@ -2751,7 +2770,8 @@ function renderClosing(){
     </div>
   </div>
   ${renderApprovalBar()}
-  ${isLocked?`<div class="lock-banner">🔒 결재가 진행 중이거나 완료되어 <b>수정이 잠겼습니다</b>. ${cst==='done'?'최종 완료된 문서입니다.':'반려되면 다시 수정할 수 있습니다.'}</div>`:''}
+  ${isLocked?`<div class="lock-banner">🔒 <b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.</div>`
+   :(['submitted','lead_ok','div_ok'].includes(cst)?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">✎ 결재 진행 중입니다. <b>최종 완료 전까지는 수정할 수 있습니다.</b> 수정 시 결재자에게 내용이 달라짐을 알려주세요.</div>`:'')}
   <div class="closing-body ${isLocked?'locked':''}">
 
   <!-- 스코어카드 -->
@@ -2828,34 +2848,53 @@ function renderMoreSections(){
     </td>
   </tr>`).join('');
 
-  // ⑤ 비가동: 라인(파트) 고정 + 라인별 집계
+  // ⑤ 비가동: 라인(파트) 고정 + 라인별 집계 (가동시간 포함)
   const downByLine={};
   (downtime||[]).forEach(t=>{
     const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
-    const d=downByLine[k]||(downByLine[k]={plan:0,unplan:0,sudden:0});
+    const d=downByLine[k]||(downByLine[k]={run:0,plan:0,unplan:0,sudden:0});
     const dur=diffMin(t.start_time,t.end_time);
-    if(t.category==='plan')d.plan+=dur; else if(t.category==='unplan')d.unplan+=dur; else if(t.category==='sudden')d.sudden+=dur;
+    if(t.category==='run')d.run+=dur;
+    else if(t.category==='plan')d.plan+=dur;
+    else if(t.category==='unplan')d.unplan+=dur;
+    else if(t.category==='sudden')d.sudden+=dur;
   });
+  const hm=m=>{ if(!m)return '–'; const h=Math.floor(m/60),x=m%60; return h?`${h}h ${x}m`:`${x}m`; };
   const downFixedRows=lines.map(l=>{
-    const k=l.line_name, d=downByLine[k]||{plan:0,unplan:0,sudden:0};
-    const tot=d.plan+d.unplan+d.sudden;
+    const k=l.line_name, d=downByLine[k]||{run:0,plan:0,unplan:0,sudden:0};
+    const stop=d.plan+d.unplan+d.sudden;
+    const net=Math.max(d.run-stop,0);              // 실가동 = 가동시간 - 정지
+    const rate=d.run>0?(net/d.run*100):0;          // 가동률 = 실가동 / 가동시간
+    const rc=rate>=90?'var(--grn)':rate>=70?'var(--org,#d97706)':'var(--red)';
     return `<tr>
       <td class="l"><b>${l.line_name}</b></td>
-      <td class="mono">${d.plan||'–'}</td>
-      <td class="mono ${d.unplan?'neg':''}">${d.unplan||'–'}</td>
-      <td class="mono ${d.sudden?'neg':''}">${d.sudden||'–'}</td>
-      <td class="mono"><b>${tot||'–'}</b></td>
+      <td class="mono">${hm(d.run)}</td>
+      <td class="mono">${hm(d.plan)}</td>
+      <td class="mono ${d.unplan?'neg':''}">${hm(d.unplan+d.sudden)}</td>
+      <td class="mono"><b>${hm(net)}</b></td>
+      <td class="mono"><b style="color:${d.run?rc:'var(--mut)'}">${d.run?rate.toFixed(1)+'%':'–'}</b></td>
     </tr>`;
   }).join('');
-  // 비가동 상세 목록
+  // 비가동/가동 상세 목록 (호기·비고·수정)
+  const lockedAll=CUR_DAY.locked;
   const downDetail=(downtime||[]).map(t=>{
-    const catKo={plan:'계획정지',unplan:'비계획정지',sudden:'돌발정지'}[t.category]||t.category;
-    return `<tr>
+    const catKo={run:'가동',plan:'계획정지',unplan:'비계획정지',sudden:'돌발정지'}[t.category]||t.category;
+    const isRun=t.category==='run';
+    const shiftKo=t.shift?`<span class="type-tag" style="background:#eef2f7;color:#5b6675">${t.shift}</span>`:'';
+    return `<tr data-down="${t.id}">
       <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
-      <td><span class="type-tag">${catKo}</span></td><td>${t.reason_type||'–'}</td>
+      <td class="mono">${t.hoki||'–'}</td>
+      <td>${shiftKo}</td>
+      <td><span class="type-tag ${isRun?'':'neg'}">${catKo}</span></td>
+      <td>${t.reason_type||'–'}</td>
       <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
       <td class="mono">${diffMin(t.start_time,t.end_time)}분</td>
-      <td><span class="delx" onclick="delDown(${t.id})">✕</span></td>
+      <td class="l" style="max-width:180px;font-size:12px;color:var(--sub)">${t.memo||'–'}</td>
+      <td class="row-actions" style="white-space:nowrap">
+        ${lockedAll?'<span style="color:var(--mut);font-size:11px">결재완료</span>':
+        `<button class="rowbtn edit" onclick="openDownEdit(${t.id})">수정</button>
+         <span class="delx" onclick="delDown(${t.id})">✕</span>`}
+      </td>
     </tr>`;
   }).join('');
 
@@ -2937,11 +2976,14 @@ function renderMoreSections(){
       자동 반영분은 시트가 정답이며, 여기서 직접 <b>+비가동 등록</b>으로 추가·수정한 건은 자동 업데이트에 덮이지 않고 보존됩니다.
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인(파트)</th><th>계획정지</th><th>비계획정지</th><th>돌발정지</th><th>합계</th></tr></thead>
-      <tbody>${downFixedRows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
-    </table></div>
+      <thead><tr><th>라인(파트)</th><th>가동시간</th><th>계획정지</th><th>비계획정지</th><th>실가동</th><th>가동률</th></tr></thead>
+      <tbody>${downFixedRows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+    </table>
+    <div style="padding:8px 4px 0;font-size:11.5px;color:var(--mut);line-height:1.5">
+      ※ 가동시간 = 요약탭 생산시작~종료 · 실가동 = 가동시간 − (계획정지 + 비계획정지) · <b>가동률 = 실가동 ÷ 가동시간</b>
+    </div></div>
     ${downDetail?`<div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
-      <thead><tr><th>라인</th><th>구분</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th></th></tr></thead>
+      <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
       <tbody>${downDetail}</tbody></table></div>`:''}
     <div id="downFormSlot" style="padding:0 16px 4px"></div>
   </div>
@@ -3056,12 +3098,15 @@ function openDownForm(){
     <span class="sp"></span><button class="tbtn" onclick="$('#downFormSlot').innerHTML=''">닫기</button></div>
     <div class="sec-bd"><div class="work-grid">
       <div class="work-field"><label>라인</label><select id="dtLine">${CUR_DAY._lineOpts}</select></div>
+      <div class="work-field"><label>호기</label><input id="dtHoki" placeholder="1"></div>
+      <div class="work-field"><label>근무형태</label><select id="dtShift">
+        <option value="">미지정</option><option value="주간">주간</option><option value="야간">야간</option></select></div>
       <div class="work-field"><label>구분</label><select id="dtCat">
-        <option value="plan">계획정지</option><option value="unplan">비계획정지</option><option value="sudden">돌발정지</option></select></div>
+        <option value="plan">계획정지</option><option value="unplan">비계획정지</option><option value="sudden">돌발정지</option><option value="run">가동</option></select></div>
       <div class="work-field"><label>사유유형</label><input id="dtReason" placeholder="설비고장 등"></div>
       <div class="work-field"><label>시작</label><input id="dtStart" type="time"></div>
       <div class="work-field"><label>종료</label><input id="dtEnd" type="time"></div>
-      <div class="work-field"><label>메모</label><input id="dtMemo" placeholder="메모"></div>
+      <div class="work-field"><label>비고</label><input id="dtMemo" placeholder="발생사유·메모"></div>
     </div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
   </div>`;
@@ -3071,13 +3116,84 @@ async function saveDownNew(){
   const [s1,s2]=($('#dtLine').value||'|').split('|');
   try{
     const {error}=await sb.from('t_cl_downtime').insert({
-      work_date:date,team,proc_sub1:s1,proc_sub2:s2,category:$('#dtCat').value,
+      work_date:date,team,proc_sub1:s1,proc_sub2:s2,
+      hoki:$('#dtHoki').value.trim(),
+      shift:$('#dtShift').value||null,
+      category:$('#dtCat').value,
       reason_type:$('#dtReason').value,start_time:$('#dtStart').value,end_time:$('#dtEnd').value,
-      memo:$('#dtMemo').value
+      memo:$('#dtMemo').value,
+      source:'manual'
     });
     if(error)throw error;
     toast('비가동 등록 완료','ok'); openDay(date,team);
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+/* ⑤ 비가동/가동 수정 팝업 */
+function openDownEdit(id){
+  const t=(CUR_DAY.downtime||[]).find(x=>String(x.id)===String(id));
+  if(!t){ toast('데이터를 찾을 수 없습니다','err'); return; }
+  const isRun=t.category==='run';
+  const opt=(v,l)=>`<option value="${v}"${t.category===v?' selected':''}>${l}</option>`;
+  const sOpt=(v)=>`<option value="${v}"${t.shift===v?' selected':''}>${v||'미지정'}</option>`;
+  const esc=s=>String(s==null?'':s).replace(/"/g,'&quot;');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="dlg-back" id="downEditDlg" onclick="if(event.target===this)closeDownEdit()">
+    <div class="dlg">
+      <div class="dlg-hd"><h3>${isRun?'가동시간':'비가동'} 수정</h3>
+        <span class="sp"></span><button class="tbtn" onclick="closeDownEdit()">닫기</button></div>
+      <div class="dlg-bd">
+        <div style="font-size:12.5px;color:var(--sub);margin-bottom:10px">
+          <b>${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</b>${t.hoki?` · ${t.hoki}호기`:''} · ${CUR_DAY.date}
+        </div>
+        ${isRun?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;margin-bottom:12px">
+          ⚠ <b>가동시간(run) 행입니다.</b> 이 값은 MES 구글시트에서 자동 반영된 것으로,
+          수정하면 <b>가동률·성능가동률 등 모든 지표가 함께 바뀝니다</b>.<br>
+          수정 시 '수동' 데이터로 전환되어 이후 자동 업데이트에 덮이지 않습니다.
+        </div>`:''}
+        <div class="work-grid">
+          <div class="work-field"><label>호기</label><input id="edHoki" value="${esc(t.hoki)}" placeholder="1"></div>
+          <div class="work-field"><label>근무형태</label><select id="edShift">
+            ${sOpt('')}${sOpt('주간')}${sOpt('야간')}</select></div>
+          <div class="work-field"><label>구분</label><select id="edCat">
+            ${opt('run','가동')}${opt('plan','계획정지')}${opt('unplan','비계획정지')}${opt('sudden','돌발정지')}</select></div>
+          <div class="work-field"><label>사유유형</label><input id="edReason" value="${esc(t.reason_type)}" placeholder="설비고장 등"></div>
+          <div class="work-field"><label>시작</label><input id="edStart" type="time" value="${esc(t.start_time)}"></div>
+          <div class="work-field"><label>종료</label><input id="edEnd" type="time" value="${esc(t.end_time)}"></div>
+        </div>
+        <div class="work-field" style="margin-top:10px"><label>비고</label>
+          <input id="edMemo" value="${esc(t.memo)}" placeholder="발생사유·메모"></div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="tbtn save" style="flex:1" onclick="saveDownEdit(${t.id})">저장</button>
+          <button class="tbtn" onclick="closeDownEdit()">취소</button>
+        </div>
+      </div>
+    </div>
+  </div>`);
+}
+function closeDownEdit(){ const d=$('#downEditDlg'); if(d)d.remove(); }
+async function saveDownEdit(id){
+  const {date,team}=CUR_DAY;
+  const payload={
+    hoki:$('#edHoki').value.trim(),
+    shift:$('#edShift').value||null,
+    category:$('#edCat').value,
+    reason_type:$('#edReason').value.trim(),
+    start_time:$('#edStart').value,
+    end_time:$('#edEnd').value,
+    memo:$('#edMemo').value.trim(),
+    source:'manual'   // 손으로 고친 건 manual로 승격 → 자동 업데이트에 안 덮임
+  };
+  if(payload.start_time&&payload.end_time&&payload.category==='run'){
+    const m=diffMin(payload.start_time,payload.end_time);
+    if(m>1200&&!confirm(`가동시간이 ${Math.floor(m/60)}시간 ${m%60}분으로 계산됩니다.\n시간 입력이 맞는지 확인해 주세요.\n\n이대로 저장할까요?`))return;
+  }
+  try{
+    const {error}=await sb.from('t_cl_downtime').update(payload).eq('id',id);
+    if(error)throw error;
+    closeDownEdit();
+    toast('수정 완료 (수동 데이터로 전환)','ok');
+    openDay(date,team);
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
 }
 async function delDown(id){
   const {date,team}=CUR_DAY;
