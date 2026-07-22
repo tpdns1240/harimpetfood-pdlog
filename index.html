@@ -219,6 +219,39 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+/* ── 생산2팀 전용 스타일 ── */
+.closing-hd2{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,#1e3a6d,#2954a0);
+  color:#fff;padding:18px 22px;border-radius:14px;margin-bottom:16px}
+.ch2-title h1{margin:0;font-size:19px;font-weight:800}
+.ch2-title h1 span{color:#93c5fd!important}
+.ch2-sub{font-size:12.5px;opacity:.82;margin-top:3px}
+.sec2-hd .no{background:#2954a0}
+.t2-table th{background:#2954a0;color:#fff;font-size:11.5px;font-weight:700;text-align:center;padding:7px 6px;border:1px solid #3b62a8}
+.t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
+.t2-table td.l{text-align:left}
+.t2-table tbody tr:nth-child(even){background:#f6f9fd}
+.t2-lno{display:inline-block;background:#2954a0;color:#fff;font-size:10px;font-weight:800;
+  padding:1px 6px;border-radius:5px;margin-right:5px}
+/* 접기/펼치기 상세 영역 */
+.fold-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#f7f9fc;border-top:1px solid var(--line);
+  cursor:pointer;user-select:none;transition:background .15s}
+.fold-bar:hover{background:#eef3fa}
+.fold-arrow{font-size:11px;color:var(--mut);transition:transform .22s;display:inline-block}
+.fold-bar.open .fold-arrow{transform:rotate(90deg)}
+.fold-title{font-size:12.5px;font-weight:800;color:var(--sub)}
+.fold-cnt{font-size:11px;font-weight:700;color:#fff;background:var(--mut);padding:1px 8px;border-radius:20px}
+.fold-bar.open .fold-cnt{background:var(--navy)}
+.fold-hint{margin-left:auto;font-size:11px;color:var(--mut)}
+.fold-body{display:none}
+.fold-body.open{display:block;animation:foldIn .18s ease}
+@keyframes foldIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* 요약 스트립 (타이틀 옆 핵심 수치) */
+.sum-strip{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;background:#fbfcfe;border-top:1px solid var(--line)}
+.sum-item{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 13px;min-width:96px}
+.sum-item .k{font-size:10.5px;color:var(--mut);font-weight:700;letter-spacing:.02em}
+.sum-item .v{font-size:15px;font-weight:800;color:var(--ink);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.sum-item.neg .v{color:var(--red)}
+.sum-item.pos .v{color:var(--grn)}
 /* 비가동 상세 라인 필터 */
 .dt-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:11px 14px;background:#f7f9fc;border-top:1px solid var(--line)}
 .dtf-label{font-size:11.5px;font-weight:800;color:var(--mut);margin-right:4px;letter-spacing:.02em}
@@ -1975,6 +2008,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='appr'?'on':''}" onclick="switchSettingsTab('appr')">✍ 결재라인 구성</button>
     <button class="stab ${SETTINGS_TAB==='notice'?'on':''}" onclick="switchSettingsTab('notice')">📢 공지사항</button>
     <button class="stab ${SETTINGS_TAB==='capa'?'on':''}" onclick="switchSettingsTab('capa')">⚙ CAPA 관리</button>
+    <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 기준시간 (2팀)</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -1986,6 +2020,7 @@ function switchSettingsTab(tab){
   if(tab==='users'){ btns[0]&&btns[0].classList.add('on'); renderUserMgmt(); }
   else if(tab==='notice'){ btns[2]&&btns[2].classList.add('on'); renderNoticeMgmt(); }
   else if(tab==='capa'){ btns[3]&&btns[3].classList.add('on'); renderCapaMgmt(); }
+  else if(tab==='stdtime'){ btns[4]&&btns[4].classList.add('on'); renderStdTimeMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -2139,6 +2174,67 @@ async function unlockUser(id){
   }catch(e){ toast('해제 실패: '+(e.message||e),'err'); }
 }
 
+/* --- 기준시간 관리 탭 (생산2팀 공정별 기준·계획 가동시간) --- */
+let STD_LIST=[];
+async function renderStdTimeMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
+  try{ const {data}=await sb.rpc('get_std_time',{p_team:'생산2팀'}); STD_LIST=data||[]; }
+  catch(e){ toast('기준시간 조회 실패: '+(e.message||e),'err'); STD_LIST=[]; }
+  const rows=STD_LIST.map((s,i)=>{
+    const off=s.active===false;
+    return `<tr style="${off?'opacity:.5':''}">
+      <td class="l"><b>${s.line}</b></td>
+      <td><input type="number" step="0.1" id="std_${i}" value="${s.std_hours||''}" placeholder="0" ${off?'disabled':''}
+        style="width:90px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+      <td><input type="number" step="0.1" id="plan_${i}" value="${s.plan_hours||''}" placeholder="0" ${off?'disabled':''}
+        style="width:90px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+      <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="rowbtn edit" ${off?'disabled':''} onclick="saveStd(${i})">저장</button>
+        <button class="rowbtn ${off?'act':'del'}" onclick="toggleStd(${i})">${off?'↻ 활성화':'비활성'}</button>
+      </td></tr>`;
+  }).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    ⏱ <b>생산2팀</b> 공정별 <b>기준시간</b>(정규 가동시간)과 <b>계획시간</b>(당일 계획 가동시간)을 관리합니다.<br>
+    · 편성률 = 계획시간 ÷ 기준시간 · 가동률 = 실적 ÷ 계획시간 · 마감 화면 ①요약에 자동 반영됩니다.
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⏱</span><h3>공정별 기준시간 · 계획시간</h3>
+    <span class="desc">${STD_LIST.length}개 공정 · 단위 시간(hr)</span></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>공정(라인)</th><th>기준시간(hr)</th><th>계획시간(hr)</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">공정 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+async function saveStd(i){
+  const s=STD_LIST[i]; if(!s)return;
+  const std=Number($('#std_'+i).value)||0;
+  const plan=Number($('#plan_'+i).value)||0;
+  try{
+    const {error}=await sb.rpc('set_std_time',{p_team:'생산2팀',p_line:s.line,p_std:std,p_plan:plan,p_active:s.active!==false});
+    if(error)throw error;
+    s.std_hours=std; s.plan_hours=plan;
+    toast(`${s.line} 저장완료`,'ok');
+    const b=document.querySelector(`button[onclick="saveStd(${i})"]`);
+    if(b){const o=b.textContent;b.textContent='✓ 저장됨';b.style.cssText='background:var(--grn);color:#fff;border-color:var(--grn)';
+      setTimeout(()=>{b.textContent=o;b.style.cssText='';},1400);}
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+async function toggleStd(i){
+  const s=STD_LIST[i]; if(!s)return;
+  const next=!(s.active!==false);
+  try{
+    const {error}=await sb.rpc('set_std_time',{p_team:'생산2팀',p_line:s.line,
+      p_std:Number($('#std_'+i).value)||s.std_hours||0,
+      p_plan:Number($('#plan_'+i).value)||s.plan_hours||0,p_active:next});
+    if(error)throw error;
+    toast(`${s.line} ${next?'활성화':'비활성'}`,'ok');
+    renderStdTimeMgmt();
+  }catch(e){ toast('변경 실패: '+(e.message||e),'err'); }
+}
+
+/* --- 기준시간 관리 탭 끝 --- */
 /* --- CAPA 관리 탭 (호기별 + 활성/비활성) --- */
 let CAPA_LIST=[];
 async function renderCapaMgmt(){
@@ -2628,8 +2724,150 @@ async function openDay(date, team){
       const map={}; (al||[]).forEach(r=>{ map[r.step]=r.approver_name; });
       CUR_DAY.apprLine=map;
     }catch(e){ CUR_DAY.apprLine={}; }
+
+    // ── 생산2팀: 별도 로직용 추가 데이터 로드 ──
+    if(team==='생산2팀'){
+      try{
+        const [stRes,mhRes]=await Promise.all([
+          sb.rpc('get_std_time',{p_team:team}),
+          sb.from('t_cl_mh').select('*').eq('work_date',date).eq('team',team)
+        ]);
+        CUR_DAY.stdTime=stRes.data||[];
+        const mhMap={}; (mhRes.data||[]).forEach(m=>{mhMap[m.prod_code]={mh:m.mh,note:m.note};});
+        CUR_DAY.mhMap=mhMap;
+      }catch(e){ CUR_DAY.stdTime=[]; CUR_DAY.mhMap={}; }
+    }
   }catch(e){ toast('조회 실패: '+(e.message||e),'err'); return; }
-  renderClosing();
+
+  // 팀별 분기: 생산2팀은 전용 렌더
+  if(CUR_DAY.team==='생산2팀') renderClosing2();
+  else renderClosing();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   생산2팀 전용 렌더 (B안: 별도 로직)
+   ① 완제품 라인별 가동 요약 — 계획/실적 가동시간·생산량·생산성 자동계산
+   ═══════════════════════════════════════════════════════════ */
+let T2_KIND='fin'; // fin(완제품) | semi(반제품)
+function renderClosing2(){
+  const {lines,orders,stdTime,mhMap,downtime}=CUR_DAY;
+  const c=CUR_DAY.closing||{};
+
+  // 공정별 기준시간 맵
+  const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0),plan:Number(s.plan_hours||0)}; });
+
+  // 완제품/반제품 분류 (prod_code 앞자리: 2·3=완제품, 6=반제품)
+  const isFin=code=>['2','3'].includes(String(code||'')[0]);
+  const isSemi=code=>String(code||'')[0]==='6';
+
+  // 라인별 집계 (계획/실적 생산량 + run 가동시간)
+  const runByLine={};
+  (downtime||[]).forEach(t=>{ if(t.category==='run'){
+    const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+    runByLine[k]=(runByLine[k]||0)+diffMin(t.start_time,t.end_time);
+  }});
+  const stopByLine={};
+  (downtime||[]).forEach(t=>{ if(t.category==='plan'){
+    const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+    stopByLine[k]=(stopByLine[k]||0)+diffMin(t.start_time,t.end_time);
+  }});
+
+  const kindFilter=(code)=>T2_KIND==='fin'?isFin(code):isSemi(code);
+  const qtyByLine={};  // {line:{plan,actual,mh}}
+  (orders||[]).forEach(o=>{
+    if(!kindFilter(o.prod_code))return;
+    const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||'');
+    const q=qtyByLine[k]||(qtyByLine[k]={plan:0,actual:0,mh:0});
+    q.plan+=Number(o.plan_qty||0); q.actual+=Number(o.actual_qty||0);
+    const mh=mhMap[o.prod_code]; if(mh)q.mh+=Number(mh.mh||0);
+  });
+
+  const lineNames=[...new Set([...lines.map(l=>l.line_name), ...Object.keys(qtyByLine)])].sort();
+  const finCnt=orders.filter(o=>isFin(o.prod_code)).length;
+  const semiCnt=orders.filter(o=>isSemi(o.prod_code)).length;
+
+  let T={std:0,planH:0,actH:0,planQ:0,actQ:0,mh:0};
+  const rows=lineNames.map((name,i)=>{
+    const st=stdMap[name]||{std:0,plan:0};
+    const runH=(runByLine[name]||0)/60;         // 실적 가동시간(hr)
+    const planStopH=(stopByLine[name]||0)/60;
+    const planH=st.plan||0;                       // 계획 가동시간(설정)
+    const q=qtyByLine[name]||{plan:0,actual:0,mh:0};
+    const planEff=st.std>0?(planH/st.std*100):0;  // 계획 편성률
+    const rate=planH>0?(runH/planH*100):0;        // 가동률
+    const achieve=q.plan>0?(q.actual/q.plan*100):0;
+    const hrProd=runH>0?(q.actual/runH):0;        // 시간당 생산성 KG/HR
+    const mhProd=q.mh>0?(q.actual/q.mh):0;        // 인시당 생산성 KG/MH
+    T.std+=st.std; T.planH+=planH; T.actH+=runH; T.planQ+=q.plan; T.actQ+=q.actual; T.mh+=q.mh;
+    return `<tr>
+      <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
+      <td class="mono">${st.std||'–'}</td>
+      <td class="mono">${planH?planH.toFixed(1):'–'}</td>
+      <td class="mono">${runH?runH.toFixed(1):'–'}</td>
+      <td class="mono">${planEff?planEff.toFixed(1)+'%':'–'}</td>
+      <td class="mono">${rate?rate.toFixed(1)+'%':'–'}</td>
+      <td class="mono">${q.plan?fmt(q.plan):'–'}</td>
+      <td class="mono">${q.actual?fmt(q.actual):'0'}</td>
+      <td class="mono"><b style="color:${achieve>=90?'var(--grn)':achieve>0?'var(--org,#d97706)':'var(--red)'}">${q.plan?achieve.toFixed(1)+'%':'–'}</b></td>
+      <td class="mono">${hrProd?fmt(Math.round(hrProd)):'–'}</td>
+      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
+      <td class="mono">${q.mh?q.mh.toFixed(1):'–'}</td>
+      <td></td>
+    </tr>`;
+  }).join('');
+
+  $('#wrap').innerHTML=`
+  ${renderApprovalBar()}
+  ${renderClosingHeader2()}
+  <div class="closing-body ${CUR_DAY.locked?'locked':''}">
+
+  <!-- ① 완제품 라인별 가동 요약 -->
+  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
+    <span class="desc">완제품 기준 계획/실적/MH 집계 · 계획시간은 설정에서 관리</span></div>
+    <div class="tabbar">
+      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${finCnt}</button>
+      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${semiCnt}</button>
+    </div>
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead>
+        <tr><th rowspan="2">라인</th><th colspan="5">가동시간 (hr)</th><th colspan="3">생산량 (KG)</th>
+            <th rowspan="2">시간당생산성<br>(KG/HR)</th><th rowspan="2">인시당생산성<br>(KG/MH)</th><th rowspan="2">투입공수<br>(MH)</th><th rowspan="2">비고</th></tr>
+        <tr><th>기준</th><th>계획</th><th>실적</th><th>편성률</th><th>가동률</th><th>계획</th><th>실적</th><th>달성률</th></tr>
+      </thead>
+      <tbody>${rows||'<tr><td colspan="13" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+      <tfoot><tr style="background:#eef2f9;font-weight:800">
+        <td class="l">합 계</td>
+        <td class="mono">${T.std.toFixed(0)}</td><td class="mono">${T.planH.toFixed(1)}</td><td class="mono">${T.actH.toFixed(1)}</td>
+        <td class="mono">${T.std>0?(T.planH/T.std*100).toFixed(1)+'%':'–'}</td>
+        <td class="mono">${T.planH>0?(T.actH/T.planH*100).toFixed(1)+'%':'–'}</td>
+        <td class="mono">${fmt(T.planQ)}</td><td class="mono">${fmt(T.actQ)}</td>
+        <td class="mono">${T.planQ>0?(T.actQ/T.planQ*100).toFixed(1)+'%':'–'}</td>
+        <td class="mono">${T.actH>0?fmt(Math.round(T.actQ/T.actH)):'–'}</td>
+        <td class="mono">${T.mh>0?(T.actQ/T.mh).toFixed(1):'–'}</td>
+        <td class="mono">${T.mh.toFixed(1)}</td><td></td>
+      </tr></tfoot>
+    </table></div>
+  </div>
+
+  <div style="text-align:center;color:var(--mut);font-size:13px;padding:30px" id="sec2More">
+    <div class="skel" style="height:200px;border-radius:14px"></div>
+  </div>
+  </div>`;
+  renderMore2();
+}
+function switchT2Kind(k){ T2_KIND=k; renderClosing2(); }
+function renderClosingHeader2(){
+  const {date,team}=CUR_DAY;
+  return `<div class="closing-hd2">
+    <button class="tbtn" onclick="go('cal')">← 캘린더로</button>
+    <div class="ch2-title"><h1>일일 생산마감 · <span style="color:var(--blue)">생산2팀</span></h1>
+      <div class="ch2-sub">${date} · 완제품 생산성 관리</div></div>
+  </div>`;
+}
+function renderMore2(){
+  // ②③④⑤ 는 다음 단계에서 구현
+  $('#sec2More').innerHTML='<div style="padding:20px;color:var(--mut)">② 오더별 실적 · ③ 로스 · ④ 불량 · ⑤ 비가동 — 다음 단계에서 구현됩니다.</div>';
+  $('#sec2More').style.cssText='text-align:left';
 }
 
 /* 결재 진행바 + 액션 버튼 */
@@ -2939,10 +3177,37 @@ function renderClosing(){
     <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(totLoss)}원</span>
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
+    ${(()=>{
+      const byLine={},byType={}; let over=0,save=0,cnt=0;
+      (CUR_DAY.losses||[]).forEach(l=>{
+        const amt=Math.round((l.diff||0)*(l.unit_price||0));
+        if(!amt&&!l.diff)return; cnt++;
+        const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||''); byLine[k]=(byLine[k]||0)+amt;
+        const t=l.scrap_type||'(미분류)'; byType[t]=(byType[t]||0)+amt;
+        if(amt>0)over+=amt; else save+=amt;
+      });
+      const top=(o,n)=>Object.entries(o).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,n);
+      const cell=(k,v)=>`<div class="sum-item ${v>0?'neg':(v<0?'pos':'')}">
+        <div class="k">${k}</div><div class="v">${v>0?'-':'+'}${fmt(Math.abs(v))}</div></div>`;
+      return `<div class="sum-strip">
+        <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 로스금액</div>
+          <div class="v">${totLoss>0?'-':'+'}${fmt(Math.abs(totLoss))}</div></div>
+        <div class="sum-item"><div class="k">발생 건수</div><div class="v">${cnt}</div></div>
+        ${top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')}
+        ${top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('')}
+      </div>`;
+    })()}
+    <div class="fold-bar" id="foldBar_loss" onclick="toggleFold('loss')">
+      <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
+      <span class="fold-cnt">${(CUR_DAY.losses||[]).length}</span>
+      <span class="fold-hint">클릭하여 펼치기</span>
+    </div>
+    <div class="fold-body" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
       <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
       <tbody>${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
     </table></div></div>
+    </div>
   </div>
 
   <div style="text-align:center;color:var(--mut);font-size:13px;padding:20px" id="secMore"></div>
@@ -3112,6 +3377,27 @@ function renderMoreSections(){
     <span class="desc">입력 후 등록 → 즉시 목록</span><span class="sp"></span>
     <button class="tbtn" onclick="toggleTypePanel('defect')">▲ 불량유형 관리</button></div>
     <div class="type-panel" id="typePanel_defect" style="display:none"></div>
+    ${(()=>{
+      const byType={},byLine={}; let totQty=0;
+      (defects||[]).forEach(d=>{
+        const q=Number(d.qty||0); totQty+=q;
+        const t=d.defect_type||'(미분류)'; byType[t]=(byType[t]||0)+q;
+        const k=(d.proc_sub1||'')+'/'+(d.proc_sub2||''); byLine[k]=(byLine[k]||0)+q;
+      });
+      const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
+      return `<div class="sum-strip">
+        <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 불량수량</div><div class="v">${fmt(totQty)}</div></div>
+        <div class="sum-item"><div class="k">등록 건수</div><div class="v">${(defects||[]).length}</div></div>
+        ${top(byType,3).map(([k,v])=>`<div class="sum-item"><div class="k">유형 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
+        ${top(byLine,2).map(([k,v])=>`<div class="sum-item"><div class="k">라인 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
+      </div>`;
+    })()}
+    <div class="fold-bar" id="foldBar_defect" onclick="toggleFold('defect')">
+      <span class="fold-arrow">▶</span><span class="fold-title">불량 등록 · 상세 목록</span>
+      <span class="fold-cnt">${(defects||[]).length}</span>
+      <span class="fold-hint">클릭하여 펼치기</span>
+    </div>
+    <div class="fold-body" id="foldBody_defect">
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인</th><th>제품</th><th>불량유형</th><th>수량</th><th>단위</th><th>사유</th><th>작업</th></tr></thead>
       <tbody id="defectBody">
@@ -3127,6 +3413,7 @@ function renderMoreSections(){
         ${defRows}
       </tbody>
     </table></div>
+    </div>
   </div>
 
   <!-- ⑤ 라인 비가동: 파트 고정 집계 -->
@@ -3146,6 +3433,12 @@ function renderMoreSections(){
       ※ 가동시간 = 요약탭 생산시작~종료 · 실가동 = 가동시간 − (계획정지 + 비계획정지) · <b>가동률 = 실가동 ÷ 가동시간</b>
     </div></div>
     ${downDetail?`
+    <div class="fold-bar" id="foldBar_down" onclick="toggleFold('down')">
+      <span class="fold-arrow">▶</span><span class="fold-title">가동·정지 상세 · 등록/수정</span>
+      <span class="fold-cnt">${(downtime||[]).length}</span>
+      <span class="fold-hint">클릭하여 펼치기</span>
+    </div>
+    <div class="fold-body" id="foldBody_down">
     <div class="dt-filter" id="dtFilterBar">
       <span class="dtf-label">라인 선택</span>
       <button class="dtf-chip on" data-ln="" onclick="filterDownLine('')">전체 <b>${(downtime||[]).length}</b></button>
@@ -3156,6 +3449,7 @@ function renderMoreSections(){
       <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>출처</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
       <tbody id="dtDetailBody">${downDetail}</tbody></table>
       <div id="dtEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
+    </div>
     </div>`:''}
     <div id="downFormSlot" style="padding:0 16px 4px"></div>
   </div>
@@ -3305,6 +3599,16 @@ async function saveDownNew(){
     if(error)throw error;
     toast('비가동 등록 완료','ok'); openDay(date,team);
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+/* 섹션 상세 접기/펼치기 */
+function toggleFold(id){
+  const bar=document.getElementById('foldBar_'+id);
+  const body=document.getElementById('foldBody_'+id);
+  if(!bar||!body)return;
+  const open=body.classList.toggle('open');
+  bar.classList.toggle('open',open);
+  const h=bar.querySelector('.fold-hint');
+  if(h) h.textContent=open?'클릭하여 접기':'클릭하여 펼치기';
 }
 /* ⑤ 비가동 상세: 라인 필터 (스크롤 부담 해소) */
 function filterDownLine(ln){
@@ -3578,6 +3882,22 @@ async function reloadTypes(team){
   ]);
   CUR_DAY.lossTypes=lt.data||[];
   CUR_DAY.defectTypes=dt.data||[];
+  refreshTypeSelects();   // 화면의 드롭다운도 즉시 갱신
+}
+/* 이미 그려진 유형 드롭다운(select)의 옵션 갱신 — 선택값은 유지 */
+function refreshTypeSelects(){
+  const build=(types,cur)=>['<option value="">유형선택</option>']
+    .concat((types||[]).map(t=>{
+      const n=t.type_name;
+      return `<option value="${n}"${n===cur?' selected':''}>${n}</option>`;
+    })).join('');
+  // 로스 행 드롭다운 (여러 개)
+  document.querySelectorAll('select.loss-type').forEach(sel=>{
+    sel.innerHTML=build(CUR_DAY.lossTypes, sel.value);
+  });
+  // 불량 등록 폼 드롭다운 (1개)
+  const df=document.getElementById('dfType');
+  if(df) df.innerHTML=build(CUR_DAY.defectTypes, df.value);
 }
 /* 유형 패널 내용만 다시 그림 (열린 상태 유지, 스크롤 유지) */
 function refreshTypePanel(kind){
