@@ -247,9 +247,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .pc-body{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 13px}
 .pc-k{font-size:10.5px;color:var(--mut);font-weight:700}
 .pc-v{font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;margin-top:2px}
-.pc-foot{padding:8px 13px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);display:flex;justify-content:space-between;position:relative}
-.pc-bar{position:absolute;left:0;bottom:0;width:100%;height:3px;background:#eef2f9}
-.pc-bar>div{height:100%;background:linear-gradient(90deg,#2954a0,#4a90d9)}
+.pc2-foot{padding:8px 13px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);display:flex;justify-content:space-between;position:relative}
+.pc2-bar{position:absolute;left:0;bottom:0;width:100%;height:3px;background:#eef2f9}
+.pc2-bar>div{height:100%;background:linear-gradient(90deg,#2954a0,#4a90d9)}
 /* 문서 푸터 */
 .doc-footer2{margin-top:16px;padding:18px 22px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;
   text-align:right;font-size:13px;line-height:1.9;color:var(--sub)}
@@ -3243,8 +3243,8 @@ function renderMore2(){
                 <div><div class="pc-k">비계획 비중</div><div class="pc-v">${share?share.toFixed(1)+'%':'–'}</div></div>
                 <div><div class="pc-k">가동률</div><div class="pc-v" style="color:${rate>=90?'var(--grn)':rate>0?'var(--org,#d97706)':'inherit'}">${planH?rate.toFixed(1)+'%':'–'}</div></div>
               </div>
-              <div class="pc-foot"><span>비계획 기여도 ${share.toFixed(1)}%</span><span>누적 ${cum.toFixed(1)}%</span>
-                <div class="pc-bar"><div style="width:${Math.min(cum,100)}%"></div></div></div>
+              <div class="pc2-foot"><span>비계획 기여도 ${share.toFixed(1)}%</span><span>누적 ${cum.toFixed(1)}%</span>
+                <div class="pc2-bar"><div style="width:${Math.min(cum,100)}%"></div></div></div>
             </div>`;
           }).join('');
         return `
