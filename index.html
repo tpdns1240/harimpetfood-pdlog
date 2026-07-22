@@ -332,6 +332,8 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .rowbtn.edit{background:var(--blue-soft);color:var(--blue);border-color:#c7dbff}
 .rowbtn.del{background:#fef2f2;color:var(--red);border-color:#fecaca}
 .rowbtn.cancel{background:#f1f4fa;color:var(--sub)}
+.rowbtn.xcl{background:#fff7ed;color:#c2560c;border-color:#fed7aa;cursor:pointer}
+.rowbtn.xcl:hover{background:#c2560c;color:#fff;border-color:#c2560c}
 tr.row-saved{background:var(--grn-soft)!important}
 tr.row-saved .inp-cell{background:transparent;border-color:transparent;font-weight:600;color:var(--ink)}
 /* 긴 표 타이틀 고정 스크롤 */
@@ -2049,6 +2051,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='notice'?'on':''}" onclick="switchSettingsTab('notice')">📢 공지사항</button>
     <button class="stab ${SETTINGS_TAB==='capa'?'on':''}" onclick="switchSettingsTab('capa')">⚙ CAPA 관리</button>
     <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 기준시간 (2팀)</button>
+    <button class="stab ${SETTINGS_TAB==='matx'?'on':''}" onclick="switchSettingsTab('matx')">🚫 로스 제외품목</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -2061,6 +2064,7 @@ function switchSettingsTab(tab){
   else if(tab==='notice'){ btns[2]&&btns[2].classList.add('on'); renderNoticeMgmt(); }
   else if(tab==='capa'){ btns[3]&&btns[3].classList.add('on'); renderCapaMgmt(); }
   else if(tab==='stdtime'){ btns[4]&&btns[4].classList.add('on'); renderStdTimeMgmt(); }
+  else if(tab==='matx'){ btns[5]&&btns[5].classList.add('on'); renderMatExcludeMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -2275,6 +2279,106 @@ async function toggleStd(i){
 }
 
 /* --- 기준시간 관리 탭 끝 --- */
+/* --- 로스 제외품목 관리 탭 (박스 등 별도회계 품목을 로스금액 계산에서 제외) --- */
+let MATX_LIST=[];
+async function renderMatExcludeMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
+  try{ const {data}=await sb.rpc('get_mat_exclude_list',{}); MATX_LIST=data||[]; }
+  catch(e){ toast('제외품목 조회 실패: '+(e.message||e),'err'); MATX_LIST=[]; }
+  const esc=s=>String(s==null?'':s).replace(/'/g,"\\'");
+  const activeCnt=MATX_LIST.filter(m=>m.active!==false).length;
+  const rows=MATX_LIST.map(m=>{
+    const off=m.active===false;
+    return `<tr style="${off?'opacity:.5':''}">
+      <td class="mono">${m.mat_code}</td>
+      <td class="l">${m.mat_name||'-'}</td>
+      <td class="l">${m.reason||'-'}</td>
+      <td>${m.updated_at?String(m.updated_at).slice(0,10):'-'}</td>
+      <td><span class="cap-badge ${off?'off':'on'}">${off?'해제됨(포함)':'제외중'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="rowbtn ${off?'act':'del'}" onclick="toggleMatExclude('${esc(m.mat_code)}',${off})">${off?'↻ 다시 제외':'제외 해제'}</button>
+        <button class="rowbtn del" onclick="deleteMatExclude('${esc(m.mat_code)}','${esc(m.mat_name)}')">삭제</button>
+      </td></tr>`;
+  }).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    🚫 박스 등 <b>별도 계정으로 처리되는 품목</b>을 등록하면, 해당 자재는 <b>로스금액 · 대시보드 집계</b>에서 자동 제외됩니다.<br>
+    · 등록 즉시 원부자재 로스관리 화면과 팀/라인/오더별 로스금액 집계에서 모두 빠집니다.<br>
+    · <b>제외 해제</b>를 누르면 다시 로스 계산에 포함됩니다. 이력은 삭제 전까지 남습니다.
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">＋</span><h3>제외 품목 등록</h3></div>
+    <div class="sec-bd">
+      <div class="work-grid">
+        <div class="work-field"><label>자재코드 또는 자재명 검색</label>
+          <input id="mxSearch" placeholder="예: 박스, 또는 자재코드 일부" onkeydown="if(event.key==='Enter')searchMatExclude()"></div>
+        <div class="work-field" style="align-self:flex-end">
+          <button class="tbtn save" onclick="searchMatExclude()">검색</button></div>
+      </div>
+      <div id="mxSearchResults" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="no c2">◆</span><h3>등록된 제외 품목</h3>
+    <span class="desc">${MATX_LIST.length}건 · 제외중 ${activeCnt}건</span></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>자재코드</th><th>자재명</th><th>사유</th><th>등록/수정일</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">등록된 제외 품목 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+async function searchMatExclude(){
+  const q=($('#mxSearch').value||'').trim();
+  if(!q){ toast('검색어를 입력하세요','err'); return; }
+  const box=$('#mxSearchResults');
+  box.innerHTML='<div style="padding:10px;color:var(--mut);font-size:13px">검색중...</div>';
+  try{
+    const {data,error}=await sb.rpc('search_mat_for_exclude',{p_query:q});
+    if(error)throw error;
+    const list=data||[];
+    if(!list.length){ box.innerHTML='<div style="padding:10px;color:var(--mut);font-size:13px">검색 결과 없음</div>'; return; }
+    const esc=s=>String(s==null?'':s).replace(/'/g,"\\'");
+    box.innerHTML=`<table><thead><tr><th>자재코드</th><th>자재명</th><th>사유(선택)</th><th>관리</th></tr></thead><tbody>
+      ${list.map((m,i)=>{
+        const already=MATX_LIST.some(x=>x.mat_code===m.mat_code && x.active!==false);
+        return `<tr>
+          <td class="mono">${m.mat_code}</td>
+          <td class="l">${m.mat_name||'-'}</td>
+          <td><input id="mxReason_${i}" placeholder="예: 박스 별도회계 처리" style="width:100%;padding:6px;border:1.5px solid var(--line);border-radius:7px" ${already?'disabled':''}></td>
+          <td>${already
+            ?'<span class="cap-badge on">이미 제외중</span>'
+            :`<button class="rowbtn edit" onclick="addMatExclude('${esc(m.mat_code)}','${esc(m.mat_name)}',${i})">제외추가</button>`}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+  }catch(e){ box.innerHTML='<div style="padding:10px;color:var(--red);font-size:13px">검색 실패: '+(e.message||e)+'</div>'; }
+}
+async function addMatExclude(matCode,matName,i){
+  const reason=($('#mxReason_'+i)?$('#mxReason_'+i).value:'').trim();
+  try{
+    const {error}=await sb.rpc('set_mat_exclude',{p_mat_code:matCode,p_mat_name:matName,p_reason:reason,p_active:true});
+    if(error)throw error;
+    toast(matName+' 제외 등록완료','ok');
+    renderMatExcludeMgmt();
+  }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
+}
+async function toggleMatExclude(matCode,turnOn){
+  const m=MATX_LIST.find(x=>x.mat_code===matCode); if(!m)return;
+  try{
+    const {error}=await sb.rpc('set_mat_exclude',{p_mat_code:matCode,p_mat_name:m.mat_name||'',p_reason:m.reason||'',p_active:turnOn});
+    if(error)throw error;
+    toast(`${m.mat_name||matCode} ${turnOn?'다시 제외':'제외 해제'}`,'ok');
+    renderMatExcludeMgmt();
+  }catch(e){ toast('변경 실패: '+(e.message||e),'err'); }
+}
+async function deleteMatExclude(matCode,matName){
+  if(!confirm(`[${matName||matCode}] 제외 등록을 완전히 삭제할까요?\n(다시 등록하려면 검색부터 해야 합니다)`))return;
+  try{
+    const {error}=await sb.rpc('delete_mat_exclude',{p_mat_code:matCode});
+    if(error)throw error;
+    toast('삭제완료','ok');
+    renderMatExcludeMgmt();
+  }catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
+}
+/* --- 로스 제외품목 관리 탭 끝 --- */
 /* --- CAPA 관리 탭 (호기별 + 활성/비활성) --- */
 let CAPA_LIST=[];
 async function renderCapaMgmt(){
@@ -2712,10 +2816,16 @@ async function openParetoDetail(line, curRate){
       if(PARETO_CHART){try{PARETO_CHART.destroy()}catch(e){}}
       PARETO_CHART=new Chart(ctx,{type:'line',
         data:{labels:tr.map(x=>String(x.work_date).slice(5)),datasets:[
-          {label:'가동률(%)',data:tr.map(x=>x.run_rate),borderColor:'#2670c9',backgroundColor:'rgba(38,112,201,.1)',tension:.3,pointRadius:3,fill:true},
+          {label:'가동률(%)',data:tr.map(x=>x.run_rate),borderColor:'#2670c9',backgroundColor:'rgba(38,112,201,.1)',tension:.3,pointRadius:3,pointHoverRadius:6,pointHitRadius:12,fill:true},
           {label:'목표 95%',data:tr.map(()=>95),borderColor:'#d15a4e',borderDash:[5,4],pointRadius:0,borderWidth:1.5}
         ]},
-        options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:111}},plugins:{legend:{position:'top',labels:{font:{size:11}}}}}});
+        options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:111}},
+          interaction:{mode:'index',intersect:false},
+          plugins:{legend:{position:'top',labels:{font:{size:11}}},
+            tooltip:{callbacks:{
+              title:items=>items.length?tr[items[0].dataIndex].work_date:'',
+              label:item=>item.dataset.label==='목표 95%'?null:`가동률: ${Number(item.raw).toFixed(1)}%`
+            },filter:item=>item.dataset.label!=='목표 95%'}}}});
     }
     // 오늘 비계획정지
     $('#pdTodayCnt').textContent=td.length+'건';
@@ -2991,6 +3101,7 @@ function renderMore2(){
         ${isSaved
           ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
           : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
+        <button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>
       </td></tr>`;
     }).join('');
     return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
@@ -3235,7 +3346,7 @@ function renderMore2(){
             const rate=planH>0?(actH/planH*100):0;
             const share=totUnplan>0?(x.unplan/totUnplan*100):0;
             cum+=share;
-            return `<div class="pareto-card">
+            return `<div class="pareto-card pc2-card" onclick="openParetoDetail('${x.line.replace(/'/g,"")}',${rate?rate.toFixed(1):0})" style="cursor:pointer">
               <div class="pc-hd"><span class="pc-no">${i+1}</span>${x.line}</div>
               <div class="pc-body">
                 <div><div class="pc-k">계획정지</div><div class="pc-v">${stopH.toFixed(1)} hr</div></div>
@@ -3780,6 +3891,7 @@ function renderClosing(){
       ${isSaved
         ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
         : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
+      <button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>
     </td>
   </tr>`;
   }).join('');
@@ -4466,7 +4578,7 @@ function lockLossRow(i,type,reason){
   tr.classList.add('row-saved');
   tr.querySelector('.loss-type').disabled=true;
   tr.querySelector('.loss-reason').disabled=true;
-  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`;
+  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button><button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>`;
 }
 /* 로스 행 수정 모드 (잠금 해제) */
 function editLossRow(i){
@@ -4475,7 +4587,7 @@ function editLossRow(i){
   tr.classList.remove('row-saved');
   tr.querySelector('.loss-type').disabled=false;
   tr.querySelector('.loss-reason').disabled=false;
-  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button><button class="rowbtn cancel" onclick="rerenderClosing()">취소</button>`;
+  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button><button class="rowbtn cancel" onclick="rerenderClosing()">취소</button><button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>`;
 }
 /* 팀에 맞는 마감 화면 재렌더 */
 function rerenderClosing(){
@@ -4499,13 +4611,35 @@ async function delLossRow(i){
       tr.querySelector('.loss-type').value='';
       tr.querySelector('.loss-reason').disabled=false;
       tr.querySelector('.loss-reason').value='';
-      tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`;
+      tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button><button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>`;
     }
     toast('삭제완료','ok');
   }catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
 }
 
-/* 유형 관리 모달 (로스/불량 공용) */
+/* 로스 행 → 그 자재를 제외품목으로 등록 (박스 등 별도회계). 등록 즉시 로스금액에서 빠짐 */
+async function excludeLossRow(i){
+  if(S.user.role!=='admin'){ toast('제외 등록은 관리자만 가능합니다','err'); return; }
+  const s=CUR_DAY.losses[i]; if(!s)return;
+  const reason=prompt(`[${s.mat_name}] 을(를) 로스금액 제외 품목으로 등록합니다.\n\n박스 등 별도 계정으로 처리되는 품목이면 아래에 사유를 적고 확인하세요.\n(모든 날짜·대시보드의 로스금액에서 이 자재가 빠집니다. 해제는 설정 → 로스 제외품목에서 가능)\n\n제외 사유:`,'박스 별도회계 처리');
+  if(reason===null)return; // 취소
+  try{
+    const {error}=await sb.rpc('set_mat_exclude',{
+      p_mat_code:s.mat_code, p_mat_name:s.mat_name||'', p_reason:(reason||'').trim(), p_active:true});
+    if(error)throw error;
+    // 이미 저장된 로스유형이 있으면 함께 삭제 (제외품목이 스크랩 집계에 남지 않도록)
+    try{
+      await sb.from('t_cl_scrap').delete()
+        .eq('work_date',CUR_DAY.date).eq('team',CUR_DAY.team)
+        .eq('mat_code',s.mat_code);
+      CUR_DAY.savedScraps=(CUR_DAY.savedScraps||[]).filter(x=>x.mat_code!==s.mat_code);
+    }catch(_){}
+    // 로컬 반영: 같은 mat_code 행을 로스 목록에서 제거 후 재렌더 (위치·집계 즉시 갱신)
+    CUR_DAY.losses=(CUR_DAY.losses||[]).filter(l=>l.mat_code!==s.mat_code);
+    toast(`${s.mat_name} 제외 등록완료 · 로스금액에서 제외됨`,'ok');
+    rerenderClosing();
+  }catch(e){ toast('제외 등록 실패: '+(e.message||e),'err'); }
+}
 async function openTypeManager(kind){
   const {team}=CUR_DAY;
   const types = kind==='defect'?CUR_DAY.defectTypes:CUR_DAY.lossTypes;
