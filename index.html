@@ -219,6 +219,41 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 @media(max-width:900px){.pareto-grid{grid-template-columns:1fr}}
 /* 행별 편집 버튼 */
 .row-actions{white-space:nowrap}
+.proc-tabbar{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;background:#f6f9fd;border-bottom:1px solid var(--line)}
+.proc-tab{display:flex;align-items:center;gap:6px;padding:6px 13px;border-radius:20px;border:1.5px solid var(--line);
+  background:#fff;color:var(--sub);font-size:12.5px;font-weight:700;cursor:pointer;transition:all .15s}
+.proc-tab .pt-no{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#e2e8f2;color:#7b8595;font-size:10px;font-weight:800}
+.proc-tab:hover{border-color:#2954a0;color:#2954a0}
+.proc-tab.on{background:#2954a0;border-color:#2954a0;color:#fff}
+.proc-tab.on .pt-no{background:rgba(255,255,255,.25);color:#fff}
+.pt-cnt{font-size:11px;font-weight:800;opacity:.65;margin-left:1px}
+/* ⑤ 블록 구조 */
+.blk-hd{padding:12px 16px;background:#eef2f9;font-size:13.5px;font-weight:800;color:#1e3a6d;border-top:1px solid var(--line)}
+.blk-hd .blk-sub{font-size:11.5px;font-weight:600;color:var(--mut);margin-left:8px}
+.run-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;background:#fbfcfe}
+.run-form select,.run-form input{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px}
+.run-form select{background:#fff}
+/* [D] 비가동 입력폼 */
+.stop-form{padding:12px 16px;background:#fbfcfe;display:flex;flex-direction:column;gap:8px}
+.sf-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sf-row select,.sf-row input{padding:8px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px}
+.sf-row select{background:#fff}
+.se-lb{font-size:12px;font-weight:700;color:var(--sub)}
+/* [F] 파레토 스코어카드 */
+.pareto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:14px 16px}
+.pareto-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.pc-hd{display:flex;align-items:center;gap:8px;padding:10px 13px;background:#f6f9fd;font-weight:800;font-size:13.5px;color:#1e3a6d}
+.pc-no{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#2954a0;color:#fff;font-size:11px;font-weight:800}
+.pc-body{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 13px}
+.pc-k{font-size:10.5px;color:var(--mut);font-weight:700}
+.pc-v{font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.pc-foot{padding:8px 13px;border-top:1px solid var(--line);font-size:10.5px;color:var(--mut);display:flex;justify-content:space-between;position:relative}
+.pc-bar{position:absolute;left:0;bottom:0;width:100%;height:3px;background:#eef2f9}
+.pc-bar>div{height:100%;background:linear-gradient(90deg,#2954a0,#4a90d9)}
+/* 문서 푸터 */
+.doc-footer2{margin-top:16px;padding:18px 22px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;
+  text-align:right;font-size:13px;line-height:1.9;color:var(--sub)}
+.doc-footer2 b{color:var(--ink);font-family:'JetBrains Mono',monospace;letter-spacing:.02em}
 /* ── 생산2팀 전용 스타일 ── */
 .closing-hd2{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,#1e3a6d,#2954a0);
   color:#fff;padding:18px 22px;border-radius:14px;margin-bottom:16px}
@@ -2753,24 +2788,22 @@ function renderClosing2(){
   const {lines,orders,stdTime,mhMap,downtime}=CUR_DAY;
   const c=CUR_DAY.closing||{};
 
-  // 공정별 기준시간 맵
-  const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0),plan:Number(s.plan_hours||0)}; });
+  // 공정별 기준시간 맵 (설정값)
+  const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0)}; });
 
   // 완제품/반제품 분류 (prod_code 앞자리: 2·3=완제품, 6=반제품)
   const isFin=code=>['2','3'].includes(String(code||'')[0]);
   const isSemi=code=>String(code||'')[0]==='6';
 
-  // 라인별 집계 (계획/실적 생산량 + run 가동시간)
-  const runByLine={};
-  (downtime||[]).forEach(t=>{ if(t.category==='run'){
+  // 라인별 가동시간: 계획=run 합, 실적=run - (계획정지+비계획정지)
+  const runByLine={}, planStopByLine={}, unplanStopByLine={};
+  (downtime||[]).forEach(t=>{
     const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
-    runByLine[k]=(runByLine[k]||0)+diffMin(t.start_time,t.end_time);
-  }});
-  const stopByLine={};
-  (downtime||[]).forEach(t=>{ if(t.category==='plan'){
-    const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
-    stopByLine[k]=(stopByLine[k]||0)+diffMin(t.start_time,t.end_time);
-  }});
+    const dur=diffMin(t.start_time,t.end_time);
+    if(t.category==='run') runByLine[k]=(runByLine[k]||0)+dur;
+    else if(t.category==='plan') planStopByLine[k]=(planStopByLine[k]||0)+dur;
+    else if(t.category==='unplan'||t.category==='sudden') unplanStopByLine[k]=(unplanStopByLine[k]||0)+dur;
+  });
 
   const kindFilter=(code)=>T2_KIND==='fin'?isFin(code):isSemi(code);
   const qtyByLine={};  // {line:{plan,actual,mh}}
@@ -2788,24 +2821,24 @@ function renderClosing2(){
 
   let T={std:0,planH:0,actH:0,planQ:0,actQ:0,mh:0};
   const rows=lineNames.map((name,i)=>{
-    const st=stdMap[name]||{std:0,plan:0};
-    const runH=(runByLine[name]||0)/60;         // 실적 가동시간(hr)
-    const planStopH=(stopByLine[name]||0)/60;
-    const planH=st.plan||0;                       // 계획 가동시간(설정)
+    const st=stdMap[name]||{std:0};
+    const planH=(runByLine[name]||0)/60;          // 계획 가동시간 = run 합(작업시간)
+    const stopH=((planStopByLine[name]||0)+(unplanStopByLine[name]||0))/60;
+    const actH=Math.max(planH-stopH,0);           // 실적 가동시간 = 계획 - 정지
     const q=qtyByLine[name]||{plan:0,actual:0,mh:0};
-    const planEff=st.std>0?(planH/st.std*100):0;  // 계획 편성률
-    const rate=planH>0?(runH/planH*100):0;        // 가동률
+    const planEff=st.std>0?(planH/st.std*100):0;  // 편성률 = 계획 ÷ 기준
+    const rate=planH>0?(actH/planH*100):0;        // 가동률 = 실적 ÷ 계획
     const achieve=q.plan>0?(q.actual/q.plan*100):0;
-    const hrProd=runH>0?(q.actual/runH):0;        // 시간당 생산성 KG/HR
-    const mhProd=q.mh>0?(q.actual/q.mh):0;        // 인시당 생산성 KG/MH
-    T.std+=st.std; T.planH+=planH; T.actH+=runH; T.planQ+=q.plan; T.actQ+=q.actual; T.mh+=q.mh;
+    const hrProd=actH>0?(q.actual/actH):0;        // 시간당 생산성 = 실적량 ÷ 실적시간
+    const mhProd=q.mh>0?(q.actual/q.mh):0;        // 인시당 생산성 = 실적량 ÷ MH
+    T.std+=st.std; T.planH+=planH; T.actH+=actH; T.planQ+=q.plan; T.actQ+=q.actual; T.mh+=q.mh;
     return `<tr>
       <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
       <td class="mono">${st.std||'–'}</td>
       <td class="mono">${planH?planH.toFixed(1):'–'}</td>
-      <td class="mono">${runH?runH.toFixed(1):'–'}</td>
+      <td class="mono">${actH?actH.toFixed(1):'–'}</td>
       <td class="mono">${planEff?planEff.toFixed(1)+'%':'–'}</td>
-      <td class="mono">${rate?rate.toFixed(1)+'%':'–'}</td>
+      <td class="mono"><b style="color:${rate>=90?'var(--grn)':rate>0?'var(--org,#d97706)':'var(--mut)'}">${planH?rate.toFixed(1)+'%':'–'}</b></td>
       <td class="mono">${q.plan?fmt(q.plan):'–'}</td>
       <td class="mono">${q.actual?fmt(q.actual):'0'}</td>
       <td class="mono"><b style="color:${achieve>=90?'var(--grn)':achieve>0?'var(--org,#d97706)':'var(--red)'}">${q.plan?achieve.toFixed(1)+'%':'–'}</b></td>
@@ -2858,16 +2891,622 @@ function renderClosing2(){
 function switchT2Kind(k){ T2_KIND=k; renderClosing2(); }
 function renderClosingHeader2(){
   const {date,team}=CUR_DAY;
+  const c=CUR_DAY.closing||{};
+  const docNo=c.doc_no||`DPC-${date}-K2-${team}`;
+  const writer=c.writer||(S.user&&S.user.name)||'';
   return `<div class="closing-hd2">
     <button class="tbtn" onclick="go('cal')">← 캘린더로</button>
     <div class="ch2-title"><h1>일일 생산마감 · <span style="color:var(--blue)">생산2팀</span></h1>
       <div class="ch2-sub">${date} · 완제품 생산성 관리</div></div>
+    <div style="margin-left:auto;text-align:right">
+      <div style="font-size:11px;color:#a9c0dd">문서번호</div>
+      <b style="font-size:13px">${docNo}</b>
+      ${writer?`<div style="font-size:11.5px;color:#c3d4ea;margin-top:3px">작성자 ${writer}</div>`:''}
+    </div>
   </div>`;
 }
 function renderMore2(){
-  // ②③④⑤ 는 다음 단계에서 구현
-  $('#sec2More').innerHTML='<div style="padding:20px;color:var(--mut)">② 오더별 실적 · ③ 로스 · ④ 불량 · ⑤ 비가동 — 다음 단계에서 구현됩니다.</div>';
+  const {orders,losses,defects,downtime,mhMap,lines}=CUR_DAY;
+  CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
+  const isFin=code=>['2','3'].includes(String(code||'')[0]);
+  const isSemi=code=>String(code||'')[0]==='6';
+  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o.prod_code):isSemi(o.prod_code));
+  // 공정별 그룹
+  const byProc={};
+  kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
+  const procs=Object.keys(byProc).sort();
+  if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
+  const curOrders=byProc[T2_PROC]||[];
+
+  const orderRows=curOrders.map(o=>{
+    const mh=mhMap[o.prod_code]||{mh:'',note:''};
+    const ach=o.plan_qty>0?(o.actual_qty/o.plan_qty*100):0;
+    const mhProd=(mh.mh&&o.actual_qty)?(o.actual_qty/Number(mh.mh)):0;
+    return `<tr data-ord="${o.prod_code}">
+      <td class="mono">${o.prod_code}</td>
+      <td class="l">${o.prod_name||'-'}</td>
+      <td class="mono">${fmt(o.plan_qty||0)}</td>
+      <td class="mono">${fmt(o.actual_qty||0)}</td>
+      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${o.plan_qty?ach.toFixed(1)+'%':'–'}</b></td>
+      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
+      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
+      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
+    </tr>`;
+  }).join('');
+  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
+
+  // ⑤ 가동/비가동: 공정별 작업시간(run) + 정지
+  const runRows=(downtime||[]).filter(t=>t.category==='run');
+  const stopRows=(downtime||[]).filter(t=>t.category!=='run');
+  const hm=m=>{const h=Math.floor(m/60),x=m%60;return h?`${h}h ${x}m`:`${x}m`;};
+
+  $('#sec2More').innerHTML=`
+  <!-- ② 오더별 실적 + 투입공수 입력 -->
+  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
+    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
+    <div class="tabbar">
+      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o.prod_code)).length}</button>
+      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o.prod_code)).length}</button>
+    </div>
+    ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
+      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>
+
+  <!-- ③ 원부자재 로스 (생산1팀과 동일한 온전한 입력 로직) -->
+  ${(()=>{
+    const savedScrap={}; (CUR_DAY.savedScraps||[]).forEach(s=>{ savedScrap[s.prod_code+'|'+s.mat_code]=s; });
+    const lossTypeOpts=(CUR_DAY.lossTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('');
+    const lossRows2=(losses||[]).map((s,i)=>{
+      const dcls=Number(s.diff)>0?'neg':'pos';
+      const saved=savedScrap[s.prod_code+'|'+s.mat_code];
+      const isSaved=!!saved;
+      const typeVal=saved?saved.scrap_type:'';
+      const reasonVal=saved?(saved.reason||''):'';
+      const typeSelOpts=lossTypeOpts.replace(`value="${typeVal}"`,`value="${typeVal}" selected`);
+      const diffSign=Number(s.diff)>0?'+':'';
+      const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
+      const lossSign=lossVal<0?'-':lossVal>0?'+':'';
+      const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
+      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
+      <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
+      <td class="l">${s.prod_name}</td>
+      <td class="l">${s.mat_name}</td>
+      <td class="mono">${fmt(s.plan_qty)}</td>
+      <td class="mono">${fmt(s.actual_qty)}</td>
+      <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+      <td class="mono">${fmt(s.unit_price)}</td>
+      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
+      <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
+      <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
+      <td class="row-actions">
+        ${isSaved
+          ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
+          : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
+      </td></tr>`;
+    }).join('');
+    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
+      <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
+      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(CUR_DAY._totLoss||0)}원</span>
+      <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
+      <div class="type-panel" id="typePanel_loss" style="display:none"></div>
+      ${(()=>{const cnt={};(losses||[]).forEach(l=>{const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
+        const keys=Object.keys(cnt).sort();
+        if(!keys.length)return '';
+        return `<div class="dt-filter" id="lossFilterBar">
+          <span class="dtf-label">라인 선택</span>
+          <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
+          ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
+        </div>`;})()}
+      <div class="fold-bar open" id="foldBar_loss2" onclick="toggleFold('loss2')">
+        <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
+        <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
+      <div class="fold-body open" id="foldBody_loss2">
+      <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
+        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
+        <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
+      </table></div>
+      <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
+      </div>
+      </div>
+    </div>`;
+  })()}
+
+  <!-- ④ 완제품 불량 (오더+유형+수량+비고) -->
+  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c4">4</span><h3>완제품 불량관리</h3>
+    <span class="desc">오더·불량유형·수량·비고</span><span class="sp"></span>
+    <button class="tbtn" onclick="toggleTypePanel('defect')">▲ 불량유형 관리</button></div>
+    <div class="type-panel" id="typePanel_defect" style="display:none"></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>라인</th><th>오더(제품)</th><th>불량유형</th><th>수량</th><th>단위</th><th>비고</th><th>작업</th></tr></thead>
+      <tbody id="defectBody">
+        <tr class="input-row">
+          <td><select class="inp-cell" id="dfLine2" onchange="filterDefectProds2()" style="width:130px;text-align:left"><option value="">라인선택</option>${[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort().map(ln=>`<option value="${ln}">${ln}</option>`).join('')}</select></td>
+          <td><select class="inp-cell" id="dfProd2" style="width:220px;text-align:left"><option value="">먼저 라인 선택</option></select></td>
+          <td><select class="inp-cell df-type" id="dfType" style="width:120px;text-align:left"><option value="">유형선택</option>${(CUR_DAY.defectTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('')}</select></td>
+          <td><input class="inp-cell" id="dfQty" type="number" placeholder="0" style="width:80px"></td>
+          <td><input class="inp-cell" id="dfUnit" value="KG" style="width:50px"></td>
+          <td><input class="inp-cell" id="dfReason" placeholder="비고" style="width:160px;text-align:left"></td>
+          <td class="row-actions"><button class="rowbtn save" onclick="saveDefect2()">+ 추가</button></td>
+        </tr>
+        ${(defects||[]).map(d=>`<tr data-defect="${d.id}"><td class="l">${(d.proc_sub1||'')}/${(d.proc_sub2||'')}</td><td class="l">${d.prod_name||d.prod_code||'-'}</td>
+          <td><span class="type-tag">${d.defect_type||'-'}</span></td><td class="mono">${fmt(d.qty||0)}</td>
+          <td>${d.unit||'KG'}</td><td class="l" style="font-size:12px">${d.memo||d.reason||'-'}</td>
+          <td class="row-actions">${CUR_DAY.locked?'':`<span class="delx" onclick="delDefect(${d.id})">✕</span>`}</td></tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>
+
+  <!-- ⑤ 라인 가동/비가동 (공정 작업시간 + 비가동) -->
+  <!-- ⑤ 라인 가동/비가동 (캡쳐3 벤치마킹) -->
+  ${(()=>{
+    const runList=(downtime||[]).filter(t=>t.category==='run')
+      .sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||'')||((a.id||0)-(b.id||0)));
+    // 오더 옵션(제품구분 포함)
+    const ordOpt=(orders||[]).map(o=>{
+      const kind=isFin(o.prod_code)?'완제품':isSemi(o.prod_code)?'반제품':'기타';
+      return `<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}|${kind}">${o.prod_code} · ${o.prod_name||''}</option>`;
+    }).join('');
+    const runRows2=runList.map(t=>{
+      const o=(orders||[]).find(x=>x.prod_code===t.prod_code);
+      const kind=t.prod_code?(isFin(t.prod_code)?'완제품':isSemi(t.prod_code)?'반제품':'-'):'-';
+      const dmin=diffMin(t.start_time,t.end_time);
+      return `<tr data-down="${t.id}">
+        <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
+        <td class="mono">${t.prod_code||'–'}</td>
+        <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
+        <td>${kind!=='-'?`<span class="type-tag">${kind}</span>`:'–'}</td>
+        <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
+        <td class="mono"><b>${(dmin/60).toFixed(1)}</b></td>
+        <td class="l" style="font-size:12px">${t.memo||'–'}</td>
+        <td class="row-actions">${CUR_DAY.locked?'':`<button class="rowbtn edit" onclick="openRunEdit(${t.id})">수정</button> <button class="rowbtn del" onclick="delDown(${t.id})">삭제</button>`}</td>
+      </tr>`;
+    }).join('');
+    const lineOpt2=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort()
+      .map(ln=>`<option value="${ln}">${ln}</option>`).join('');
+    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c5">5</span><h3>라인 가동/비가동 현황</h3>
+      <span class="desc">오더별 작업시간 입력 → ①요약 계획시간 자동 반영</span></div>
+
+      <!-- [A] 오더별 작업시간 입력 -->
+      <div class="blk-hd">📋 오더별 라인 가동 이력 <span class="blk-sub">작업 시작/종료를 입력하면 라인별 작업시간이 집계됩니다</span></div>
+      <div class="run-form">
+        <select id="runLine" onchange="filterRunProds()"><option value="">라인선택</option>${lineOpt2}</select>
+        <select id="runProd"><option value="">먼저 라인 선택</option></select>
+        <input id="runStart" type="time" title="시작">
+        <span style="color:var(--mut)">~</span>
+        <input id="runEnd" type="time" title="종료">
+        <input id="runMemo" placeholder="비고(선택)" style="flex:1;min-width:100px">
+        <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
+      </div>
+      <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table class="t2-table">
+        <thead><tr><th>라인</th><th>오더</th><th>제품명</th><th>제품구분</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
+        <tbody>${runRows2||'<tr><td colspan="9" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
+      </table></div>
+
+      ${(()=>{
+        // 라인별 전체 오더수 (db_plan 기준)
+        const totOrdByLine={}, totOrdByLineKind={};
+        (orders||[]).forEach(o=>{
+          const line=(o.proc_sub1||'')+'/'+(o.proc_sub2||'');
+          const kind=isFin(o.prod_code)?'완제품':isSemi(o.prod_code)?'반제품':'기타';
+          (totOrdByLine[line]=totOrdByLine[line]||new Set()).add(o.prod_code);
+          const kk=line+'|'+kind;
+          (totOrdByLineKind[kk]=totOrdByLineKind[kk]||new Set()).add(o.prod_code);
+        });
+        // 라인별·제품구분별 집계
+        const runL=(downtime||[]).filter(t=>t.category==='run');
+        const stopL=(downtime||[]).filter(t=>t.category!=='run');
+        const kindOf=code=>isFin(code)?'완제품':isSemi(code)?'반제품':'기타';
+        // [B] 라인+제품구분별
+        const bMap={};  // key: line|kind
+        runL.forEach(t=>{
+          const line=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+          const kind=kindOf(t.prod_code);
+          const k=line+'|'+kind;
+          const b=bMap[k]||(bMap[k]={line,kind,run:0,orders:new Set(),start:null,end:null});
+          b.run+=diffMin(t.start_time,t.end_time);
+          if(t.prod_code)b.orders.add(t.prod_code);
+          if(t.start_time&&(!b.start||t.start_time<b.start))b.start=t.start_time;
+          if(t.end_time&&(!b.end||t.end_time>b.end))b.end=t.end_time;
+        });
+        // 라인별 정지 집계
+        const stopByLine={},unplanByLine={};
+        stopL.forEach(t=>{
+          const line=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+          const d=diffMin(t.start_time,t.end_time);
+          if(t.category==='plan')stopByLine[line]=(stopByLine[line]||0)+d;
+          else unplanByLine[line]=(unplanByLine[line]||0)+d;
+        });
+        // [B]: run 없어도 오더가 있으면 행 표시 (빠진 것 인지)
+        Object.keys(totOrdByLineKind).forEach(kk=>{ if(!bMap[kk]){const[line,kind]=kk.split('|');bMap[kk]={line,kind,run:0,orders:new Set(),start:null,end:null};} });
+        const bRows=Object.values(bMap).sort((a,b)=>a.line.localeCompare(b.line)||a.kind.localeCompare(b.kind)).map(b=>{
+          const runH=b.run/60;
+          const totOrd=(totOrdByLineKind[b.line+'|'+b.kind]||new Set()).size;
+          const done=b.orders.size;
+          const miss=totOrd-done;
+          return `<tr>
+            <td class="l">${b.line}</td><td><span class="type-tag">${b.kind}</span></td>
+            <td class="mono">${done} / ${totOrd}${miss>0?` <span style="color:var(--red);font-size:11px">(${miss}건 미입력)</span>`:done>0?' <span style="color:var(--grn);font-size:11px">✓</span>':''}</td>
+            <td class="mono"><b>${runH?runH.toFixed(1):'–'}</b></td>
+          </tr>`;
+        }).join('');
+        // [C] 라인별 통합
+        const cMap={};
+        runL.forEach(t=>{
+          const line=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+          const c=cMap[line]||(cMap[line]={line,run:0,orders:new Set(),start:null,end:null});
+          c.run+=diffMin(t.start_time,t.end_time);
+          if(t.prod_code)c.orders.add(t.prod_code);
+          if(t.start_time&&(!c.start||t.start_time<c.start))c.start=t.start_time;
+          if(t.end_time&&(!c.end||t.end_time>c.end))c.end=t.end_time;
+        });
+        Object.keys(stopByLine).concat(Object.keys(unplanByLine),Object.keys(totOrdByLine)).forEach(line=>{
+          if(!cMap[line])cMap[line]={line,run:0,orders:new Set(),start:null,end:null};
+        });
+        const cRows=Object.values(cMap).sort((a,b)=>a.line.localeCompare(b.line)).map(c=>{
+          const planH=c.run/60;
+          const stopH=(stopByLine[c.line]||0)/60;
+          const unplanH=(unplanByLine[c.line]||0)/60;
+          const actH=Math.max(planH-stopH-unplanH,0);
+          const rate=planH>0?(actH/planH*100):0;
+          const totOrd=(totOrdByLine[c.line]||new Set()).size;
+          const done=c.orders.size;
+          return `<tr>
+            <td class="l">${c.line}</td>
+            <td class="mono">${c.start||'–'}</td><td class="mono">${c.end||'–'}</td>
+            <td class="mono" style="font-size:11px">${done} / ${totOrd}${done<totOrd?` <span style="color:var(--red)">(${totOrd-done}↓)</span>`:''}</td>
+            <td class="mono">${planH?planH.toFixed(1):'–'}</td>
+            <td class="mono" style="color:var(--blue)">${stopH?stopH.toFixed(1):'0.0'}</td>
+            <td class="mono" style="color:${unplanH?'var(--red)':'inherit'}">${unplanH?unplanH.toFixed(1):'0.0'}</td>
+            <td class="mono"><b>${actH?actH.toFixed(1):'0.0'}</b></td>
+            <td class="mono"><b style="color:${rate>=90?'var(--grn)':rate>0?'var(--org,#d97706)':'var(--mut)'}">${planH?rate.toFixed(0)+'%':'–'}</b></td>
+          </tr>`;
+        }).join('');
+        return `
+      <!-- [B] 라인별 제품/반제품 오더시간 요약 -->
+      <div class="blk-hd">📊 라인별 제품/반제품 오더 시간 요약 <span class="blk-sub">등록 / 전체 오더수 · 미입력 건 확인</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+        <thead><tr><th>라인</th><th>제품구분</th><th>오더수 (등록/전체)</th><th>총 작업시간(hr)</th></tr></thead>
+        <tbody>${bRows||'<tr><td colspan="4" style="color:var(--mut);padding:14px">오더 없음</td></tr>'}</tbody>
+      </table></div>
+
+      <!-- [C] 라인별 통합 요약 -->
+      <div class="blk-hd">🏭 라인별 가동 요약 <span class="blk-sub">계획(작업시간) − 계획정지 − 비가동 = 실적 · 가동률</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+        <thead><tr><th>라인</th><th>최초시작</th><th>최후종료</th><th>오더(등록/전체)</th><th>계획시간(hr)</th><th>계획정지(hr)</th><th>비가동(hr)</th><th>실적(hr)</th><th>가동률</th></tr></thead>
+        <tbody>${cRows||'<tr><td colspan="9" style="color:var(--mut);padding:14px">데이터 없음</td></tr>'}</tbody>
+      </table></div>`;
+      })()}
+
+      ${(()=>{
+        const stopList=(downtime||[]).filter(t=>t.category!=='run')
+          .sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||'')||((a.id||0)-(b.id||0)));
+        const lineOpt=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort()
+          .map(ln=>`<option value="${ln}">${ln}</option>`).join('');
+        const dtypeOpt=(CUR_DAY.downtimeTypes||['생산준비','품목교체','청소','설비고장','자재부족','생산대기','기타'])
+          .map(t=>`<option value="${t}">${t}</option>`).join('');
+        // [E] 리스트
+        const eRows=stopList.map(t=>{
+          const cat=t.category==='plan'?'계획정지':t.category==='unplan'?'비계획정지':'돌발';
+          const catCls=t.category==='plan'?'':'neg';
+          return `<tr data-down="${t.id}">
+            <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
+            <td class="mono" style="font-size:11px">${t.prod_code||'–'}</td>
+            <td><span class="type-tag ${catCls}">${cat}</span></td>
+            <td>${t.reason_type||'–'}</td>
+            <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
+            <td class="mono"><b>${diffMin(t.start_time,t.end_time)}분</b></td>
+            <td class="l" style="font-size:12px">${t.memo||'–'}</td>
+            <td class="l" style="font-size:12px">${t.action_taken||'–'}</td>
+            <td class="l" style="font-size:12px">${t.prevention||'–'}</td>
+            <td class="row-actions">${CUR_DAY.locked?'':`<button class="rowbtn edit" onclick="openStopEdit(${t.id})">수정</button> <button class="rowbtn del" onclick="delDown(${t.id})">삭제</button>`}</td>
+          </tr>`;
+        }).join('');
+        // [F] 라인별 비가동 파레토 (비계획 기준)
+        const unplanByLine={}, totUnplan=(()=>{let s=0;stopList.forEach(t=>{if(t.category!=='plan')s+=diffMin(t.start_time,t.end_time);});return s;})();
+        const planByLine={},runByLine={};
+        (downtime||[]).forEach(t=>{
+          const line=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+          const d=diffMin(t.start_time,t.end_time);
+          if(t.category==='run')runByLine[line]=(runByLine[line]||0)+d;
+          else if(t.category==='plan')planByLine[line]=(planByLine[line]||0)+d;
+          else unplanByLine[line]=(unplanByLine[line]||0)+d;
+        });
+        const allLines=[...new Set([
+          ...Object.keys(runByLine),...Object.keys(planByLine),...Object.keys(unplanByLine),
+          ...(orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||''))  // 오더 있는 전체 공정
+        ])].filter(Boolean);
+        let cum=0;
+        const fCards=allLines.map(line=>({line,unplan:unplanByLine[line]||0}))
+          .sort((a,b)=>b.unplan-a.unplan)
+          .map((x,i)=>{
+            const planH=(runByLine[x.line]||0)/60;
+            const stopH=(planByLine[x.line]||0)/60;
+            const unplanH=x.unplan/60;
+            const actH=Math.max(planH-stopH-unplanH,0);
+            const rate=planH>0?(actH/planH*100):0;
+            const share=totUnplan>0?(x.unplan/totUnplan*100):0;
+            cum+=share;
+            return `<div class="pareto-card">
+              <div class="pc-hd"><span class="pc-no">${i+1}</span>${x.line}</div>
+              <div class="pc-body">
+                <div><div class="pc-k">계획정지</div><div class="pc-v">${stopH.toFixed(1)} hr</div></div>
+                <div><div class="pc-k">비계획정지</div><div class="pc-v" style="color:${unplanH?'var(--red)':'inherit'}">${unplanH.toFixed(1)} hr</div></div>
+                <div><div class="pc-k">비계획 비중</div><div class="pc-v">${share?share.toFixed(1)+'%':'–'}</div></div>
+                <div><div class="pc-k">가동률</div><div class="pc-v" style="color:${rate>=90?'var(--grn)':rate>0?'var(--org,#d97706)':'inherit'}">${planH?rate.toFixed(1)+'%':'–'}</div></div>
+              </div>
+              <div class="pc-foot"><span>비계획 기여도 ${share.toFixed(1)}%</span><span>누적 ${cum.toFixed(1)}%</span>
+                <div class="pc-bar"><div style="width:${Math.min(cum,100)}%"></div></div></div>
+            </div>`;
+          }).join('');
+        return `
+      <!-- [D] 새 비가동 추가 -->
+      <div class="blk-hd">➕ 새 비가동 추가 <span class="blk-sub">정지원인·조치내용·재발방지대책까지 기록</span></div>
+      <div class="stop-form">
+        <div class="sf-row">
+          <select id="stLine"><option value="">라인 *</option>${lineOpt}</select>
+          <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
+          <select id="stCat"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
+          <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
+          <input id="stStart" type="time" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="time" title="종료">
+        </div>
+        <div class="sf-row">
+          <input id="stReason" placeholder="정지원인 *" style="flex:1">
+          <input id="stAction" placeholder="조치내용" style="flex:1">
+          <input id="stPrevent" placeholder="재발방지대책" style="flex:1">
+          <button class="tbtn save" onclick="saveStop2()">+ 추가</button>
+        </div>
+      </div>
+
+      <!-- [E] 등록된 비가동 리스트 -->
+      <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.length}건</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+        <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
+        <tbody>${eRows||'<tr><td colspan="11" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
+      </table></div>
+
+      <!-- [F] 라인별 비가동 파레토 -->
+      <div class="blk-hd">📉 라인별 비가동 파레토 <span class="blk-sub">비계획정지가 큰 순서 · 라인별 가동률</span>
+        <span style="float:right;font-weight:700;color:var(--red)">전체 비계획 ${(totUnplan/60).toFixed(1)} hr</span></div>
+      <div class="pareto-grid">${fCards||'<div style="padding:16px;color:var(--mut)">비가동 데이터 없음</div>'}</div>`;
+      })()}
+    </div>`;
+  })()}
+
+  <!-- ⑥ 투입인원 (누적관리용) -->
+  ${(()=>{
+    const manpower=CUR_DAY.manpower||[];
+    const orders=CUR_DAY.orders||[];
+    const manByLine={}; manpower.forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
+    const lineNames=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort();
+    let tReg=0,tDisp=0,tPlan=0;
+    const rows=lineNames.map((name,i)=>{
+      const m=manByLine[name]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''};
+      const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+      tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
+      return `<tr>
+        <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
+        <td><input class="inp-cell mp-plan" data-line="${name}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
+        <td><input class="inp-cell mp-reg" data-line="${name}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
+        <td><input class="inp-cell mp-disp" data-line="${name}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
+        <td class="mono"><b>${inp||'–'}</b></td>
+        <td><input class="inp-cell mp-memo" data-line="${name}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:140px;text-align:left"></td>
+      </tr>`;
+    }).join('');
+    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c6">6</span><h3>투입인원</h3>
+      <span class="desc">일별 공정운영 인원 · 누적관리</span><span class="sp"></span>
+      <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
+      <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+        <thead><tr><th>라인</th><th>계획인원</th><th>정규직</th><th>파견/일용</th><th>투입계</th><th>비고</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="6" style="color:var(--mut);padding:14px">라인 없음</td></tr>'}</tbody>
+        <tfoot><tr style="background:#eef2f9;font-weight:800">
+          <td class="l">합 계</td><td class="mono">${tPlan}</td><td class="mono">${tReg}</td>
+          <td class="mono">${tDisp}</td><td class="mono">${tReg+tDisp}</td><td></td>
+        </tr></tfoot>
+      </table></div>
+    </div>`;
+  })()}
+
+  <!-- 문서 푸터 -->
+  <div class="doc-footer2">
+    <div>문서번호: <b>${(CUR_DAY.closing&&CUR_DAY.closing.doc_no)||`DPC-${CUR_DAY.date}-K2-${CUR_DAY.team}`}</b></div>
+    <div>작성자: <b>${(CUR_DAY.closing&&CUR_DAY.closing.writer)||(S.user&&S.user.name)||'-'}</b></div>
+    <div style="color:var(--mut);font-size:11.5px">SAP 시스템 연동 · 하림펫푸드 생산2팀</div>
+  </div>`;
   $('#sec2More').style.cssText='text-align:left';
+}
+/* ⑤ [D/E] 비가동 입력·수정 */
+function loadStopProds(){
+  const ln=$('#stLine').value; if(!ln)return;
+  const sel=$('#stProd');
+  const os=(CUR_DAY.orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===ln);
+  sel.innerHTML='<option value="">오더(선택)</option>'+os.map(o=>`<option value="${o.prod_code}">${o.prod_code} · ${o.prod_name||''}</option>`).join('');
+}
+async function saveStop2(){
+  const {date,team}=CUR_DAY;
+  const ln=$('#stLine').value; if(!ln){toast('라인 선택','err');return;}
+  const [s1,s2]=ln.split('/');
+  const type=$('#stType').value; if(!type){toast('유형 선택','err');return;}
+  const reason=$('#stReason').value.trim(); if(!reason){toast('정지원인 입력','err');return;}
+  const st=$('#stStart').value, en=$('#stEnd').value;
+  if(!st||!en){toast('시작·종료 입력','err');return;}
+  try{
+    const {data,error}=await sb.from('t_cl_downtime').insert({
+      work_date:date,team,proc_sub1:s1,proc_sub2:s2,prod_code:$('#stProd').value||null,
+      category:$('#stCat').value,reason_type:type,start_time:st,end_time:en,
+      memo:reason,action_taken:$('#stAction').value||'',prevention:$('#stPrevent').value||'',
+      source:'manual'
+    }).select();
+    if(error)throw error;
+    if(data&&data[0]) CUR_DAY.downtime=[...(CUR_DAY.downtime||[]),data[0]];
+    toast('비가동 추가완료','ok');
+    rerenderClosing();
+  }catch(e){ toast('추가 실패: '+(e.message||e),'err'); }
+}
+function openStopEdit(id){
+  const t=(CUR_DAY.downtime||[]).find(x=>String(x.id)===String(id)); if(!t)return;
+  const m=document.createElement('div');
+  m.id='stopEditModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
+  m.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:100%;box-shadow:var(--sh-lg);max-height:90vh;overflow:auto">
+    <h3 style="margin:0 0 14px;font-size:17px">비가동 수정</h3>
+    <div style="font-size:12.5px;color:var(--mut);margin-bottom:14px">${(t.proc_sub1||'')}/${(t.proc_sub2||'')} ${t.prod_code?'· '+t.prod_code:''}</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1"><label class="se-lb">구분</label><select id="seCat" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px">
+        <option value="unplan"${t.category==='unplan'?' selected':''}>비계획정지</option>
+        <option value="plan"${t.category==='plan'?' selected':''}>계획정지</option></select></div>
+      <div style="flex:1"><label class="se-lb">유형</label><input id="seType" value="${(t.reason_type||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <div style="flex:1"><label class="se-lb">시작</label><input id="seStart" type="time" value="${t.start_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+      <div style="flex:1"><label class="se-lb">종료</label><input id="seEnd" type="time" value="${t.end_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+    </div>
+    <label class="se-lb">정지원인</label><input id="seReason" value="${(t.memo||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
+    <label class="se-lb">조치내용</label><input id="seAction" value="${(t.action_taken||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
+    <label class="se-lb">재발방지대책</label><input id="sePrevent" value="${(t.prevention||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 16px;box-sizing:border-box">
+    <div style="display:flex;gap:8px">
+      <button class="tbtn" style="flex:1" onclick="document.getElementById('stopEditModal').remove()">취소</button>
+      <button class="tbtn save" style="flex:1" onclick="saveStopEdit(${id})">저장</button>
+    </div></div>`;
+  document.body.appendChild(m);
+}
+async function saveStopEdit(id){
+  const st=$('#seStart').value, en=$('#seEnd').value;
+  if(!st||!en){toast('시작·종료 입력','err');return;}
+  try{
+    const payload={category:$('#seCat').value,reason_type:$('#seType').value,start_time:st,end_time:en,
+      memo:$('#seReason').value,action_taken:$('#seAction').value,prevention:$('#sePrevent').value,source:'manual'};
+    const {error}=await sb.from('t_cl_downtime').update(payload).eq('id',id);
+    if(error)throw error;
+    const t=(CUR_DAY.downtime||[]).find(x=>String(x.id)===String(id));
+    if(t)Object.assign(t,payload);
+    document.getElementById('stopEditModal').remove();
+    toast('수정완료','ok');
+    rerenderClosing();
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+/* ⑤ [A] 작업시간 수정 팝업 */
+function openRunEdit(id){
+  const t=(CUR_DAY.downtime||[]).find(x=>String(x.id)===String(id)); if(!t)return;
+  const o=(CUR_DAY.orders||[]).find(x=>x.prod_code===t.prod_code);
+  const m=document.createElement('div');
+  m.id='runEditModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
+  m.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;width:420px;max-width:100%;box-shadow:var(--sh-lg)">
+    <h3 style="margin:0 0 6px;font-size:17px">작업시간 수정</h3>
+    <div style="font-size:12.5px;color:var(--mut);margin-bottom:16px">${(t.proc_sub1||'')}/${(t.proc_sub2||'')} · ${t.prod_code||''} ${o?o.prod_name||'':''}</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">시작</label>
+        <input id="reStart" type="time" value="${t.start_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+      <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">종료</label>
+        <input id="reEnd" type="time" value="${t.end_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+    </div>
+    <label style="font-size:12px;font-weight:700;color:var(--sub)">비고</label>
+    <input id="reMemo" value="${(t.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin:4px 0 16px">
+    <div style="display:flex;gap:8px">
+      <button class="tbtn" style="flex:1" onclick="document.getElementById('runEditModal').remove()">취소</button>
+      <button class="tbtn save" style="flex:1" onclick="saveRunEdit(${id})">저장</button>
+    </div></div>`;
+  document.body.appendChild(m);
+}
+async function saveRunEdit(id){
+  const {date,team}=CUR_DAY;
+  const st=$('#reStart').value, en=$('#reEnd').value;
+  if(!st||!en){toast('시작·종료 입력','err');return;}
+  try{
+    const {error}=await sb.from('t_cl_downtime').update({
+      start_time:st,end_time:en,memo:$('#reMemo').value||'',source:'manual'
+    }).eq('id',id);
+    if(error)throw error;
+    // 로컬 갱신 (재조회 없이 → 위치 유지)
+    const t=(CUR_DAY.downtime||[]).find(x=>String(x.id)===String(id));
+    if(t){t.start_time=st;t.end_time=en;t.memo=$('#reMemo').value||'';t.source='manual';}
+    document.getElementById('runEditModal').remove();
+    toast('수정완료','ok');
+    renderClosing2();  // 정렬 고정이라 같은 위치
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+/* ⑤ [A] 오더별 작업시간 입력 */
+function filterRunProds(){
+  const ln=$('#runLine').value;
+  const sel=$('#runProd');
+  const os=(CUR_DAY.orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===ln);
+  sel.innerHTML='<option value="">오더 선택</option>'+os.map(o=>`<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}">${o.prod_code} · ${o.prod_name||''}</option>`).join('');
+}
+async function saveRunTime(){
+  const {date,team}=CUR_DAY;
+  const pv=$('#runProd').value; if(!pv){toast('오더 선택','err');return;}
+  const [code,name,s1,s2]=pv.split('|');
+  const st=$('#runStart').value, en=$('#runEnd').value;
+  if(!st||!en){toast('시작·종료 시간 입력','err');return;}
+  try{
+    const {data,error}=await sb.from('t_cl_downtime').insert({
+      work_date:date,team,proc_sub1:s1,proc_sub2:s2,prod_code:code,
+      category:'run',reason_type:'',start_time:st,end_time:en,
+      memo:$('#runMemo').value||'',source:'manual'
+    }).select();
+    if(error)throw error;
+    // 로컬 반영 (재조회 없이 → 정렬 고정으로 제자리)
+    if(data&&data[0]) CUR_DAY.downtime=[...(CUR_DAY.downtime||[]),data[0]];
+    toast('작업시간 추가완료','ok');
+    rerenderClosing();
+  }catch(e){ toast('추가 실패: '+(e.message||e),'err'); }
+}
+let T2_PROC='';
+function switchT2Proc(p){ T2_PROC=p; renderMore2(); }
+/* ③ 로스: 라인 필터 (담당자별 작업) */
+function filterLossLine(ln){
+  document.querySelectorAll('#lossFilterBar .dtf-chip').forEach(b=>{
+    b.classList.toggle('on',(b.dataset.ln||'')===ln);
+  });
+  let shown=0;
+  document.querySelectorAll('#lossBody2 tr').forEach(tr=>{
+    const hit=!ln||tr.dataset.ln===ln;
+    tr.style.display=hit?'':'none'; if(hit)shown++;
+  });
+  const em=$('#lossEmptyMsg'); if(em) em.style.display=shown?'none':'block';
+}
+async function saveT2MH(){
+  const {date,team}=CUR_DAY;
+  const rows=[];
+  document.querySelectorAll('.t2-mh').forEach(inp=>{
+    const code=inp.dataset.code;
+    const mh=Number(inp.value)||0;
+    const noteEl=document.querySelector(`.t2-note[data-code="${code}"]`);
+    const note=noteEl?noteEl.value:'';
+    if(mh||note) rows.push({work_date:date,team,prod_code:code,mh,note});
+  });
+  if(!rows.length){toast('입력된 투입공수 없음','err');return;}
+  try{
+    const {error}=await sb.from('t_cl_mh').upsert(rows,{onConflict:'work_date,team,prod_code'});
+    if(error)throw error;
+    rows.forEach(r=>{CUR_DAY.mhMap[r.prod_code]={mh:r.mh,note:r.note};});
+    toast('투입공수 저장완료','ok');
+    renderClosing2();  // ①요약 인시당 생산성 재계산
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+/* ④ 불량: 라인 선택 시 해당 라인 오더만 표시 */
+function filterDefectProds2(){
+  const ln=$('#dfLine2').value;
+  const sel=$('#dfProd2');
+  const os=(CUR_DAY.orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===ln);
+  sel.innerHTML='<option value="">오더 선택</option>'+os.map(o=>`<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}">${o.prod_code} ${o.prod_name||''}</option>`).join('');
+}
+async function saveDefect2(){
+  const {date,team}=CUR_DAY;
+  const pv=$('#dfProd2').value; if(!pv){toast('오더 선택','err');return;}
+  const [code,name,s1,s2]=pv.split('|');
+  const qty=Number($('#dfQty').value)||0; if(!qty){toast('수량 입력','err');return;}
+  try{
+    const {error}=await sb.from('t_cl_defect').insert({work_date:date,team,proc_sub1:s1,proc_sub2:s2,
+      prod_code:code,prod_name:name,defect_type:$('#dfType').value,qty,unit:$('#dfUnit').value||'KG',
+      memo:$('#dfReason').value});
+    if(error)throw error;
+    toast('불량 등록완료','ok'); openDay(date,team);
+  }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
 }
 
 /* 결재 진행바 + 액션 버튼 */
@@ -3692,8 +4331,14 @@ async function saveDownEdit(id){
 }
 async function delDown(id){
   const {date,team}=CUR_DAY;
-  await sb.from('t_cl_downtime').delete().eq('id',id);
-  toast('삭제됨','ok'); openDay(date,team);
+  if(!confirm('삭제할까요?'))return;
+  try{
+    const {error}=await sb.from('t_cl_downtime').delete().eq('id',id);
+    if(error)throw error;
+    CUR_DAY.downtime=(CUR_DAY.downtime||[]).filter(t=>String(t.id)!==String(id));
+    toast('삭제됨','ok');
+    rerenderClosing();  // 재조회 없이 팀별 재렌더 (위치 유지)
+  }catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
 }
 
 /* ⑥ 투입인원: 파트 고정 일괄 저장 */
@@ -3803,7 +4448,11 @@ function editLossRow(i){
   tr.classList.remove('row-saved');
   tr.querySelector('.loss-type').disabled=false;
   tr.querySelector('.loss-reason').disabled=false;
-  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button><button class="rowbtn cancel" onclick="renderClosing()">취소</button>`;
+  tr.querySelector('.row-actions').innerHTML=`<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button><button class="rowbtn cancel" onclick="rerenderClosing()">취소</button>`;
+}
+/* 팀에 맞는 마감 화면 재렌더 */
+function rerenderClosing(){
+  if(CUR_DAY.team==='생산2팀') renderClosing2(); else renderClosing();
 }
 /* 로스 행 삭제 */
 async function delLossRow(i){
