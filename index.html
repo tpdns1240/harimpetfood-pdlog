@@ -2984,9 +2984,19 @@ function renderClosing2(){
   // 공정별 기준시간 맵 (설정값)
   const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0)}; });
 
-  // 완제품/반제품 분류 (prod_code 앞자리: 2·3=완제품, 6=반제품)
-  const isFin=code=>['2','3'].includes(String(code||'')[0]);
-  const isSemi=code=>String(code||'')[0]==='6';
+  // 완제품/반제품 분류: get_order_detail의 kind 우선(1팀과 동일 기준), 없으면 prod_code 앞자리
+  const isFin=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true;
+      if(o.kind==='semi'||o.kind==='반제품')return false;
+      return ['2','3'].includes(String(o.prod_code||'')[0]); }
+    return ['2','3'].includes(String(o||'')[0]);
+  };
+  const isSemi=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true;
+      if(o.kind==='fin'||o.kind==='완제품')return false;
+      return String(o.prod_code||'')[0]==='6'; }
+    return String(o||'')[0]==='6';
+  };
 
   // 라인별 가동시간: 계획=run 합, 실적=run - (계획정지+비계획정지)
   const runByLine={}, planStopByLine={}, unplanStopByLine={};
@@ -3001,22 +3011,22 @@ function renderClosing2(){
   const kindFilter=(code)=>T2_KIND==='fin'?isFin(code):isSemi(code);
   const qtyByLine={};  // {line:{plan,actual,mh}}
   (orders||[]).forEach(o=>{
-    if(!kindFilter(o.prod_code))return;
+    if(!kindFilter(o))return;
     const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||'');
     const q=qtyByLine[k]||(qtyByLine[k]={plan:0,actual:0,mh:0});
-    q.plan+=Number(o.plan_qty||0); q.actual+=Number(o.actual_qty||0);
+    q.plan+=Number(o.plan_sum??o.plan_qty??0); q.actual+=Number(o.actual_sum??o.actual_qty??0);
     const mh=mhMap[o.prod_code]; if(mh)q.mh+=Number(mh.mh||0);
   });
 
   const lineNames=[...new Set([...lines.map(l=>l.line_name), ...Object.keys(qtyByLine)])].sort();
-  const finCnt=orders.filter(o=>isFin(o.prod_code)).length;
-  const semiCnt=orders.filter(o=>isSemi(o.prod_code)).length;
+  const finCnt=orders.filter(o=>isFin(o)).length;
+  const semiCnt=orders.filter(o=>isSemi(o)).length;
 
   // ── 스코어카드 집계 (완제품+반제품 전체 기준, 탭 선택과 무관) ──
   let scPlan=0, scActual=0;
   (orders||[]).forEach(o=>{
-    if(!isFin(o.prod_code)&&!isSemi(o.prod_code))return;
-    scPlan+=Number(o.plan_qty||0); scActual+=Number(o.actual_qty||0);
+    if(!isFin(o)&&!isSemi(o))return;
+    scPlan+=Number(o.plan_sum??o.plan_qty??0); scActual+=Number(o.actual_sum??o.actual_qty??0);
   });
   const scAch=scPlan>0?scActual/scPlan:0;
   const scLoss=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
@@ -3123,7 +3133,7 @@ function renderMore2(){
   CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
   const isFin=code=>['2','3'].includes(String(code||'')[0]);
   const isSemi=code=>String(code||'')[0]==='6';
-  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o.prod_code):isSemi(o.prod_code));
+  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o):isSemi(o));
   // 공정별 그룹
   const byProc={};
   kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
@@ -3133,14 +3143,15 @@ function renderMore2(){
 
   const orderRows=curOrders.map(o=>{
     const mh=mhMap[o.prod_code]||{mh:'',note:''};
-    const ach=o.plan_qty>0?(o.actual_qty/o.plan_qty*100):0;
-    const mhProd=(mh.mh&&o.actual_qty)?(o.actual_qty/Number(mh.mh)):0;
+    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
+    const ach=oPlan>0?(oAct/oPlan*100):0;
+    const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
     return `<tr data-ord="${o.prod_code}">
       <td class="mono">${o.prod_code}</td>
       <td class="l">${o.prod_name||'-'}</td>
-      <td class="mono">${fmt(o.plan_qty||0)}</td>
-      <td class="mono">${fmt(o.actual_qty||0)}</td>
-      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${o.plan_qty?ach.toFixed(1)+'%':'–'}</b></td>
+      <td class="mono">${fmt(oPlan)}</td>
+      <td class="mono">${fmt(oAct)}</td>
+      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
@@ -3159,8 +3170,8 @@ function renderMore2(){
     <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
     <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
     <div class="tabbar">
-      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o.prod_code)).length}</button>
-      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o.prod_code)).length}</button>
+      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
+      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
     </div>
     ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
@@ -3261,7 +3272,7 @@ function renderMore2(){
       .sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||'')||((a.id||0)-(b.id||0)));
     // 오더 옵션(제품구분 포함)
     const ordOpt=(orders||[]).map(o=>{
-      const kind=isFin(o.prod_code)?'완제품':isSemi(o.prod_code)?'반제품':'기타';
+      const kind=isFin(o)?'완제품':isSemi(o)?'반제품':'기타';
       return `<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}|${kind}">${o.prod_code} · ${o.prod_name||''}</option>`;
     }).join('');
     const runRows2=runList.map(t=>{
@@ -3305,7 +3316,7 @@ function renderMore2(){
         const totOrdByLine={}, totOrdByLineKind={};
         (orders||[]).forEach(o=>{
           const line=(o.proc_sub1||'')+'/'+(o.proc_sub2||'');
-          const kind=isFin(o.prod_code)?'완제품':isSemi(o.prod_code)?'반제품':'기타';
+          const kind=isFin(o)?'완제품':isSemi(o)?'반제품':'기타';
           (totOrdByLine[line]=totOrdByLine[line]||new Set()).add(o.prod_code);
           const kk=line+'|'+kind;
           (totOrdByLineKind[kk]=totOrdByLineKind[kk]||new Set()).add(o.prod_code);
