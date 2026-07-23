@@ -191,6 +191,9 @@ tbody td.l{text-align:left}
 .score-row .sc.g::after{background:var(--grn)}.score-row .sc.r::after{background:var(--red)}.score-row .sc.b::after{background:var(--blue)}
 .score-row .sc .l{font-size:11px;color:var(--sub);font-weight:700}
 .score-row .sc .v{font-size:24px;font-weight:800;margin-top:8px;letter-spacing:-.02em}
+.score-row .sc .v .u{font-size:12px;font-weight:700;color:var(--sub);margin-left:2px;letter-spacing:0}
+.score-row .sc .sub{font-size:11px;font-weight:600;color:var(--mut);margin-top:3px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.score-row .sc .sub .u{font-size:10px;color:#9aa8bd;margin-left:1px}
 @media(max-width:900px){.score-row{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:560px){.score-row{grid-template-columns:repeat(2,1fr)}}
 /* 탭 */
@@ -791,6 +794,24 @@ const fmtWon = (n)=>{
 const wonCls = (n)=> n>0?'neg':(n<0?'pos':'');
 // 수량: 단위(KG)
 const fmtKg = (n)=> (n==null||isNaN(n))?'–':fmt(Math.round(n))+' KG';
+
+/* ── 스코어카드 표기: 큰 단위(ton/백만원) + 아래에 원본 수치를 작고 연하게 ── */
+// 중량: 65,074kg → "65.0 ton" + "65,074 kg"
+const scTon = (n)=>{
+  const v=Number(n)||0;
+  const t=v/1000;
+  const main=`${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>`;
+  return `<div class="v mono">${main}</div><div class="sub">${fmt(Math.round(v))}<span class="u">kg</span></div>`;
+};
+// 금액: 22,701,543원 → "22.7 백만원" + "22,701,543 원"
+const scWon = (n)=>{
+  const v=Math.round(Number(n)||0);
+  if(v===0) return `<div class="v mono">0<span class="u">원</span></div><div class="sub">&nbsp;</div>`;
+  const a=Math.abs(v), m=a/1000000;
+  const sign=v>0?'-':'+'; // 순로스 양수=손실이므로 - 표기
+  const main=`${sign}${m>=100?m.toFixed(0):m.toFixed(1)}<span class="u">백만원</span>`;
+  return `<div class="v mono">${main}</div><div class="sub">${sign}${fmt(a)}<span class="u">원</span></div>`;
+};
 function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='show '+(type||'');setTimeout(()=>t.className='',2400);}
 
 /* ================= 로그인 ================= */
@@ -2991,6 +3012,16 @@ function renderClosing2(){
   const finCnt=orders.filter(o=>isFin(o.prod_code)).length;
   const semiCnt=orders.filter(o=>isSemi(o.prod_code)).length;
 
+  // ── 스코어카드 집계 (완제품+반제품 전체 기준, 탭 선택과 무관) ──
+  let scPlan=0, scActual=0;
+  (orders||[]).forEach(o=>{
+    if(!isFin(o.prod_code)&&!isSemi(o.prod_code))return;
+    scPlan+=Number(o.plan_qty||0); scActual+=Number(o.actual_qty||0);
+  });
+  const scAch=scPlan>0?scActual/scPlan:0;
+  const scLoss=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
+  const scScrap=(CUR_DAY.losses||[]).length;
+
   let T={std:0,planH:0,actH:0,planQ:0,actQ:0,mh:0};
   const rows=lineNames.map((name,i)=>{
     const st=stdMap[name]||{std:0};
@@ -3025,6 +3056,16 @@ function renderClosing2(){
   ${renderApprovalBar()}
   ${renderClosingHeader2()}
   <div class="closing-body ${CUR_DAY.locked?'locked':''}">
+
+  <!-- 스코어카드 (생산1팀과 동일) -->
+  <div class="score-row">
+    <div class="sc"><div class="l">총 계획</div>${scTon(scPlan)}</div>
+    <div class="sc b"><div class="l">총 실적</div>${scTon(scActual)}</div>
+    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div></div>
+    <div class="sc"><div class="l">완제품/반제품</div><div class="v mono">${finCnt}/${semiCnt}</div></div>
+    <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div></div>
+  </div>
 
   <!-- ① 완제품 라인별 가동 요약 -->
   <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
@@ -4032,11 +4073,11 @@ function renderClosing(){
 
   <!-- 스코어카드 -->
   <div class="score-row">
-    <div class="sc"><div class="l">총 계획(KG)</div><div class="v mono">${fmt(totPlan)}</div></div>
-    <div class="sc b"><div class="l">총 실적(KG)</div><div class="v mono">${fmt(totActual)}</div></div>
+    <div class="sc"><div class="l">총 계획</div>${scTon(totPlan)}</div>
+    <div class="sc b"><div class="l">총 실적</div>${scTon(totActual)}</div>
     <div class="sc ${totAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${pct(totAch)}</div></div>
     <div class="sc"><div class="l">완제품/반제품</div><div class="v mono">${finCount}/${semiCount}</div></div>
-    <div class="sc r"><div class="l">로스금액</div><div class="v mono">${fmt(totLoss)}<span style="font-size:12px">원</span></div></div>
+    <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div></div>
   </div>
 
