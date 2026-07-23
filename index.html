@@ -584,24 +584,81 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .toolbar .tbtn{padding:9px 16px;border:1px solid var(--line);border-radius:9px;font-weight:700;font-size:13px;color:var(--sub);background:#fff}
 .toolbar .tbtn:hover{background:var(--smoke)}
 .toolbar .tbtn.submit{background:var(--navy);color:#fff;border-color:var(--navy)}
+/* ── 인쇄 전용 문서 요소 (화면에서는 숨김) ── */
+#printDoc,#printFoot{display:none}
+
 @media print{
-  .topbar,.header,.po-back,.toolbar,.cal-nav,.tbtn,.type-panel,#inputForm,.delx,.refresh-btn{display:none!important}
-  .wrap{max-width:100%;padding:0}
-  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .sec{box-shadow:none;border:1px solid #ccc;break-inside:avoid;page-break-inside:avoid;margin-bottom:8px}
-  table{font-size:9px}
-  thead th{padding:4px 3px;font-size:9px}
-  tbody td{padding:3px;font-size:9px;white-space:nowrap}
-  td.l{white-space:normal;max-width:120px;word-break:keep-all;line-height:1.2}
-  .inp-cell,select.inp-cell{border:none;background:transparent;font-size:9px;width:auto!important;padding:0}
-  .score-row{grid-template-columns:repeat(6,1fr)}
-  .score-row .sc{padding:8px;box-shadow:none;border:1px solid #ddd}
-  .score-row .sc .v{font-size:16px}
-  .pareto-grid{grid-template-columns:repeat(3,1fr)}
-  .pareto-card{box-shadow:none;border:1px solid #ddd;break-inside:avoid}
-  .day-hd{background:#1a3a5c!important;color:#fff!important}
-  .sec-hd{background:#f5f5f5!important}
-  @page{size:A4 landscape;margin:8mm}
+  /* 화면 UI 전부 숨김 */
+  .topbar,.header,.po-back,.toolbar,.cal-nav,.tbtn,.type-panel,#inputForm,.delx,.refresh-btn,
+  .appr-wrap,.closing-hd2,.day-hd,.fold-bar,.row-actions,.rowbtn,.lock-banner,
+  .sum-strip,.chip-row,.stab,.t2-tabs,.pc2-foot,.shot-zoom{display:none!important}
+  .wrap{max-width:100%;padding:0;margin:0}
+  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:9pt}
+
+  /* ── 인쇄 문서 헤더 ── */
+  #printDoc{display:block!important;margin:0 0 6mm}
+  .pd-top{display:flex;align-items:flex-start;gap:6mm;border-bottom:2px solid #1a3a5c;padding-bottom:3mm;margin-bottom:3mm}
+  .pd-title{flex:1}
+  .pd-title h1{font-size:17pt;font-weight:800;color:#12233f;letter-spacing:-.02em;line-height:1.25;margin:0}
+  .pd-title .pd-sub{font-size:9pt;color:#555;margin-top:1.5mm;letter-spacing:.02em}
+  .pd-meta{font-size:8.5pt;color:#333;text-align:right;line-height:1.65;white-space:nowrap}
+  .pd-meta b{color:#12233f}
+
+  /* ── 결재란 (문서용 도장칸) ── */
+  .pd-sign{border-collapse:collapse;table-layout:fixed;width:78mm}
+  .pd-sign td,.pd-sign th{border:1px solid #333;text-align:center;padding:0}
+  .pd-sign th{font-size:7.5pt;font-weight:700;background:#eef1f6!important;height:6mm;color:#12233f}
+  .pd-sign td.nm{font-size:8pt;height:15mm;vertical-align:bottom;padding-bottom:1.5mm;font-weight:600}
+  .pd-sign td.st{font-size:7pt;height:5mm;color:#444}
+  .pd-sign .lbl{writing-mode:vertical-rl;font-size:7.5pt;font-weight:700;background:#eef1f6!important;width:6mm}
+
+  /* ── 본문 섹션 ── */
+  .sec,.sec2{box-shadow:none!important;border:1px solid #999;border-radius:0;
+    break-inside:avoid;page-break-inside:avoid;margin:0 0 3mm;background:#fff!important}
+  .sec-hd,.sec2-hd{background:#eef1f6!important;border-bottom:1px solid #999;padding:1.8mm 3mm!important;
+    display:flex!important;align-items:center;gap:2mm}
+  .sec-hd h3,.sec2-hd h3{font-size:9.5pt!important;font-weight:800;color:#12233f}
+  .sec-hd .desc,.sec2-hd .desc,.sec-hd .sp,.sec2-hd .sp{display:none!important}
+  .sec-hd .no,.sec2-hd .no{width:4.5mm!important;height:4.5mm!important;font-size:7.5pt!important;
+    border-radius:2px!important;background:#1a3a5c!important;color:#fff!important;
+    display:grid!important;place-items:center}
+  .sec-bd{padding:2mm 3mm!important}
+  .fold-body{display:block!important;height:auto!important;overflow:visible!important}
+
+  /* ── 표 ── */
+  table{font-size:7.5pt;width:100%;border-collapse:collapse}
+  thead{display:table-header-group}
+  tr{break-inside:avoid;page-break-inside:avoid}
+  thead th{padding:1.2mm 1mm;font-size:7.5pt;background:#1a3a5c!important;color:#fff!important;
+    border:1px solid #7a8ba8}
+  tbody td{padding:1mm;font-size:7.5pt;white-space:nowrap;border:1px solid #ccc;color:#111}
+  tbody tr:nth-child(even) td{background:#fafbfc!important}
+  td.l{white-space:normal;max-width:34mm;word-break:keep-all;line-height:1.25;text-align:left}
+  .mono{font-variant-numeric:tabular-nums}
+  .neg{color:#b3261e!important;font-weight:700}
+  .pos{color:#12683f!important;font-weight:700}
+
+  /* 입력칸을 값만 보이게 (테두리 제거) */
+  .inp-cell,select.inp-cell,input.inp-cell,textarea{border:none!important;background:transparent!important;
+    font-size:7.5pt!important;width:auto!important;padding:0!important;color:#111!important;
+    -webkit-appearance:none;appearance:none}
+  select{background-image:none!important}
+
+  /* 스코어/파레토 카드 */
+  .score-row{grid-template-columns:repeat(6,1fr);gap:2mm}
+  .score-row .sc{padding:2mm;box-shadow:none;border:1px solid #bbb;border-radius:0;background:#fff!important}
+  .score-row .sc .v{font-size:12pt}
+  .score-row .sc .k{font-size:7pt}
+  .pareto-grid{grid-template-columns:repeat(4,1fr);gap:2mm}
+  .pareto-card{box-shadow:none;border:1px solid #bbb;border-radius:0;break-inside:avoid;padding:2mm}
+  .pareto-card .pc-hd{font-size:8pt}
+
+  /* ── 서명/확인 푸터 ── */
+  #printFoot,.pd-foot{display:block!important;margin-top:5mm;break-inside:avoid;page-break-inside:avoid}
+  .fnote{font-size:7.5pt;color:#555;border-top:1px solid #999;padding-top:2mm;
+    display:flex;justify-content:space-between}
+
+  @page{size:A4 landscape;margin:10mm 8mm 12mm}
 }
 </style>
 </head>
@@ -3638,10 +3695,11 @@ async function saveDefect2(){
   const pv=$('#dfProd2').value; if(!pv){toast('오더 선택','err');return;}
   const [code,name,s1,s2]=pv.split('|');
   const qty=Number($('#dfQty').value)||0; if(!qty){toast('수량 입력','err');return;}
+  if(!$('#dfType').value){ toast('불량유형을 선택하세요','err'); return; }
   try{
     const {error}=await sb.from('t_cl_defect').insert({work_date:date,team,proc_sub1:s1,proc_sub2:s2,
       prod_code:code,prod_name:name,defect_type:$('#dfType').value,qty,unit:$('#dfUnit').value||'KG',
-      memo:$('#dfReason').value});
+      reason:$('#dfReason').value});
     if(error)throw error;
     toast('불량 등록완료','ok'); openDay(date,team);
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
@@ -3733,7 +3791,7 @@ function renderApprovalBar(){
       ${canApprove?`
         <button class="tbtn reject" onclick="doReject()">반려</button>
         <button class="tbtn approve" onclick="doApprove()">승인</button>`:''}
-      <button class="tbtn" onclick="window.print()">인쇄 / PDF</button>
+      <button class="tbtn" onclick="printClosing()">인쇄 / PDF</button>
       <button class="tbtn" onclick="go('cal')">대시보드</button>
     </div>
     ${rejectBox}
@@ -3741,7 +3799,67 @@ function renderApprovalBar(){
     ${noPermNote}
   </div>`;
 }
-/* 결재 알림 메일: 다음 결재자에게 자동 발송 (Apps Script 웹앱 경유) */
+/* ── 인쇄 / PDF : 보고문서 형식으로 출력 ──
+   화면 UI(결재카드·툴바·탭)는 숨기고, 문서 헤더 + 결재란 + 푸터를 생성해 A4로 인쇄 */
+function printClosing(){
+  const {date,team}=CUR_DAY;
+  const c=CUR_DAY.closing||{};
+  const AL=CUR_DAY.apprLine||{};
+  const docNo=c.doc_no||`DPC-${date}-K${team==='생산2팀'?'2':'1'}-${team}`;
+  const esc=s=>String(s==null?'':s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+  // 결재 4단계: 이름 + 승인여부
+  const sign=[
+    {t:'작성',  nm:c.writer||AL.writer||(S.user&&S.user.name)||'', ok:!!c.writer},
+    {t:'팀장',  nm:c.lead_by||AL.lead||'',      ok:!!c.lead_by},
+    {t:'본부장',nm:c.div_by ||AL.division||'',  ok:!!c.div_by},
+    {t:'대표',  nm:c.ceo_by ||AL.ceo||'',       ok:!!c.ceo_by}
+  ];
+  const statusLabel={none:'미작성',draft:'임시저장',submitted:'결재 진행(팀장)',
+    lead_ok:'결재 진행(본부장)',div_ok:'결재 진행(대표)',done:'결재 완료',rejected:'반려'}[c.status||'none']||'';
+  const printedAt=(()=>{const d=new Date();
+    const p=n=>String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;})();
+
+  const html=`
+  <div class="pd-top">
+    <div class="pd-title">
+      <h1>일일 생산마감 관리표</h1>
+      <div class="pd-sub">하림펫푸드 정안공장 · ${esc(team)} · ${esc(date)}</div>
+    </div>
+    <div class="pd-meta">
+      문서번호 <b>${esc(docNo)}</b><br>
+      결재상태 <b>${esc(statusLabel)}</b><br>
+      출력일시 ${printedAt}
+    </div>
+    <table class="pd-sign"><tbody>
+      <tr><td class="lbl" rowspan="3">결<br>재</td>
+        ${sign.map(s=>`<th>${s.t}</th>`).join('')}</tr>
+      <tr>${sign.map(s=>`<td class="nm">${esc(s.nm)}</td>`).join('')}</tr>
+      <tr>${sign.map(s=>`<td class="st">${s.ok?'승인':''}</td>`).join('')}</tr>
+    </tbody></table>
+  </div>
+  ${c.submit_comment?`<div style="font-size:8.5pt;border:1px solid #bbb;padding:2mm 3mm;margin-bottom:3mm">
+     <b>작성자 의견</b> · ${esc(c.submit_comment)}</div>`:''}
+  ${c.status==='rejected'&&c.reject_reason?`<div style="font-size:8.5pt;border:1px solid #b3261e;color:#b3261e;padding:2mm 3mm;margin-bottom:3mm">
+     <b>반려 (${esc(c.reject_by||'')})</b> · ${esc(c.reject_reason)}</div>`:''}`;
+
+  const foot=`<div class="fnote">
+    <span>${esc(docNo)} · ${esc(team)} · ${esc(date)}</span>
+    <span>하림펫푸드 정안공장 · 생산본부</span></div>`;
+
+  let box=document.getElementById('printDoc');
+  if(!box){ box=document.createElement('div'); box.id='printDoc'; }
+  box.innerHTML=html;
+  let fbox=document.getElementById('printFoot');
+  if(!fbox){ fbox=document.createElement('div'); fbox.id='printFoot'; fbox.className='pd-foot'; }
+  fbox.innerHTML=foot;
+
+  const wrap=document.querySelector('#wrap')||document.body;
+  wrap.insertBefore(box,wrap.firstChild);
+  wrap.appendChild(fbox);
+
+  window.print();
+}
 async function notifyNextApprover(date,team,newStatus,actorName){
   // 다음 결재 단계가 없으면(완료·반려) 발송 안 함
   if(!['submitted','lead_ok','div_ok'].includes(newStatus)) return;
