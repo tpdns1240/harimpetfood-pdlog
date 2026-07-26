@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>일일 생산마감 · 하림펫푸드</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230c2350'/><text y='73' x='50' text-anchor='middle' font-size='62' font-weight='bold' fill='white' font-family='sans-serif'>H</text></svg>">
 <style>
 :root{
   --navy:#3b556e; --navy2:#4a6784; --navy3:#6b85a0;
@@ -3131,8 +3132,19 @@ function renderClosingHeader2(){
 function renderMore2(){
   const {orders,losses,defects,downtime,mhMap,lines}=CUR_DAY;
   CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
-  const isFin=code=>['2','3'].includes(String(code||'')[0]);
-  const isSemi=code=>String(code||'')[0]==='6';
+  // 완/반 분류: 오더 객체(kind 우선) 또는 prod_code 문자열 모두 지원
+  const isFin=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true;
+      if(o.kind==='semi'||o.kind==='반제품')return false;
+      return ['2','3'].includes(String(o.prod_code||'')[0]); }
+    return ['2','3'].includes(String(o||'')[0]);
+  };
+  const isSemi=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true;
+      if(o.kind==='fin'||o.kind==='완제품')return false;
+      return String(o.prod_code||'')[0]==='6'; }
+    return String(o||'')[0]==='6';
+  };
   const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o):isSemi(o));
   // 공정별 그룹
   const byProc={};
@@ -3279,11 +3291,15 @@ function renderMore2(){
       const o=(orders||[]).find(x=>x.prod_code===t.prod_code);
       const kind=t.prod_code?(isFin(t.prod_code)?'완제품':isSemi(t.prod_code)?'반제품':'-'):'-';
       const dmin=diffMin(t.start_time,t.end_time);
+      const srcBadge=t.source==='auto'
+        ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
+        : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
       return `<tr data-down="${t.id}">
         <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
         <td class="mono">${t.prod_code||'–'}</td>
         <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
         <td>${kind!=='-'?`<span class="type-tag">${kind}</span>`:'–'}</td>
+        <td>${srcBadge}</td>
         <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
         <td class="mono"><b>${(dmin/60).toFixed(1)}</b></td>
         <td class="l" style="font-size:12px">${t.memo||'–'}</td>
@@ -3307,8 +3323,8 @@ function renderMore2(){
         <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
       </div>
       <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table class="t2-table">
-        <thead><tr><th>라인</th><th>오더</th><th>제품명</th><th>제품구분</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
-        <tbody>${runRows2||'<tr><td colspan="9" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
+        <thead><tr><th>라인</th><th>오더</th><th>제품명</th><th>제품구분</th><th>출처</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
+        <tbody>${runRows2||'<tr><td colspan="10" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
       </table></div>
 
       ${(()=>{
@@ -3417,10 +3433,14 @@ function renderMore2(){
         const eRows=stopList.map(t=>{
           const cat=t.category==='plan'?'계획정지':t.category==='unplan'?'비계획정지':'돌발';
           const catCls=t.category==='plan'?'':'neg';
+          const srcBadge=t.source==='auto'
+            ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
+            : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
           return `<tr data-down="${t.id}">
             <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
             <td class="mono" style="font-size:11px">${t.prod_code||'–'}</td>
             <td><span class="type-tag ${catCls}">${cat}</span></td>
+            <td>${srcBadge}</td>
             <td>${t.reason_type||'–'}</td>
             <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
             <td class="mono"><b>${diffMin(t.start_time,t.end_time)}분</b></td>
@@ -3489,8 +3509,8 @@ function renderMore2(){
       <!-- [E] 등록된 비가동 리스트 -->
       <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-        <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
-        <tbody>${eRows||'<tr><td colspan="11" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
+        <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>출처</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
+        <tbody>${eRows||'<tr><td colspan="12" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
       </table></div>
 
       <!-- [F] 라인별 비가동 파레토 -->
