@@ -266,10 +266,22 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 /* ── 생산2팀 전용 스타일 ── */
 .closing-hd2{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,#1e3a6d,#2954a0);
   color:#fff;padding:18px 22px;border-radius:14px;margin-bottom:16px}
+.closing-hd2.t1{background:linear-gradient(120deg,#0f1f3d,#1e3a6d)}
+.closing-hd2 .tbtn{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.28)}
+.closing-hd2 .tbtn:hover{background:rgba(255,255,255,.24)}
 .ch2-title h1{margin:0;font-size:19px;font-weight:800}
 .ch2-title h1 span{color:#93c5fd!important}
 .ch2-sub{font-size:12.5px;opacity:.82;margin-top:3px}
 .sec2-hd .no{background:#2954a0}
+/* ── 생산1팀 마감화면을 2팀과 동일한 파랑 테마로 (closing-body.t2-theme 범위 한정) ── */
+.t2-theme .sec-hd .no,
+.t2-theme .no.c1,.t2-theme .no.c2,.t2-theme .no.c3,
+.t2-theme .no.c4,.t2-theme .no.c5,.t2-theme .no.c6,.t2-theme .no.cx{
+  background:#2954a0!important;background-image:none!important}
+.t2-theme .sec-hd{background:linear-gradient(100deg,#f4f8fd,#eef3fb)}
+.t2-theme table thead th{background:#2954a0!important;color:#fff!important;border-color:#3b62a8!important}
+.t2-theme table thead th *{color:#fff!important}
+.t2-theme table tbody tr:nth-child(even){background:#f6f9fd}
 .t2-table th{background:#2954a0;color:#fff;font-size:11.5px;font-weight:700;text-align:center;padding:7px 6px;border:1px solid #3b62a8}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
@@ -296,6 +308,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .sum-item .v{font-size:15px;font-weight:800;color:var(--ink);margin-top:2px;font-family:'JetBrains Mono',monospace}
 .sum-item.neg .v{color:var(--red)}
 .sum-item.pos .v{color:var(--grn)}
+/* 써머리 값: 금액 작게 + 본문 글자체 (mono 아님) */
+.sum-strip.sm .v{font-size:12.5px;font-weight:700;font-family:inherit;letter-spacing:0}
+.sum-strip.sm .sum-item{min-width:88px;padding:7px 12px}
 /* 비가동 상세 라인 필터 */
 .dt-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:11px 14px;background:#f7f9fc;border-top:1px solid var(--line)}
 .dtf-label{font-size:11.5px;font-weight:800;color:var(--mut);margin-right:4px;letter-spacing:.02em}
@@ -3129,157 +3144,10 @@ function renderClosingHeader2(){
     </div>
   </div>`;
 }
-function renderMore2(){
-  const {orders,losses,defects,downtime,mhMap,lines}=CUR_DAY;
-  CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
-  // 완/반 분류: 오더 객체(kind 우선) 또는 prod_code 문자열 모두 지원
-  const isFin=(o)=>{
-    if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true;
-      if(o.kind==='semi'||o.kind==='반제품')return false;
-      return ['2','3'].includes(String(o.prod_code||'')[0]); }
-    return ['2','3'].includes(String(o||'')[0]);
-  };
-  const isSemi=(o)=>{
-    if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true;
-      if(o.kind==='fin'||o.kind==='완제품')return false;
-      return String(o.prod_code||'')[0]==='6'; }
-    return String(o||'')[0]==='6';
-  };
-  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o):isSemi(o));
-  // 공정별 그룹
-  const byProc={};
-  kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
-  const procs=Object.keys(byProc).sort();
-  if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
-  const curOrders=byProc[T2_PROC]||[];
-
-  const orderRows=curOrders.map(o=>{
-    const mh=mhMap[o.prod_code]||{mh:'',note:''};
-    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
-    const ach=oPlan>0?(oAct/oPlan*100):0;
-    const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
-    return `<tr data-ord="${o.prod_code}">
-      <td class="mono">${o.prod_code}</td>
-      <td class="l">${o.prod_name||'-'}</td>
-      <td class="mono">${fmt(oPlan)}</td>
-      <td class="mono">${fmt(oAct)}</td>
-      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
-      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
-      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
-      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
-    </tr>`;
-  }).join('');
-  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
-
-  // ⑤ 가동/비가동: 공정별 작업시간(run) + 정지
-  const runRows=(downtime||[]).filter(t=>t.category==='run');
-  const stopRows=(downtime||[]).filter(t=>t.category!=='run');
-  const hm=m=>{const h=Math.floor(m/60),x=m%60;return h?`${h}h ${x}m`:`${x}m`;};
-
-  $('#sec2More').innerHTML=`
-  <!-- ② 오더별 실적 + 투입공수 입력 -->
-  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
-    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
-    <div class="tabbar">
-      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
-      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
-    </div>
-    ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
-    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
-      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
-    </table></div>
-  </div>
-
-  <!-- ③ 원부자재 로스 (생산1팀과 동일한 온전한 입력 로직) -->
-  ${(()=>{
-    const savedScrap={}; (CUR_DAY.savedScraps||[]).forEach(s=>{ savedScrap[s.prod_code+'|'+s.mat_code]=s; });
-    const lossTypeOpts=(CUR_DAY.lossTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('');
-    const lossRows2=(losses||[]).map((s,i)=>{
-      const dcls=Number(s.diff)>0?'neg':'pos';
-      const saved=savedScrap[s.prod_code+'|'+s.mat_code];
-      const isSaved=!!saved;
-      const typeVal=saved?saved.scrap_type:'';
-      const reasonVal=saved?(saved.reason||''):'';
-      const typeSelOpts=lossTypeOpts.replace(`value="${typeVal}"`,`value="${typeVal}" selected`);
-      const diffSign=Number(s.diff)>0?'+':'';
-      const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
-      const lossSign=lossVal<0?'-':lossVal>0?'+':'';
-      const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
-      <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
-      <td class="l">${s.prod_name}</td>
-      <td class="l">${s.mat_name}</td>
-      <td class="mono">${fmt(s.plan_qty)}</td>
-      <td class="mono">${fmt(s.actual_qty)}</td>
-      <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
-      <td class="mono">${fmt(s.unit_price)}</td>
-      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
-      <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
-      <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
-      <td class="row-actions">
-        ${isSaved
-          ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
-          : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
-        <button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>
-      </td></tr>`;
-    }).join('');
-    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
-      <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
-      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(CUR_DAY._totLoss||0)}원</span>
-      <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
-      <div class="type-panel" id="typePanel_loss" style="display:none"></div>
-      ${(()=>{const cnt={};(losses||[]).forEach(l=>{const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
-        const keys=Object.keys(cnt).sort();
-        if(!keys.length)return '';
-        return `<div class="dt-filter" id="lossFilterBar">
-          <span class="dtf-label">라인 선택</span>
-          <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
-          ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
-        </div>`;})()}
-      <div class="fold-bar open" id="foldBar_loss2" onclick="toggleFold('loss2')">
-        <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
-        <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
-      <div class="fold-body open" id="foldBody_loss2">
-      <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
-        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
-        <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
-      </table></div>
-      <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
-      </div>
-      </div>
-    </div>`;
-  })()}
-
-  <!-- ④ 완제품 불량 (오더+유형+수량+비고) -->
-  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c4">4</span><h3>완제품 불량관리</h3>
-    <span class="desc">오더·불량유형·수량·비고</span><span class="sp"></span>
-    <button class="tbtn" onclick="toggleTypePanel('defect')">▲ 불량유형 관리</button></div>
-    <div class="type-panel" id="typePanel_defect" style="display:none"></div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인</th><th>오더(제품)</th><th>불량유형</th><th>수량</th><th>단위</th><th>비고</th><th>작업</th></tr></thead>
-      <tbody id="defectBody">
-        <tr class="input-row">
-          <td><select class="inp-cell" id="dfLine2" onchange="filterDefectProds2()" style="width:130px;text-align:left"><option value="">라인선택</option>${[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort().map(ln=>`<option value="${ln}">${ln}</option>`).join('')}</select></td>
-          <td><select class="inp-cell" id="dfProd2" style="width:220px;text-align:left"><option value="">먼저 라인 선택</option></select></td>
-          <td><select class="inp-cell df-type" id="dfType" style="width:120px;text-align:left"><option value="">유형선택</option>${(CUR_DAY.defectTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('')}</select></td>
-          <td><input class="inp-cell" id="dfQty" type="number" placeholder="0" style="width:80px"></td>
-          <td><input class="inp-cell" id="dfUnit" value="KG" style="width:50px"></td>
-          <td><input class="inp-cell" id="dfReason" placeholder="비고" style="width:160px;text-align:left"></td>
-          <td class="row-actions"><button class="rowbtn save" onclick="saveDefect2()">+ 추가</button></td>
-        </tr>
-        ${(defects||[]).map(d=>`<tr data-defect="${d.id}"><td class="l">${(d.proc_sub1||'')}/${(d.proc_sub2||'')}</td><td class="l">${d.prod_name||d.prod_code||'-'}</td>
-          <td><span class="type-tag">${d.defect_type||'-'}</span></td><td class="mono">${fmt(d.qty||0)}</td>
-          <td>${d.unit||'KG'}</td><td class="l" style="font-size:12px">${d.memo||d.reason||'-'}</td>
-          <td class="row-actions">${CUR_DAY.locked?'':`<span class="delx" onclick="delDefect(${d.id})">✕</span>`}</td></tr>`).join('')}
-      </tbody>
-    </table></div>
-  </div>
-
-  <!-- ⑤ 라인 가동/비가동 (공정 작업시간 + 비가동) -->
-  <!-- ⑤ 라인 가동/비가동 (캡쳐3 벤치마킹) -->
-  ${(()=>{
+function buildSection5(){
+  const downtime=CUR_DAY.downtime||[], orders=CUR_DAY.orders||[], lines=CUR_DAY.lines||[];
+  const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
+  const isSemi=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true; if(o.kind==='fin'||o.kind==='완제품')return false; return String(o.prod_code||'')[0]==='6'; } return String(o||'')[0]==='6'; };
     const runList=(downtime||[]).filter(t=>t.category==='run')
       .sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||'')||((a.id||0)-(b.id||0)));
     // 오더 옵션(제품구분 포함)
@@ -3519,63 +3387,285 @@ function renderMore2(){
       <div class="pareto-grid">${fCards||'<div style="padding:16px;color:var(--mut)">비가동 데이터 없음</div>'}</div>`;
       })()}
     </div>`;
-  })()}
+}
+/* ⑥ 투입인원 — 1팀·2팀 공용. 2팀 레이아웃(라인 + 공통부문·예비인력 고정행) +
+   1팀의 관리자 1/n 배분(실공수 컬럼)까지 병합. 오더 기준 라인 목록 사용 */
+function buildManpower6(){
+  const manpower=CUR_DAY.manpower||[];
+  const orders=CUR_DAY.orders||[];
+  const manByLine={}; manpower.forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
+  const lineNames=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort();
+  // 고정 행: 공통부문·예비인력(2팀) + 관리자1·2(1팀 1/n 배분 대상)
+  const FIXED=[['공통','공통부문','공통'],['기타','예비인력','예비인력']];
+  const MGR_KEYS=[['관리','관리자1'],['관리','관리자2']];
+  // 관리자 총원 → 인원이 투입된 라인 수로 1/n 배분
+  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{regular_head:0,dispatch_head:0,memo:''});
+  const mgrTotal=mgrRows.reduce((a,m)=>a+Number(m.regular_head||0)+Number(m.dispatch_head||0),0);
+  const linesWithMan=lineNames.filter(name=>{
+    const m=manByLine[name]; if(!m)return false;
+    return (Number(m.regular_head||0)+Number(m.dispatch_head||0))>0;
+  });
+  const share=linesWithMan.length>0?mgrTotal/linesWithMan.length:0;
+  const shareOf=(name)=>linesWithMan.includes(name)?share:0;
+  const fmtN=n=>n?n.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1'):'–';
 
-  <!-- ⑥ 투입인원 (누적관리용) -->
+  let tReg=0,tDisp=0,tPlan=0;
+  const lineRows=lineNames.map((name,i)=>{
+    const m=manByLine[name]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''};
+    const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    const sh=shareOf(name); const eff=inp+sh;
+    tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
+    return `<tr>
+      <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
+      <td><input class="inp-cell mp-plan" data-line="${name}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
+      <td><input class="inp-cell mp-reg" data-line="${name}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
+      <td><input class="inp-cell mp-disp" data-line="${name}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
+      <td class="mono"><b>${inp||'–'}</b></td>
+      <td class="mono"><b style="color:${sh?'var(--blue)':'inherit'}">${fmtN(eff)}</b></td>
+      <td><input class="inp-cell mp-memo" data-line="${name}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:130px;text-align:left"></td>
+    </tr>`;
+  }).join('');
+  const fixedRows=FIXED.map(([s1,s2,badge])=>{
+    const ln=s1+'/'+s2;
+    const m=manByLine[ln]||{plan_head:0,regular_head:0,dispatch_head:0,memo:badge==='예비인력'?'예비인력':''};
+    const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
+    const badgeColor=s2==='예비인력'?'background:#fef3e0;color:#c2410c':'background:#eef2f9;color:#5b6675';
+    return `<tr class="mp-fixed">
+      <td class="l"><span class="t2-lno" style="${badgeColor}">${s1}</span> ${s2}</td>
+      <td><input class="inp-cell mp-plan" data-line="${ln}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
+      <td><input class="inp-cell mp-reg" data-line="${ln}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
+      <td><input class="inp-cell mp-disp" data-line="${ln}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
+      <td class="mono"><b>${inp||'–'}</b></td>
+      <td class="mono" style="color:var(--mut);font-size:11px">–</td>
+      <td><input class="inp-cell mp-memo" data-line="${ln}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:130px;text-align:left"></td>
+    </tr>`;
+  }).join('');
+  // 관리자 1·2 행 (1/n 배분원): 실공수 열에 "1/n 배분" 표기
+  const mgrFixedRows=MGR_KEYS.map(([s1,s2],i)=>{
+    const ln=s1+'/'+s2; const m=mgrRows[i];
+    const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
+    return `<tr class="mp-fixed">
+      <td class="l"><span class="t2-lno" style="background:#ede9fe;color:#6d28d9">관리</span> ${s2} <span style="font-size:11px;color:var(--mut)">· 공정 공통</span></td>
+      <td style="color:var(--mut);font-size:11px">–</td>
+      <td><input class="inp-cell mp-reg" data-line="${ln}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
+      <td><input class="inp-cell mp-disp" data-line="${ln}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
+      <td class="mono"><b>${inp||'–'}</b></td>
+      <td class="mono" style="color:var(--mut);font-size:11px">1/n 배분</td>
+      <td><input class="inp-cell mp-memo" data-line="${ln}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="반장·공정관리자 등" style="width:130px;text-align:left"></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c6">6</span><h3>투입인원</h3>
+    <span class="desc">수기 입력 · 관리자 1/n 배분 · 일별 누적관리</span><span class="sp"></span>
+    <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead><tr><th>라인</th><th>계획인원 (명)</th><th>정규직 (명)</th><th>파견/일용 (명)</th><th>투입계</th><th>실공수</th><th>비고</th></tr></thead>
+      <tbody>${lineRows||'<tr><td colspan="7" style="color:var(--mut);padding:14px">라인 없음</td></tr>'}${fixedRows}${mgrFixedRows}</tbody>
+      <tfoot><tr style="background:#eef2f9;font-weight:800">
+        <td class="l">합 계</td><td class="mono">${tPlan}</td><td class="mono">${tReg}</td>
+        <td class="mono">${tDisp}</td><td class="mono">${tReg+tDisp}</td><td class="mono">${fmtN(tReg+tDisp)}</td><td></td>
+      </tr></tfoot>
+    </table></div>
+    <div style="padding:8px 16px 0;font-size:11.5px;color:var(--mut);line-height:1.55">
+      ※ <b>관리자1·2</b>는 특정 공정에 속하지 않는 반장·공정관리자 등입니다. 입력한 인원은
+      <b>인원이 투입된 공정 수로 나누어(1/n)</b> 각 공정 <b>실공수</b>에 더해집니다.
+      ${mgrTotal>0&&linesWithMan.length>0?`<br>현재: 관리자 ${mgrTotal}명 ÷ ${linesWithMan.length}개 공정 = 공정당 <b style="color:var(--blue)">+${fmtN(share)}</b>명`:''}
+    </div>
+    <div class="labor-note">
+      <div><b>예상 노무비</b></div>
+      <div style="text-align:right">${tReg+tDisp}명 · <b style="color:var(--blue)">${fmt((tReg+tDisp)*0)}원</b></div>
+      <div style="grid-column:1/3;color:var(--mut);font-size:11.5px;margin-top:4px">※ 예상 노무비입니다. 현재는 시범 운용 중이며 추후 노사팀과 데이터를 정교화하여 정확도를 높여갈 예정입니다.</div>
+    </div>
+  </div>`;
+}
+function renderMore2(){
+  const {orders,losses,defects,downtime,mhMap,lines}=CUR_DAY;
+  CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
+  // 완/반 분류: 오더 객체(kind 우선) 또는 prod_code 문자열 모두 지원
+  const isFin=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true;
+      if(o.kind==='semi'||o.kind==='반제품')return false;
+      return ['2','3'].includes(String(o.prod_code||'')[0]); }
+    return ['2','3'].includes(String(o||'')[0]);
+  };
+  const isSemi=(o)=>{
+    if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true;
+      if(o.kind==='fin'||o.kind==='완제품')return false;
+      return String(o.prod_code||'')[0]==='6'; }
+    return String(o||'')[0]==='6';
+  };
+  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o):isSemi(o));
+  // 공정별 그룹
+  const byProc={};
+  kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
+  const procs=Object.keys(byProc).sort();
+  if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
+  const curOrders=byProc[T2_PROC]||[];
+
+  const orderRows=curOrders.map(o=>{
+    const mh=mhMap[o.prod_code]||{mh:'',note:''};
+    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
+    const ach=oPlan>0?(oAct/oPlan*100):0;
+    const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
+    return `<tr data-ord="${o.prod_code}">
+      <td class="mono">${o.prod_code}</td>
+      <td class="l">${o.prod_name||'-'}</td>
+      <td class="mono">${fmt(oPlan)}</td>
+      <td class="mono">${fmt(oAct)}</td>
+      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
+      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
+      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
+      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
+    </tr>`;
+  }).join('');
+  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
+
+  // ⑤ 가동/비가동: 공정별 작업시간(run) + 정지
+  const runRows=(downtime||[]).filter(t=>t.category==='run');
+  const stopRows=(downtime||[]).filter(t=>t.category!=='run');
+  const hm=m=>{const h=Math.floor(m/60),x=m%60;return h?`${h}h ${x}m`:`${x}m`;};
+
+  $('#sec2More').innerHTML=`
+  <!-- ② 오더별 실적 + 투입공수 입력 -->
+  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
+    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
+    <div class="tabbar">
+      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
+      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
+    </div>
+    ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
+      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>
+
+  <!-- ③ 원부자재 로스 (생산1팀과 동일한 온전한 입력 로직) -->
   ${(()=>{
-    const manpower=CUR_DAY.manpower||[];
-    const orders=CUR_DAY.orders||[];
-    const manByLine={}; manpower.forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
-    const lineNames=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort();
-    // 고정 행(공통부문·예비인력): proc_sub1='공통' 등으로 저장
-    const FIXED=[['공통','공통부문','공통'],['기타','예비인력','예비인력']];
-    let tReg=0,tDisp=0,tPlan=0;
-    const lineRows=lineNames.map((name,i)=>{
-      const m=manByLine[name]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''};
-      const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
-      tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
-      return `<tr>
-        <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
-        <td><input class="inp-cell mp-plan" data-line="${name}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
-        <td><input class="inp-cell mp-reg" data-line="${name}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
-        <td><input class="inp-cell mp-disp" data-line="${name}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
-        <td class="mono"><b>${inp||'–'}</b></td>
-        <td><input class="inp-cell mp-memo" data-line="${name}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:140px;text-align:left"></td>
-      </tr>`;
+    const savedScrap={}; (CUR_DAY.savedScraps||[]).forEach(s=>{ savedScrap[s.prod_code+'|'+s.mat_code]=s; });
+    const lossTypeOpts=(CUR_DAY.lossTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('');
+    const lossRows2=(losses||[]).map((s,i)=>{
+      const dcls=Number(s.diff)>0?'neg':'pos';
+      const saved=savedScrap[s.prod_code+'|'+s.mat_code];
+      const isSaved=!!saved;
+      const typeVal=saved?saved.scrap_type:'';
+      const reasonVal=saved?(saved.reason||''):'';
+      const typeSelOpts=lossTypeOpts.replace(`value="${typeVal}"`,`value="${typeVal}" selected`);
+      const diffSign=Number(s.diff)>0?'+':'';
+      const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
+      const lossSign=lossVal<0?'-':lossVal>0?'+':'';
+      const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
+      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
+      <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
+      <td class="l">${s.prod_name}</td>
+      <td class="l">${s.mat_name}</td>
+      <td class="mono">${fmt(s.plan_qty)}</td>
+      <td class="mono">${fmt(s.actual_qty)}</td>
+      <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+      <td class="mono">${fmt(s.unit_price)}</td>
+      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
+      <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
+      <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
+      <td class="row-actions">
+        ${isSaved
+          ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
+          : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
+        <button class="rowbtn xcl" onclick="excludeLossRow(${i})" title="박스 등 별도회계 품목을 로스금액에서 제외">🚫제외</button>
+      </td></tr>`;
     }).join('');
-    const fixedRows=FIXED.map(([s1,s2,badge])=>{
-      const ln=s1+'/'+s2;
-      const m=manByLine[ln]||{plan_head:0,regular_head:0,dispatch_head:0,memo:badge==='예비인력'?'예비인력':''};
-      const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
-      tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
-      const badgeColor=s2==='예비인력'?'background:#fef3e0;color:#c2410c':'background:#eef2f9;color:#5b6675';
-      return `<tr class="mp-fixed">
-        <td class="l"><span class="t2-lno" style="${badgeColor}">${s1}</span> ${s2}</td>
-        <td><input class="inp-cell mp-plan" data-line="${ln}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
-        <td><input class="inp-cell mp-reg" data-line="${ln}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
-        <td><input class="inp-cell mp-disp" data-line="${ln}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
-        <td class="mono"><b>${inp||'–'}</b></td>
-        <td><input class="inp-cell mp-memo" data-line="${ln}" value="${(m.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:140px;text-align:left"></td>
-      </tr>`;
-    }).join('');
-    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c6">6</span><h3>투입인원</h3>
-      <span class="desc">전부 수기 입력 (계획인원 포함) · 일별 누적관리</span><span class="sp"></span>
-      <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
-      <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-        <thead><tr><th>라인</th><th>계획인원 (명)</th><th>정규직 (명)</th><th>파견/일용 (명)</th><th>계 (명)</th><th>비고</th></tr></thead>
-        <tbody>${lineRows||'<tr><td colspan="6" style="color:var(--mut);padding:14px">라인 없음</td></tr>'}${fixedRows}</tbody>
-        <tfoot><tr style="background:#eef2f9;font-weight:800">
-          <td class="l">합 계</td><td class="mono">${tPlan}</td><td class="mono">${tReg}</td>
-          <td class="mono">${tDisp}</td><td class="mono">${tReg+tDisp}</td><td></td>
-        </tr></tfoot>
+    return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
+      <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
+      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(CUR_DAY._totLoss||0)}원</span>
+      <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
+      <div class="type-panel" id="typePanel_loss" style="display:none"></div>
+      ${(()=>{
+        const byLine={},byType={}; let cnt=0; const tot=CUR_DAY._totLoss||0;
+        (losses||[]).forEach(l=>{
+          const amt=Math.round((l.diff||0)*(l.unit_price||0));
+          if(!amt&&!l.diff)return; cnt++;
+          const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||''); byLine[k]=(byLine[k]||0)+amt;
+          const t=l.scrap_type||'(미분류)'; byType[t]=(byType[t]||0)+amt;
+        });
+        const top=(o,n)=>Object.entries(o).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,n);
+        const cell=(k,v)=>`<div class="sum-item ${v>0?'neg':(v<0?'pos':'')}"><div class="k">${k}</div><div class="v">${v>0?'-':'+'}${fmt(Math.abs(v))}</div></div>`;
+        return `<div class="sum-strip sm">
+          <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 로스금액</div><div class="v">${tot>0?'-':'+'}${fmt(Math.abs(tot))}</div></div>
+          <div class="sum-item"><div class="k">발생 건수</div><div class="v">${cnt}</div></div>
+          ${top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')}
+          ${top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('')}
+        </div>`;
+      })()}
+      ${(()=>{const cnt={};(losses||[]).forEach(l=>{const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
+        const keys=Object.keys(cnt).sort();
+        if(!keys.length)return '';
+        return `<div class="dt-filter" id="lossFilterBar">
+          <span class="dtf-label">라인 선택</span>
+          <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
+          ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
+        </div>`;})()}
+      <div class="fold-bar open" id="foldBar_loss2" onclick="toggleFold('loss2')">
+        <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
+        <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
+      <div class="fold-body open" id="foldBody_loss2">
+      <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
+        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
+        <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
       </table></div>
-      <div class="labor-note">
-        <div><b>예상 노무비</b></div>
-        <div style="text-align:right">${tReg+tDisp}명 · <b style="color:var(--blue)">${fmt((tReg+tDisp)*0)}원</b></div>
-        <div style="grid-column:1/3;color:var(--mut);font-size:11.5px;margin-top:4px">※ 예상 노무비입니다. 현재는 시범 운용 중이며 추후 노사팀과 데이터를 정교화하여 정확도를 높여갈 예정입니다.</div>
+      <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
+      </div>
       </div>
     </div>`;
   })()}
+
+  <!-- ④ 완제품 불량 (오더+유형+수량+비고) -->
+  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c4">4</span><h3>완제품 불량관리</h3>
+    <span class="desc">오더·불량유형·수량·비고</span><span class="sp"></span>
+    <button class="tbtn" onclick="toggleTypePanel('defect')">▲ 불량유형 관리</button></div>
+    <div class="type-panel" id="typePanel_defect" style="display:none"></div>
+    ${(()=>{
+      const defects=CUR_DAY.defects||[];
+      const byType={},byLine={}; let totQty=0;
+      defects.forEach(d=>{
+        const q=Number(d.qty||0); totQty+=q;
+        const t=d.defect_type||'(미분류)'; byType[t]=(byType[t]||0)+q;
+        const k=(d.proc_sub1||'')+'/'+(d.proc_sub2||''); byLine[k]=(byLine[k]||0)+q;
+      });
+      const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
+      return `<div class="sum-strip sm">
+        <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 불량수량</div><div class="v">${fmt(totQty)}</div></div>
+        <div class="sum-item"><div class="k">등록 건수</div><div class="v">${defects.length}</div></div>
+        ${top(byType,3).map(([k,v])=>`<div class="sum-item"><div class="k">유형 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
+        ${top(byLine,2).map(([k,v])=>`<div class="sum-item"><div class="k">라인 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
+      </div>`;
+    })()}
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th>라인</th><th>오더(제품)</th><th>불량유형</th><th>수량</th><th>단위</th><th>비고</th><th>작업</th></tr></thead>
+      <tbody id="defectBody">
+        <tr class="input-row">
+          <td><select class="inp-cell" id="dfLine2" onchange="filterDefectProds2()" style="width:130px;text-align:left"><option value="">라인선택</option>${[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort().map(ln=>`<option value="${ln}">${ln}</option>`).join('')}</select></td>
+          <td><select class="inp-cell" id="dfProd2" style="width:220px;text-align:left"><option value="">먼저 라인 선택</option></select></td>
+          <td><select class="inp-cell df-type" id="dfType" style="width:120px;text-align:left"><option value="">유형선택</option>${(CUR_DAY.defectTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('')}</select></td>
+          <td><input class="inp-cell" id="dfQty" type="number" placeholder="0" style="width:80px"></td>
+          <td><input class="inp-cell" id="dfUnit" value="KG" style="width:50px"></td>
+          <td><input class="inp-cell" id="dfReason" placeholder="비고" style="width:160px;text-align:left"></td>
+          <td class="row-actions"><button class="rowbtn save" onclick="saveDefect2()">+ 추가</button></td>
+        </tr>
+        ${(defects||[]).map(d=>`<tr data-defect="${d.id}"><td class="l">${(d.proc_sub1||'')}/${(d.proc_sub2||'')}</td><td class="l">${d.prod_name||d.prod_code||'-'}</td>
+          <td><span class="type-tag">${d.defect_type||'-'}</span></td><td class="mono">${fmt(d.qty||0)}</td>
+          <td>${d.unit||'KG'}</td><td class="l" style="font-size:12px">${d.memo||d.reason||'-'}</td>
+          <td class="row-actions">${CUR_DAY.locked?'':`<span class="delx" onclick="delDefect(${d.id})">✕</span>`}</td></tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>
+
+  <!-- ⑤ 라인 가동/비가동 (1팀·2팀 공용) -->
+  ${buildSection5()}
+
+  <!-- ⑥ 투입인원 (누적관리용) -->
+  ${buildManpower6()}
 
   <!-- 문서 푸터 -->
   <div class="doc-footer2">
@@ -3724,13 +3814,13 @@ async function saveRunTime(){
 }
 let T2_PROC='';
 function switchT2Proc(p){ T2_PROC=p; renderMore2(); }
-/* ③ 로스: 라인 필터 (담당자별 작업) */
+/* ③ 로스: 라인 필터 (담당자별 작업) — 1팀/2팀 공용 */
 function filterLossLine(ln){
-  document.querySelectorAll('#lossFilterBar .dtf-chip').forEach(b=>{
+  document.querySelectorAll('#lossFilterBar .dtf-chip, #lossFilterBar1 .dtf-chip').forEach(b=>{
     b.classList.toggle('on',(b.dataset.ln||'')===ln);
   });
   let shown=0;
-  document.querySelectorAll('#lossBody2 tr').forEach(tr=>{
+  document.querySelectorAll('#lossBody2 tr, #lossBody1 tr').forEach(tr=>{
     const hit=!ln||tr.dataset.ln===ln;
     tr.style.display=hit?'':'none'; if(hit)shown++;
   });
@@ -4066,7 +4156,7 @@ function renderClosing(){
     const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
     const lossSign=lossVal<0?'-':lossVal>0?'+':'';
     const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-    return `<tr data-loss="${i}" class="${isSaved?'row-saved':''}">
+    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}</td>
@@ -4087,20 +4177,21 @@ function renderClosing(){
   }).join('');
 
   $('#wrap').innerHTML=`
-  <div class="po-back"><button onclick="go('cal')">← 캘린더로</button></div>
-  <div class="day-hd">
-    <div><h2>일일 생산마감 관리표</h2><div class="en">DAILY PRODUCTION CLOSING · ${team} · ${date}</div></div>
-    <div class="meta">
+  ${renderApprovalBar()}
+  <div class="closing-hd2">
+    <button class="tbtn" onclick="go('cal')">← 캘린더로</button>
+    <div class="ch2-title"><h1>일일 생산마감 · <span style="color:var(--blue)">생산1팀</span></h1>
+      <div class="ch2-sub">${date} · 완제품 생산성 관리</div></div>
+    <div style="margin-left:auto;text-align:right">
       <div style="font-size:11px;color:#a9c0dd">문서번호</div>
       <b style="font-size:13px">DPC-${date}-K1-${team}</b>
-      <div style="font-size:11px;margin-top:6px">작성자 ${S.user.name} · 라인 ${lines.length} · 오더 ${totOrders}</div>
+      <div style="font-size:11.5px;color:#c3d4ea;margin-top:3px">작성자 ${S.user.name} · 라인 ${lines.length} · 오더 ${totOrders}</div>
     </div>
   </div>
-  ${renderApprovalBar()}
   ${isLocked?`<div class="lock-banner">🔒 <b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.</div>`
    :(cst==='done'?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ <b>결재 완료된 문서를 관리자 권한으로 열었습니다.</b> 수정 시 확정된 실적이 변경되니 주의하세요.</div>`
    :(['submitted','lead_ok','div_ok'].includes(cst)?`<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">✎ 결재 진행 중입니다. <b>최종 완료 전까지는 수정할 수 있습니다.</b> 수정 시 결재자에게 내용이 달라짐을 알려주세요.</div>`:''))}
-  <div class="closing-body ${isLocked?'locked':''}">
+  <div class="closing-body t2-theme ${isLocked?'locked':''}">
 
   <!-- 스코어카드 -->
   <div class="score-row">
@@ -4165,6 +4256,14 @@ function renderClosing(){
         ${top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('')}
       </div>`;
     })()}
+    ${(()=>{const cnt={};(CUR_DAY.losses||[]).forEach(l=>{const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
+      const keys=Object.keys(cnt).sort();
+      if(!keys.length)return '';
+      return `<div class="dt-filter" id="lossFilterBar1">
+        <span class="dtf-label">라인 선택</span>
+        <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(CUR_DAY.losses||[]).length}</b></button>
+        ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
+      </div>`;})()}
     <div class="fold-bar" id="foldBar_loss" onclick="toggleFold('loss')">
       <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
       <span class="fold-cnt">${(CUR_DAY.losses||[]).length}</span>
@@ -4173,8 +4272,10 @@ function renderClosing(){
     <div class="fold-body" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
       <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
-      <tbody>${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
-    </table></div></div>
+      <tbody id="lossBody1">${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
+    </table></div>
+    <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
+    </div>
     </div>
   </div>
 
@@ -4384,72 +4485,9 @@ function renderMoreSections(){
     </div>
   </div>
 
-  <!-- ⑤ 라인 비가동: 파트 고정 집계 -->
-  <div class="sec"><div class="sec-hd"><span class="no c5">5</span><h3>라인 가동/비가동 현황</h3>
-    <span class="desc">파트별 정지시간 집계(분)</span><span class="sp"></span>
-    <button class="tbtn save" onclick="openDownForm()">+ 비가동 등록</button></div>
-    <div style="margin:0 0 10px;padding:9px 13px;background:var(--blue-soft);border:1px solid #c7dbff;border-radius:9px;font-size:12.5px;color:var(--blue);line-height:1.55">
-      🔄 이 현황의 가동시간·정지 데이터는 MES 구글시트에서 <b>매일 07:00 / 11:00 / 15:00 / 19:00 자동 반영</b>됩니다.<br>
-      <span class="src-tag auto">시트</span> 구글시트에서 자동 반영 (시트가 정답, 매 회차 갱신) ·
-      <span class="src-tag manual">직접</span> 이 화면에서 입력·수정 (자동 업데이트에 <b>덮이지 않음</b>)
-    </div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인(파트)</th><th>가동시간</th><th>계획정지</th><th>비계획정지</th><th>실가동</th><th>가동률</th></tr></thead>
-      <tbody>${downFixedRows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
-    </table>
-    <div style="padding:8px 4px 0;font-size:11.5px;color:var(--mut);line-height:1.5">
-      ※ 가동시간 = 요약탭 생산시작~종료 · 실가동 = 가동시간 − (계획정지 + 비계획정지) · <b>가동률 = 실가동 ÷ 가동시간</b>
-    </div></div>
-    ${downDetail?`
-    <div class="fold-bar" id="foldBar_down" onclick="toggleFold('down')">
-      <span class="fold-arrow">▶</span><span class="fold-title">가동·정지 상세 · 등록/수정</span>
-      <span class="fold-cnt">${(downtime||[]).length}</span>
-      <span class="fold-hint">클릭하여 펼치기</span>
-    </div>
-    <div class="fold-body" id="foldBody_down">
-    <div class="dt-filter" id="dtFilterBar">
-      <span class="dtf-label">라인 선택</span>
-      <button class="dtf-chip on" data-ln="" onclick="filterDownLine('')">전체 <b>${(downtime||[]).length}</b></button>
-      ${(()=>{const cnt={};(downtime||[]).forEach(t=>{const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');cnt[k]=(cnt[k]||0)+1;});
-        return Object.keys(cnt).sort().map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterDownLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('');})()}
-    </div>
-    <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table>
-      <thead><tr><th>라인</th><th>호기</th><th>근무</th><th>구분</th><th>출처</th><th>사유</th><th>시작</th><th>종료</th><th>시간</th><th>비고</th><th>관리</th></tr></thead>
-      <tbody id="dtDetailBody">${downDetail}</tbody></table>
-      <div id="dtEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
-    </div>
-    </div>`:''}
-    <div id="downFormSlot" style="padding:0 16px 4px"></div>
-  </div>
-
-  <!-- ⑤ 비가동 파레토: 라인별 스코어카드 (캡쳐1 스타일) -->
-  <div class="sec"><div class="sec-hd"><span class="no cx">◈</span><h3>라인별 비가동 파레토 요약</h3>
-    <span class="desc">비계획정지가 큰 순서 · 라인별 가동률</span><span class="sp"></span>
-    <span style="font-size:12px;color:var(--sub)">전체 비계획정지 <b style="color:var(--red)">${(parTotalUnplan/60).toFixed(1)} hr</b></span></div>
-    <div class="sec-bd">
-      <div class="pareto-grid">${parCards||'<div style="color:var(--mut);padding:16px">라인 없음</div>'}</div>
-    </div>
-  </div>
-
-  <!-- ⑥ 투입인원: 계획 + 정규직/파견 구분 -->
-  <div class="sec"><div class="sec-hd"><span class="no c6">6</span><h3>파트별 투입인원</h3>
-    <span class="desc">계획 · 정규직 · 파견/일용 · 관리자 1/n 배분</span><span class="sp"></span>
-    <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인(파트)</th><th>계획인원</th><th>정규직</th><th>파견/일용</th><th>투입계</th><th>실공수</th><th>비고</th></tr></thead>
-      <tbody>${manFixedRows||'<tr><td colspan="7" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}${mgrFixedRows}</tbody>
-      <tfoot><tr id="manFooter" style="background:#f1f4fa;font-weight:800">
-        <td class="l">합계</td><td class="mono">${totPlanH}</td><td class="mono">${totReg}</td>
-        <td class="mono">${totDisp}</td><td class="mono">${totReg+totDisp}</td>
-        <td class="mono">${(totReg+totDisp).toFixed(2).replace(/\.00$/,'')}</td><td></td>
-      </tr></tfoot>
-    </table>
-    <div style="padding:8px 4px 0;font-size:11.5px;color:var(--mut);line-height:1.55">
-      ※ <b>관리자1·2</b>는 특정 공정에 속하지 않는 반장·공정관리자 등입니다. 입력한 인원은
-      <b>인원이 투입된 공정 수로 나누어(1/n)</b> 각 공정 <b>실공수</b>에 더해집니다.
-      ${mgrTotal>0&&linesWithMan.length>0?`<br>현재: 관리자 ${mgrTotal}명 ÷ ${linesWithMan.length}개 공정 = 공정당 <b style="color:var(--blue)">+${share.toFixed(2).replace(/\.00$/,'')}</b>명`:''}
-    </div></div>
-  </div>
+  <!-- ⑤⑥ 라인가동/비가동 · 투입인원 (2팀과 동일 · 공용 함수) -->
+  ${buildSection5()}
+  ${buildManpower6()}
 
   <div id="inputForm"></div>`;
 }
