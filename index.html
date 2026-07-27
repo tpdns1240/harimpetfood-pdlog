@@ -272,12 +272,8 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .ch2-title h1{margin:0;font-size:19px;font-weight:800}
 .ch2-title h1 span{color:#93c5fd!important}
 .ch2-sub{font-size:12.5px;opacity:.82;margin-top:3px}
-.sec2-hd .no{background:#2954a0}
-/* ── 생산1팀 마감화면을 2팀과 동일한 파랑 테마로 (closing-body.t2-theme 범위 한정) ── */
-.t2-theme .sec-hd .no,
-.t2-theme .no.c1,.t2-theme .no.c2,.t2-theme .no.c3,
-.t2-theme .no.c4,.t2-theme .no.c5,.t2-theme .no.c6,.t2-theme .no.cx{
-  background:#2954a0!important;background-image:none!important}
+/* 섹션 번호 색: 1팀·2팀 공통으로 타이틀별 색(.no.c1~c6) 사용 */
+/* ── 생산1팀 마감화면 표 헤더를 2팀과 동일한 파랑으로 (섹션번호 색은 타이틀별 유지) ── */
 .t2-theme .sec-hd{background:linear-gradient(100deg,#f4f8fd,#eef3fb)}
 .t2-theme table thead th{background:#2954a0!important;color:#fff!important;border-color:#3b62a8!important}
 .t2-theme table thead th *{color:#fff!important}
@@ -2992,7 +2988,9 @@ async function openDay(date, team){
    생산2팀 전용 렌더 (B안: 별도 로직)
    ① 완제품 라인별 가동 요약 — 계획/실적 가동시간·생산량·생산성 자동계산
    ═══════════════════════════════════════════════════════════ */
-let T2_KIND='fin'; // fin(완제품) | semi(반제품)
+let T2_KIND='fin'; // (구) 호환용 — 미사용
+let T2_SUM='fin';  // ① 라인별 요약: fin | semi | all
+let T2_ORD='fin';  // ② 오더별 실적: fin | semi
 function renderClosing2(){
   const {lines,orders,stdTime,mhMap,downtime}=CUR_DAY;
   const c=CUR_DAY.closing||{};
@@ -3024,7 +3022,7 @@ function renderClosing2(){
     else if(t.category==='unplan'||t.category==='sudden') unplanStopByLine[k]=(unplanStopByLine[k]||0)+dur;
   });
 
-  const kindFilter=(code)=>T2_KIND==='fin'?isFin(code):isSemi(code);
+  const kindFilter=(o)=>T2_SUM==='all'?(isFin(o)||isSemi(o)):(T2_SUM==='fin'?isFin(o):isSemi(o));
   const qtyByLine={};  // {line:{plan,actual,mh}}
   (orders||[]).forEach(o=>{
     if(!kindFilter(o))return;
@@ -3097,8 +3095,9 @@ function renderClosing2(){
   <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
     <span class="desc">완제품 기준 계획/실적/MH 집계 · 계획시간은 설정에서 관리</span></div>
     <div class="tabbar">
-      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${finCnt}</button>
-      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${semiCnt}</button>
+      <button class="tab ${T2_SUM==='fin'?'on':''}" onclick="switchT2Sum('fin')">완제품 ${finCnt}</button>
+      <button class="tab ${T2_SUM==='semi'?'on':''}" onclick="switchT2Sum('semi')">반제품 ${semiCnt}</button>
+      <button class="tab ${T2_SUM==='all'?'on':''}" onclick="switchT2Sum('all')">전체합산</button>
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead>
@@ -3127,7 +3126,9 @@ function renderClosing2(){
   </div>`;
   renderMore2();
 }
-function switchT2Kind(k){ T2_KIND=k; renderClosing2(); }
+function switchT2Kind(k){ T2_SUM=k; T2_ORD=k; rerenderClosing(); } // (구) 호환
+function switchT2Sum(k){ T2_SUM=k; rerenderClosing(); }  // ① 라인별 요약만
+function switchT2Ord(k){ T2_ORD=k; rerenderClosing(); }  // ② 오더별 실적만
 function renderClosingHeader2(){
   const {date,team}=CUR_DAY;
   const c=CUR_DAY.closing||{};
@@ -3480,6 +3481,49 @@ function buildManpower6(){
     </div>
   </div>`;
 }
+/* ② 오더별 생산실적·투입공수 — 1팀·2팀 공용.
+   완/반 탭 + 공정 서브탭 + 투입공수(MH)/인시당/특이사항 입력. T2_ORD/T2_PROC 상태 사용 */
+function buildSection2(){
+  const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
+  const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
+  const isSemi=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true; if(o.kind==='fin'||o.kind==='완제품')return false; return String(o.prod_code||'')[0]==='6'; } return String(o||'')[0]==='6'; };
+  const kindOrders=(orders||[]).filter(o=>T2_ORD==='fin'?isFin(o):isSemi(o));
+  const byProc={};
+  kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
+  const procs=Object.keys(byProc).sort();
+  if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
+  const curOrders=byProc[T2_PROC]||[];
+  const orderRows=curOrders.map(o=>{
+    const mh=mhMap[o.prod_code]||{mh:'',note:''};
+    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
+    const ach=oPlan>0?(oAct/oPlan*100):0;
+    const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
+    return `<tr data-ord="${o.prod_code}">
+      <td class="mono">${o.prod_code}</td>
+      <td class="l">${o.prod_name||'-'}</td>
+      <td class="mono">${fmt(oPlan)}</td>
+      <td class="mono">${fmt(oAct)}</td>
+      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
+      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
+      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
+      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
+    </tr>`;
+  }).join('');
+  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
+  return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
+    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
+    <div class="tabbar">
+      <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
+      <button class="tab ${T2_ORD==='semi'?'on':''}" onclick="switchT2Ord('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
+    </div>
+    ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
+      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
 function renderMore2(){
   const {orders,losses,defects,downtime,mhMap,lines}=CUR_DAY;
   CUR_DAY._totLoss=(losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
@@ -3496,7 +3540,7 @@ function renderMore2(){
       return String(o.prod_code||'')[0]==='6'; }
     return String(o||'')[0]==='6';
   };
-  const kindOrders=(orders||[]).filter(o=>T2_KIND==='fin'?isFin(o):isSemi(o));
+  const kindOrders=(orders||[]).filter(o=>T2_ORD==='fin'?isFin(o):isSemi(o));
   // 공정별 그룹
   const byProc={};
   kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
@@ -3528,20 +3572,8 @@ function renderMore2(){
   const hm=m=>{const h=Math.floor(m/60),x=m%60;return h?`${h}h ${x}m`:`${x}m`;};
 
   $('#sec2More').innerHTML=`
-  <!-- ② 오더별 실적 + 투입공수 입력 -->
-  <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
-    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
-    <div class="tabbar">
-      <button class="tab ${T2_KIND==='fin'?'on':''}" onclick="switchT2Kind('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
-      <button class="tab ${T2_KIND==='semi'?'on':''}" onclick="switchT2Kind('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
-    </div>
-    ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
-    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
-      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
-    </table></div>
-  </div>
+  <!-- ② 오더별 실적 + 투입공수 입력 (공용 함수) -->
+  ${buildSection2()}
 
   <!-- ③ 원부자재 로스 (생산1팀과 동일한 온전한 입력 로직) -->
   ${(()=>{
@@ -3610,7 +3642,7 @@ function renderMore2(){
         <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
         <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
       <div class="fold-body open" id="foldBody_loss2">
-      <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
+      <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
         <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
         <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
       </table></div>
@@ -3641,7 +3673,13 @@ function renderMore2(){
         ${top(byLine,2).map(([k,v])=>`<div class="sum-item"><div class="k">라인 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
       </div>`;
     })()}
-    <div class="sec-bd" style="overflow-x:auto"><table>
+    <div class="fold-bar open" id="foldBar_defect2" onclick="toggleFold('defect2')">
+      <span class="fold-arrow">▶</span><span class="fold-title">불량 등록 · 상세 목록</span>
+      <span class="fold-cnt">${(CUR_DAY.defects||[]).length}</span>
+      <span class="fold-hint">클릭하여 접기</span>
+    </div>
+    <div class="fold-body open" id="foldBody_defect2">
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>라인</th><th>오더(제품)</th><th>불량유형</th><th>수량</th><th>단위</th><th>비고</th><th>작업</th></tr></thead>
       <tbody id="defectBody">
         <tr class="input-row">
@@ -3659,6 +3697,7 @@ function renderMore2(){
           <td class="row-actions">${CUR_DAY.locked?'':`<span class="delx" onclick="delDefect(${d.id})">✕</span>`}</td></tr>`).join('')}
       </tbody>
     </table></div>
+    </div>
   </div>
 
   <!-- ⑤ 라인 가동/비가동 (1팀·2팀 공용) -->
@@ -3813,7 +3852,7 @@ async function saveRunTime(){
   }catch(e){ toast('추가 실패: '+(e.message||e),'err'); }
 }
 let T2_PROC='';
-function switchT2Proc(p){ T2_PROC=p; renderMore2(); }
+function switchT2Proc(p){ T2_PROC=p; rerenderClosing(); }
 /* ③ 로스: 라인 필터 (담당자별 작업) — 1팀/2팀 공용 */
 function filterLossLine(ln){
   document.querySelectorAll('#lossFilterBar .dtf-chip, #lossFilterBar1 .dtf-chip').forEach(b=>{
@@ -3842,7 +3881,7 @@ async function saveT2MH(){
     if(error)throw error;
     rows.forEach(r=>{CUR_DAY.mhMap[r.prod_code]={mh:r.mh,note:r.note};});
     toast('투입공수 저장완료','ok');
-    renderClosing2();  // ①요약 인시당 생산성 재계산
+    rerenderClosing();  // ①요약 인시당 생산성 재계산 (팀 무관)
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* ④ 불량: 라인 선택 시 해당 라인 오더만 표시 */
@@ -4112,11 +4151,11 @@ function renderClosing(){
   const finCount=orders.filter(o=>o.kind==='fin').length;
   const semiCount=orders.filter(o=>o.kind==='semi').length;
 
-  // ① 라인별 요약
-  const lineRows=lines.map(l=>{
+  // ① 라인별 요약 — 완제품/반제품 탭으로 필터 (오더 기준 재집계)
+  const lineRowsAll=lines.map((l,i)=>{
     const ach=Number(l.achieve||0);
     return `<tr>
-      <td class="l"><b>${l.line_name}</b></td>
+      <td class="l"><span class="t2-lno">L${i+1}</span> <b>${l.line_name}</b></td>
       <td class="mono">${l.order_count}</td>
       <td class="mono">${fmt(l.plan_sum)}</td>
       <td class="mono">${fmt(l.actual_sum)}</td>
@@ -4124,6 +4163,28 @@ function renderClosing(){
       <td class="mono ${Number(l.scrap_count)>0?'neg':''}">${l.scrap_count}</td>
     </tr>`;
   }).join('');
+  const lineRowsByKind=(kind)=>{
+    const agg={};
+    orders.filter(o=>o.kind===kind).forEach(o=>{
+      const k=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
+      if(!agg[k])agg[k]={plan:0,act:0,cnt:0};
+      agg[k].plan+=Number(o.plan_sum||0); agg[k].act+=Number(o.actual_sum||0); agg[k].cnt++;
+    });
+    const keys=Object.keys(agg).sort();
+    if(!keys.length)return `<tr><td colspan="6" style="color:var(--mut);padding:16px">${kind==='fin'?'완제품':'반제품'} 없음</td></tr>`;
+    return keys.map((k,i)=>{
+      const a=agg[k]; const ach=a.plan>0?a.act/a.plan:0;
+      return `<tr>
+        <td class="l"><span class="t2-lno">L${i+1}</span> <b>${k}</b></td>
+        <td class="mono">${a.cnt}</td>
+        <td class="mono">${fmt(a.plan)}</td>
+        <td class="mono">${fmt(a.act)}</td>
+        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td>
+        <td class="mono">–</td>
+      </tr>`;
+    }).join('');
+  };
+  const lineRows=lineRowsAll; // 하위호환 (미사용시 무해)
 
   // ② 오더별 상세 (탭: 완제품/반제품)
   const orderRows=k=>orders.filter(o=>o.kind===k).map(o=>{
@@ -4205,10 +4266,15 @@ function renderClosing(){
 
   <!-- ① 라인별 요약 -->
   <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>라인별 가동 요약</h3>
-    <span class="desc">라인(공정)별 오더·계획·실적·달성률</span></div>
+    <span class="desc">라인(공정)별 오더·계획·실적·달성률 · 완제품/반제품 구분</span></div>
+    <div class="tabbar">
+      <button class="tab on" id="tabLineFin" onclick="switchLineTab('fin')">완제품 ${finCount}</button>
+      <button class="tab" id="tabLineSemi" onclick="switchLineTab('semi')">반제품 ${semiCount}</button>
+      <button class="tab" id="tabLineAll" onclick="switchLineTab('all')">전체합산</button>
+    </div>
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인</th><th>오더수</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>스크랩</th></tr></thead>
-      <tbody>${lineRows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+      <tbody id="lineSummaryBody">${lineRowsByKind('fin')}</tbody>
       <tfoot><tr style="background:#f1f4fa;font-weight:800">
         <td class="l">합계</td><td class="mono">${totOrders}</td>
         <td class="mono">${fmt(totPlan)}</td><td class="mono">${fmt(totActual)}</td>
@@ -4217,18 +4283,8 @@ function renderClosing(){
     </table></div>
   </div>
 
-  <!-- ② 오더별 상세 -->
-  <div class="sec"><div class="sec-hd"><span class="no c2">2</span><h3>오더별 생산 실적</h3>
-    <span class="desc">제품(오더)별 계획/실적/달성률 · 부자재 제외</span></div>
-    <div class="tabbar">
-      <button class="tab on" id="tabFin" onclick="switchOrderTab('fin')">완제품 ${finCount}</button>
-      <button class="tab" id="tabSemi" onclick="switchOrderTab('semi')">반제품 ${semiCount}</button>
-    </div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인</th><th>제품코드</th><th>제품명</th><th>호기</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th></tr></thead>
-      <tbody id="orderBody">${orderRows('fin')||'<tr><td colspan="7" style="color:var(--mut);padding:16px">완제품 없음</td></tr>'}</tbody>
-    </table></div>
-  </div>
+  <!-- ② 오더별 생산실적 · 투입공수 (2팀과 동일 · 공용 함수) -->
+  ${buildSection2()}
 
   <!-- ③ 로스관리 -->
   <div class="sec"><div class="sec-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
@@ -4264,12 +4320,12 @@ function renderClosing(){
         <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(CUR_DAY.losses||[]).length}</b></button>
         ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
       </div>`;})()}
-    <div class="fold-bar" id="foldBar_loss" onclick="toggleFold('loss')">
+    <div class="fold-bar open" id="foldBar_loss" onclick="toggleFold('loss')">
       <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
       <span class="fold-cnt">${(CUR_DAY.losses||[]).length}</span>
-      <span class="fold-hint">클릭하여 펼치기</span>
+      <span class="fold-hint">클릭하여 접기</span>
     </div>
-    <div class="fold-body" id="foldBody_loss">
+    <div class="fold-body open" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
       <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
       <tbody id="lossBody1">${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
@@ -4461,12 +4517,12 @@ function renderMoreSections(){
         ${top(byLine,2).map(([k,v])=>`<div class="sum-item"><div class="k">라인 · ${k}</div><div class="v">${fmt(v)}</div></div>`).join('')}
       </div>`;
     })()}
-    <div class="fold-bar" id="foldBar_defect" onclick="toggleFold('defect')">
+    <div class="fold-bar open" id="foldBar_defect" onclick="toggleFold('defect')">
       <span class="fold-arrow">▶</span><span class="fold-title">불량 등록 · 상세 목록</span>
       <span class="fold-cnt">${(defects||[]).length}</span>
-      <span class="fold-hint">클릭하여 펼치기</span>
+      <span class="fold-hint">클릭하여 접기</span>
     </div>
-    <div class="fold-body" id="foldBody_defect">
+    <div class="fold-body open" id="foldBody_defect">
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인</th><th>제품</th><th>불량유형</th><th>수량</th><th>단위</th><th>사유</th><th>작업</th></tr></thead>
       <tbody id="defectBody">
@@ -4979,6 +5035,42 @@ async function saveClosing(submit){
       toast('임시저장 완료 · '+(data.doc_no||''),'ok');
     }
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+/* ① 라인별 요약: 완/반/전체 탭 전환 (1팀) */
+function switchLineTab(k){
+  ['fin','semi','all'].forEach(x=>{
+    const el=$('#tabLine'+(x==='fin'?'Fin':x==='semi'?'Semi':'All'));
+    if(el)el.classList.toggle('on',x===k);
+  });
+  const orders=CUR_DAY.orders||[];
+  let html;
+  if(k==='all'){
+    // 전체합산: get_line_summary 그대로
+    html=(CUR_DAY.lines||[]).map((l,i)=>{
+      const ach=Number(l.achieve||0);
+      return `<tr><td class="l"><span class="t2-lno">L${i+1}</span> <b>${l.line_name}</b></td>
+        <td class="mono">${l.order_count}</td><td class="mono">${fmt(l.plan_sum)}</td>
+        <td class="mono">${fmt(l.actual_sum)}</td>
+        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td>
+        <td class="mono ${Number(l.scrap_count)>0?'neg':''}">${l.scrap_count}</td></tr>`;
+    }).join('');
+  }else{
+    const agg={};
+    orders.filter(o=>o.kind===k).forEach(o=>{
+      const key=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
+      if(!agg[key])agg[key]={plan:0,act:0,cnt:0};
+      agg[key].plan+=Number(o.plan_sum||0); agg[key].act+=Number(o.actual_sum||0); agg[key].cnt++;
+    });
+    const keys=Object.keys(agg).sort();
+    html=keys.map((key,i)=>{
+      const a=agg[key]; const ach=a.plan>0?a.act/a.plan:0;
+      return `<tr><td class="l"><span class="t2-lno">L${i+1}</span> <b>${key}</b></td>
+        <td class="mono">${a.cnt}</td><td class="mono">${fmt(a.plan)}</td>
+        <td class="mono">${fmt(a.act)}</td>
+        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td><td class="mono">–</td></tr>`;
+    }).join('');
+  }
+  $('#lineSummaryBody').innerHTML=html||`<tr><td colspan="6" style="color:var(--mut);padding:16px">${k==='fin'?'완제품':k==='semi'?'반제품':'데이터'} 없음</td></tr>`;
 }
 function switchOrderTab(k){
   $('#tabFin').classList.toggle('on',k==='fin');
