@@ -281,6 +281,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .t2-table th{background:#2954a0;color:#fff;font-size:11.5px;font-weight:700;text-align:center;padding:7px 6px;border:1px solid #3b62a8}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
+/* ③ 로스 테이블: 제품·자재명 칸이 좁아 세로로 벌어지는 것 방지 */
+#lossTable td.l{min-width:120px;max-width:200px;word-break:keep-all}
+#lossTable{min-width:1050px}
 .t2-table tbody tr:nth-child(even){background:#f6f9fd}
 .t2-lno{display:inline-block;background:#2954a0;color:#fff;font-size:10px;font-weight:800;
   padding:1px 6px;border-radius:5px;margin-right:5px}
@@ -304,6 +307,7 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .sum-item .v{font-size:15px;font-weight:800;color:var(--ink);margin-top:2px;font-family:'JetBrains Mono',monospace}
 .sum-item.neg .v{color:var(--red)}
 .sum-item.pos .v{color:var(--grn)}
+.edit-badge{display:inline-block;background:#fef3c7;color:#b45309;font-size:10px;font-weight:800;padding:1px 5px;border-radius:5px;margin-left:4px;vertical-align:middle}
 /* 써머리 값: 금액 작게 + 본문 글자체 (mono 아님) */
 .sum-strip.sm .v{font-size:12.5px;font-weight:700;font-family:inherit;letter-spacing:0}
 .sum-strip.sm .sum-item{min-width:88px;padding:7px 12px}
@@ -3498,10 +3502,19 @@ function buildSection2(){
     const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
     const ach=oPlan>0?(oAct/oPlan*100):0;
     const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
+    const pedit=!!o.plan_edited;
+    const canEditPlan=(o.kind==='fin'||o.kind==='완제품');  // 완제품만 계획 수정 (반제품은 자재합산이라 잠금)
+    const planCell = canEditPlan
+      ? `<td style="white-space:nowrap">
+          <input class="inp-cell op-plan" data-code="${o.prod_code}" value="${oPlan?fmt(oPlan):''}" placeholder="0" style="width:74px;text-align:right;background:#fff8e8" onchange="markOrderPlanEdit('${o.prod_code}')">
+          <button class="rowbtn op-apply" id="opApply_${o.prod_code}" onclick="saveOrderOverride('${o.prod_code}')" style="display:none;margin-left:3px">적용</button>
+          ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
+        </td>`
+      : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt(oPlan)}</td>`;
     return `<tr data-ord="${o.prod_code}">
       <td class="mono">${o.prod_code}</td>
-      <td class="l">${o.prod_name||'-'}</td>
-      <td class="mono">${fmt(oPlan)}</td>
+      <td class="l">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}</td>
+      ${planCell}
       <td class="mono">${fmt(oAct)}</td>
       <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
@@ -3593,15 +3606,17 @@ function renderMore2(){
       return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
-      <td class="l">${s.mat_name}</td>
-      <td class="mono">${fmt(s.plan_qty)}</td>
-      <td class="mono">${fmt(s.actual_qty)}</td>
+      <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
       <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
       <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
       <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
       <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
       <td class="row-actions">
+        <button class="rowbtn pe-apply" id="peApply_${i}" onclick="savePlanOverride(${i})" style="display:none">계획/실적 적용</button>
+        ${s.is_edited?`<button class="rowbtn del" onclick="resetPlanOverride(${i})" title="MES 원본값으로 되돌리기">↺MES복원</button>`:''}
         ${isSaved
           ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
           : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
@@ -3610,7 +3625,7 @@ function renderMore2(){
     }).join('');
     return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
       <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
-      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(CUR_DAY._totLoss||0)}원</span>
+      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(CUR_DAY._totLoss||0)}원</span></span>
       <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
       <div class="type-panel" id="typePanel_loss" style="display:none"></div>
       ${(()=>{
@@ -4220,15 +4235,17 @@ function renderClosing(){
     return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
-    <td class="l">${s.mat_name}</td>
-    <td class="mono">${fmt(s.plan_qty)}</td>
-    <td class="mono">${fmt(s.actual_qty)}</td>
+    <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
     <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
     <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
     <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
     <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
     <td class="row-actions">
+      <button class="rowbtn pe-apply" id="peApply_${i}" onclick="savePlanOverride(${i})" style="display:none">계획/실적 적용</button>
+      ${s.is_edited?`<button class="rowbtn del" onclick="resetPlanOverride(${i})" title="MES 원본값으로 되돌리기">↺MES복원</button>`:''}
       ${isSaved
         ? `<button class="rowbtn edit" onclick="editLossRow(${i})">수정</button><button class="rowbtn del" onclick="delLossRow(${i})">삭제</button>`
         : `<button class="rowbtn save" onclick="saveLossRow(${i})">저장</button>`}
@@ -4289,7 +4306,7 @@ function renderClosing(){
   <!-- ③ 로스관리 -->
   <div class="sec"><div class="sec-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
     <span class="desc">편차 발생 자재 · 행별 저장/수정</span><span class="sp"></span>
-    <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 ${fmt(totLoss)}원</span>
+    <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(totLoss)}원</span></span>
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
     ${(()=>{
@@ -4828,6 +4845,121 @@ function toggleTypePanel(kind){
   }else{
     panel.style.display='none';
   }
+}
+
+/* ② 오더 계획(KG) 수정 — 자재 로스와 별개, 달성률 조정용 */
+function markOrderPlanEdit(code){
+  const btn=document.getElementById('opApply_'+code);
+  if(btn) btn.style.display='';
+}
+async function saveOrderOverride(code){
+  const {date,team}=CUR_DAY;
+  const unfmt=v=>{ const n=Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?null:n; };
+  const el=document.querySelector(`.op-plan[data-code="${code}"]`);
+  const plan=unfmt(el?el.value:'');
+  if(plan===null){ toast('계획 값을 확인하세요','err'); return; }
+  try{
+    const {error}=await sb.rpc('set_order_override',{
+      p_work_date:date, p_team:team, p_prod_code:code, p_plan:plan,
+      p_by:(S.user&&S.user.name)||'-'
+    });
+    if(error)throw error;
+    toast('오더 계획 수정 반영 (MES 재업로드해도 유지)','ok');
+    const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);   // 달성률 재계산, 위치 유지
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+async function resetOrderOverride(code){
+  const {date,team}=CUR_DAY;
+  if(!confirm('이 오더의 계획을 MES 원본(자재 합산)으로 되돌립니다.'))return;
+  try{
+    const {error}=await sb.rpc('set_order_override',{
+      p_work_date:date, p_team:team, p_prod_code:code, p_plan:null,
+      p_by:(S.user&&S.user.name)||'-'
+    });
+    if(error)throw error;
+    toast('MES 원본 계획으로 복원','ok');
+    const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);
+  }catch(e){ toast('복원 실패: '+(e.message||e),'err'); }
+}
+
+/* ③ 계획/실적 인라인 수정 (MES값 override) — 1·2팀 공용 */
+function markPlanEdit(i){
+  const btn=document.getElementById('peApply_'+i);
+  if(btn) btn.style.display='';   // 값 바꾸면 '적용' 버튼 노출
+}
+async function savePlanOverride(i){
+  const s=CUR_DAY.losses[i]; if(!s)return;
+  const {date,team}=CUR_DAY;
+  const unfmt=v=>{ const n=Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?null:n; };
+  const planEl=document.querySelector(`.pe-plan[data-i="${i}"]`);
+  const actEl =document.querySelector(`.pe-act[data-i="${i}"]`);
+  const plan=unfmt(planEl?planEl.value:'');
+  const actual=unfmt(actEl?actEl.value:'');
+  if(plan===null&&actual===null){ toast('계획/실적 값을 확인하세요','err'); return; }
+  try{
+    const {error}=await sb.rpc('set_plan_override',{
+      p_work_date:date, p_team:team, p_prod_code:s.prod_code, p_mat_code:s.mat_code,
+      p_hoki:s.hoki||'', p_plan:plan, p_actual:actual,
+      p_by:(S.user&&S.user.name)||'-'
+    });
+    if(error)throw error;
+    // ── 그 행만 제자리 갱신 (재정렬·재렌더 없음 → 위치·순서 유지) ──
+    const newPlan  = plan!==null?plan:Number(s.plan_qty);
+    const newActual= actual!==null?actual:Number(s.actual_qty);
+    const newDiff  = newActual - newPlan;
+    const newLoss  = Math.round(newDiff * Number(s.unit_price||0));
+    s.plan_qty=newPlan; s.actual_qty=newActual; s.diff=newDiff;
+    s.loss_amount=newLoss; s.is_edited=true;
+    const tr=document.querySelector(`tr[data-loss="${i}"]`);
+    if(tr){
+      const tds=tr.querySelectorAll('td');
+      // [2]자재명(뱃지) [3]계획 [4]실적 [5]편차 [7]로스금액
+      if(tds[2] && !/edit-badge/.test(tds[2].innerHTML))
+        tds[2].innerHTML += ' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>';
+      if(planEl) planEl.value=fmt(newPlan);
+      if(actEl)  actEl.value =fmt(newActual);
+      const dcls=newDiff>0?'neg':'pos'; const diffSign=newDiff>0?'+':'';
+      tds[5].className='mono '+dcls; tds[5].textContent=diffSign+fmt(newDiff);
+      const lossVal=newDiff>0?-Math.abs(newLoss):Math.abs(newLoss);
+      const lossCls=lossVal<0?'neg':lossVal>0?'pos':''; const lossSign=lossVal<0?'-':lossVal>0?'+':'';
+      tds[7].className='mono '+lossCls; tds[7].style.fontWeight='800';
+      tds[7].textContent=lossSign+fmt(Math.abs(lossVal));
+      // 적용버튼 숨기고, ↺복원 버튼이 없으면 추가
+      const applyBtn=document.getElementById('peApply_'+i);
+      if(applyBtn) applyBtn.style.display='none';
+      const actWrap=tds[tds.length-1];
+      if(actWrap && !/resetPlanOverride/.test(actWrap.innerHTML)){
+        const b=document.createElement('button');
+        b.className='rowbtn del'; b.title='MES 원본값으로 되돌리기'; b.textContent='↺MES복원';
+        b.setAttribute('onclick',`resetPlanOverride(${i})`);
+        actWrap.insertBefore(b, actWrap.firstChild);
+      }
+    }
+    // 총 로스금액·②합계는 조용히 뒤에서 재계산 (화면 위치는 그대로)
+    recalcLossTotals();
+    toast('수정 반영 (제자리 유지 · MES 재업로드해도 유지)','ok');
+  }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+/* 로스 총액/스코어카드만 조용히 갱신 (목록 재정렬 없음) */
+function recalcLossTotals(){
+  const tot=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
+  CUR_DAY._totLoss=tot;
+  document.querySelectorAll('.loss-total-amt').forEach(el=>{ el.textContent=fmt(tot)+'원'; });
+}
+async function resetPlanOverride(i){
+  const s=CUR_DAY.losses[i]; if(!s)return;
+  const {date,team}=CUR_DAY;
+  if(!confirm('이 자재를 MES 원본값으로 되돌립니다.\n(수정값이 삭제되고, 이후 MES 업로드 값을 다시 따릅니다)'))return;
+  try{
+    const {error}=await sb.rpc('set_plan_override',{
+      p_work_date:date, p_team:team, p_prod_code:s.prod_code, p_mat_code:s.mat_code,
+      p_hoki:s.hoki||'', p_plan:null, p_actual:null,
+      p_by:(S.user&&S.user.name)||'-'
+    });
+    if(error)throw error;
+    toast('MES 원본값으로 복원','ok');
+    const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);
+  }catch(e){ toast('복원 실패: '+(e.message||e),'err'); }
 }
 
 /* 로스 행별: 저장 (그 행만 갱신, 화면 유지) */
