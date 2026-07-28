@@ -2759,7 +2759,72 @@ function renderUpload(){
       <button class="btn-lg" onclick="checkUpload()">데이터 확인 후 업로드</button>
       <div class="upload-result" id="upResult"></div>
     </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px">
+    <div class="panel-hd"><h2>단가 마스터 등록 (관리자)</h2>
+      <div class="en">로스금액 계산용 자재단가 · 품번 기준 일괄 등록/갱신</div></div>
+    <div class="panel-bd">
+      <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+        ℹ 로스금액 = <b>편차 × 단가</b>입니다. 여기서 등록한 단가가 ③ 원부자재 로스관리에 바로 반영됩니다.<br>
+        <b>4개 컬럼</b>(품번·품목명·단위·단가)을 붙여넣으세요. 같은 품번은 <b>덮어쓰기(갱신)</b>됩니다.
+      </div>
+      <div class="pick"><label>붙여넣기 (엑셀/시트에서 4개 컬럼 복사 → 붙여넣기)</label>
+        <textarea id="costPaste" class="paste-area" placeholder="품번 → 품목명 → 단위 → 단가&#10;예:&#10;1000254	원료A	KG	3800&#10;1000283	원료B	KG	1250&#10;품목명·단위는 비워도 됩니다. 품번과 단가만 있어도 등록됩니다"></textarea>
+        <div class="hint">※ 컬럼 순서: 품번 · 품목명 · 단위 · 단가 (탭 구분)<br>
+        ※ 품번이 이미 있으면 <b>단가가 갱신</b>되고, 없으면 새로 추가됩니다. 품목명·단위는 비우면 기존값 유지.</div>
+      </div>
+      <button class="btn-lg" onclick="checkCostUpload()">단가 확인 후 등록</button>
+      <div class="upload-result" id="costResult"></div>
+    </div>
   </div>`;
+}
+
+/* ===== 단가 마스터 등록 ===== */
+function parseCostPaste(txt){
+  const rows=[];
+  (txt||'').split(/\r?\n/).forEach(line=>{
+    if(!line.trim())return;
+    const c=line.split('\t');
+    const code=(c[0]||'').trim();
+    if(!code)return;
+    // 단가는 마지막 숫자 컬럼 (품목명/단위가 없을 수도 있어 유연 처리)
+    let name=(c[1]||'').trim(), unit=(c[2]||'').trim(), priceRaw=(c[3]||'').trim();
+    // 4열이 안 되면: 품번+단가만 있는 경우 (2열)
+    if(c.length===2){ name=''; unit=''; priceRaw=(c[1]||'').trim(); }
+    else if(c.length===3){ // 품번+품목명+단가 (단위 생략)
+      const maybe=(c[2]||'').trim();
+      if(/^[\d,.\-]+$/.test(maybe)){ priceRaw=maybe; unit=''; }
+    }
+    const price=Number(priceRaw.replace(/,/g,''));
+    rows.push({item_code:code, item_name:name, unit:unit, unit_price:isNaN(price)?0:price});
+  });
+  return rows;
+}
+async function checkCostUpload(){
+  const res=$('#costResult');
+  const rows=parseCostPaste($('#costPaste').value);
+  if(!rows.length){ res.className='upload-result err'; res.style.display='block';
+    res.textContent='붙여넣은 데이터가 없습니다. (품번·품목명·단위·단가)'; return; }
+  const withPrice=rows.filter(r=>r.unit_price>0).length;
+  const noPrice=rows.length-withPrice;
+  const sample=rows.slice(0,3).map(r=>`· ${r.item_code} ${r.item_name||''} → ${r.unit_price.toLocaleString()}원`).join('\n');
+  const msg=`[단가 등록 대상]\n· 총 ${rows.length}건 (단가있음 ${withPrice} · 단가0 ${noPrice})\n\n${sample}${rows.length>3?'\n  …':''}\n\n같은 품번은 단가가 갱신됩니다. 진행할까요?`;
+  if(!confirm(msg)){ res.className='upload-result'; res.style.display='block';
+    res.style.background='#f1f4fa'; res.style.color='var(--sub)'; res.textContent='취소되었습니다.'; return; }
+  doCostUpload(rows);
+}
+async function doCostUpload(rows){
+  const res=$('#costResult');
+  res.className='upload-result'; res.style.display='block';
+  res.style.background='#eff6ff'; res.style.color='#2563eb'; res.textContent='단가 등록 중…';
+  try{
+    const {data,error}=await sb.rpc('upsert_cost_bulk',{p_rows:rows});
+    if(error)throw error;
+    res.className='upload-result ok';
+    res.textContent=`✓ 단가 등록 완료 · ${(data&&data.count)||rows.length}건 반영됨. ③ 로스관리에 즉시 적용됩니다.`;
+    toast('단가 등록 완료','ok');
+  }catch(e){ res.className='upload-result err'; res.textContent='등록 실패: '+(e.message||e); }
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
