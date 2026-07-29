@@ -1309,6 +1309,12 @@ async function addImprove(){
     const {error}=await sb.rpc('add_improvement',{p_title:title,p_content:content,p_writer:S.user.name,p_team:S.user.team});
     if(error)throw error;
     toast('개선요청 등록완료','ok');
+    // 관리자 전체에게 등록 알림 메일
+    getAdminEmails().then(emails=>{
+      emails.forEach(em=>sendImproveMail('new', em, {
+        title, writer:S.user.name, team:S.user.team||'', content:content.slice(0,500)
+      }));
+    });
     loadImprove();
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
 }
@@ -1342,11 +1348,24 @@ function openAnswer(id){
 }
 async function submitAnswer(id){
   const answer=$('#anText').value.trim(), status=$('#anStatus').value;
+  const im=(IMPROVE_CACHE||[]).find(x=>String(x.id)===String(id))||{};
+  const prevStatus=im.status||'received';
   try{
     const {error}=await sb.rpc('answer_improvement',{p_id:id,p_answer:answer,p_status:status,p_by:S.user.name});
     if(error)throw error;
     toast('답변 저장완료','ok');
     document.getElementById('answerModal').remove();
+    // 상태가 바뀌었으면 작성자에게 알림 (본인이 본인 글 처리한 경우는 제외)
+    if(im.writer && im.writer!==S.user.name){
+      const stKo={received:'접수',review:'검토중',done:'완료'};
+      getEmailByName(im.writer).then(em=>{
+        if(em) sendImproveMail('status', em, {
+          title:im.title||'', writer:im.writer,
+          status_ko:stKo[status]||status, answer:(answer||'').slice(0,500),
+          by:S.user.name
+        });
+      });
+    }
     loadImprove();
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
@@ -1355,6 +1374,34 @@ async function delImprove(id){
   try{ await sb.rpc('del_improvement',{p_id:id});
     toast('삭제완료','ok'); loadImprove();
   }catch(e){ toast('삭제 실패','err'); }
+}
+/* 개선접수 메일 발송 (JSONP · 응답 대기 안 함). kind='new'(등록→관리자) | 'status'(상태변경→작성자) */
+function sendImproveMail(kind, toEmail, params){
+  if(!toEmail) return;
+  const q=new URLSearchParams(Object.assign({
+    action:'improve_mail', kind, to:toEmail, url:location.origin
+  }, params||{}));
+  const cb='imMailCb_'+Date.now()+'_'+Math.floor(Math.random()*1000);
+  window[cb]=(r)=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); };
+  const s=document.createElement('script');
+  s.src=`${MES_WEBAPP_URL}?${q.toString()}&callback=${cb}`;
+  s.onerror=()=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); };
+  document.body.appendChild(s);
+}
+// 관리자(admin) 전체 이메일 목록
+async function getAdminEmails(){
+  try{
+    const {data}=await sb.rpc('get_users',{p_team:null});
+    return (data||[]).filter(u=>u.role==='admin'&&u.email&&u.active).map(u=>u.email);
+  }catch(e){ return []; }
+}
+// 이름으로 이메일 찾기 (작성자 알림용)
+async function getEmailByName(name){
+  try{
+    const {data}=await sb.rpc('get_users',{p_team:null});
+    const u=(data||[]).find(x=>x.name===name&&x.email);
+    return u?u.email:'';
+  }catch(e){ return ''; }
 }
 /* 작성자 본인 글 수정 */
 function openEditImprove(id){
@@ -2146,6 +2193,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='capa'?'on':''}" onclick="switchSettingsTab('capa')">⚙ CAPA 관리</button>
     <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 기준시간 (2팀)</button>
     <button class="stab ${SETTINGS_TAB==='matx'?'on':''}" onclick="switchSettingsTab('matx')">🚫 로스 제외품목</button>
+    <button class="stab ${SETTINGS_TAB==='mailmsg'?'on':''}" onclick="switchSettingsTab('mailmsg')">✉ 결재 알림 문구</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -2159,6 +2207,7 @@ function switchSettingsTab(tab){
   else if(tab==='capa'){ btns[3]&&btns[3].classList.add('on'); renderCapaMgmt(); }
   else if(tab==='stdtime'){ btns[4]&&btns[4].classList.add('on'); renderStdTimeMgmt(); }
   else if(tab==='matx'){ btns[5]&&btns[5].classList.add('on'); renderMatExcludeMgmt(); }
+  else if(tab==='mailmsg'){ btns[6]&&btns[6].classList.add('on'); renderMailMsgMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -2570,6 +2619,110 @@ async function toggleLine(team,line,isOff){
     toast(`${line} 라인 ${next?'활성화':'전체 비활성'}`,'ok');
     renderCapaMgmt();
   }catch(e){ toast('변경 실패: '+(e.message||e),'err'); }
+}
+
+/* --- 결재 알림 문구 관리 탭 (HTML 없이 색/볼드 선택) --- */
+const MAILMSG_COLORS=[
+  {k:'',   label:'기본',  hex:'#1f2937'},
+  {k:'red',label:'빨강',  hex:'#c0392b'},
+  {k:'blue',label:'파랑', hex:'#2563eb'},
+  {k:'green',label:'초록',hex:'#1e874b'},
+  {k:'orange',label:'주황',hex:'#c2410c'},
+];
+let MAILMSG_LINES=[]; // [{text, bold, color}]
+
+// HTML → 줄 배열 파싱 (기존 저장값 불러오기). 단순 규칙만 인식
+function mailmsgParse(html){
+  if(!html) return [{text:'{name}님, 결재를 기다리는 문서가 있습니다.', bold:false, color:''}];
+  // <br> 로 줄 분리
+  const parts=String(html).split(/<br\s*\/?>/i);
+  const lines=parts.map(seg=>{
+    let t=seg, bold=false, color='';
+    // 색상 추출
+    const cm=t.match(/color:\s*(#[0-9a-fA-F]{6})/);
+    if(cm){ const found=MAILMSG_COLORS.find(c=>c.hex.toLowerCase()===cm[1].toLowerCase()); if(found)color=found.k; }
+    // 볼드 추출 (<b> 또는 font-weight:800/700/bold)
+    if(/<b>|font-weight:\s*(?:bold|[6-9]00)/i.test(t)) bold=true;
+    // 태그 제거 → 순수 텍스트
+    t=t.replace(/<[^>]+>/g,'').trim();
+    return {text:t, bold, color};
+  }).filter(l=>l.text!=='');
+  return lines.length?lines:[{text:'{name}님, 결재를 기다리는 문서가 있습니다.', bold:false, color:''}];
+}
+// 줄 배열 → HTML 생성 (저장/발송용)
+function mailmsgToHtml(lines){
+  return lines.filter(l=>(l.text||'').trim()!=='').map(l=>{
+    const col=MAILMSG_COLORS.find(c=>c.k===l.color);
+    let styles=[];
+    if(col&&col.k) styles.push('color:'+col.hex);
+    if(l.bold) styles.push('font-weight:800');
+    const inner=(l.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return styles.length?`<span style="${styles.join(';')}">${inner}</span>`:inner;
+  }).join('<br>');
+}
+async function renderMailMsgMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:280px;border-radius:14px"></div>';
+  let html='';
+  try{ const {data}=await sb.rpc('get_config',{p_key:'approval_mail_msg'}); html=data||''; }
+  catch(e){ html=''; }
+  MAILMSG_LINES=mailmsgParse(html);
+  mailmsgRender();
+}
+function mailmsgRender(){
+  const rows=MAILMSG_LINES.map((l,i)=>{
+    const colOpts=MAILMSG_COLORS.map(c=>`<option value="${c.k}" ${l.color===c.k?'selected':''}>${c.label}</option>`).join('');
+    return `<div class="mm-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input class="mm-text" data-i="${i}" value="${(l.text||'').replace(/"/g,'&quot;')}"
+        placeholder="문구를 입력하세요" oninput="mailmsgEdit(${i},'text',this.value)"
+        style="flex:1;padding:9px 12px;border:1px solid var(--bd);border-radius:8px;font-size:14px">
+      <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;cursor:pointer">
+        <input type="checkbox" ${l.bold?'checked':''} onchange="mailmsgEdit(${i},'bold',this.checked)"> 굵게</label>
+      <select onchange="mailmsgEdit(${i},'color',this.value)"
+        style="padding:8px;border:1px solid var(--bd);border-radius:8px;font-size:13px">${colOpts}</select>
+      <button class="tbtn" onclick="mailmsgDelLine(${i})" title="이 줄 삭제"
+        style="padding:7px 10px" ${MAILMSG_LINES.length<=1?'disabled':''}>✕</button>
+    </div>`;
+  }).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="panel-bd" style="padding:4px 2px">
+    <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue);margin-bottom:14px">
+      ℹ 결재 알림 <b>메일에 들어갈 안내 문구</b>를 편집합니다. 줄마다 <b>굵게</b>·<b>색상</b>을 고를 수 있습니다.<br>
+      <code>{name}</code> 이라고 적으면 <b>받는 사람 이름</b>으로 자동 바뀝니다. (예: 홍길동님)
+    </div>
+    <div id="mmLines">${rows}</div>
+    <button class="tbtn" onclick="mailmsgAddLine()" style="margin:4px 0 16px">＋ 줄 추가</button>
+
+    <div style="font-size:12px;font-weight:800;color:var(--sub);margin:6px 0 8px">미리보기 (메일에 이렇게 나갑니다)</div>
+    <div id="mmPreview" style="border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#fafbfd;font-size:14px;line-height:1.7;color:#1f2937;margin-bottom:16px"></div>
+
+    <button class="btn-lg" onclick="mailmsgSave()" style="margin:0">문구 저장</button>
+    <div class="upload-result" id="mmResult"></div>
+  </div>`;
+  mailmsgPreview();
+}
+function mailmsgEdit(i,field,val){
+  if(!MAILMSG_LINES[i])return;
+  MAILMSG_LINES[i][field]=val;
+  mailmsgPreview();
+}
+function mailmsgAddLine(){ MAILMSG_LINES.push({text:'',bold:false,color:''}); mailmsgRender(); }
+function mailmsgDelLine(i){ MAILMSG_LINES.splice(i,1); if(!MAILMSG_LINES.length)MAILMSG_LINES.push({text:'',bold:false,color:''}); mailmsgRender(); }
+function mailmsgPreview(){
+  const el=$('#mmPreview'); if(!el)return;
+  const html=mailmsgToHtml(MAILMSG_LINES).replace(/\{name\}/g,'홍길동');
+  el.innerHTML=html||'<span style="color:var(--mut)">문구를 입력하세요</span>';
+}
+async function mailmsgSave(){
+  const res=$('#mmResult');
+  const html=mailmsgToHtml(MAILMSG_LINES);
+  if(!html){ res.className='upload-result err'; res.style.display='block'; res.textContent='문구를 한 줄 이상 입력하세요.'; return; }
+  res.className='upload-result'; res.style.display='block'; res.style.background='#eff6ff'; res.style.color='#2563eb'; res.textContent='저장 중…';
+  try{
+    const {error}=await sb.rpc('set_config',{p_key:'approval_mail_msg',p_value:html,p_by:(S.user&&S.user.name)||'-'});
+    if(error)throw error;
+    res.className='upload-result ok'; res.textContent='✓ 저장 완료 · 다음 결재 알림 메일부터 이 문구로 발송됩니다.';
+    toast('결재 알림 문구 저장','ok');
+  }catch(e){ res.className='upload-result err'; res.textContent='저장 실패: '+(e.message||e); }
 }
 
 /* --- 공지사항 관리 탭 --- */
@@ -4149,11 +4302,15 @@ async function notifyNextApprover(date,team,newStatus,actorName){
     if(error||!data||!data.length) return;
     const n=data[0];
     if(!n.email){ toast(`${n.approver_name||'다음 결재자'} 이메일 미등록 — 알림 미발송`,'err'); return; }
+    // 설정에 저장된 커스텀 안내 문구 조회 (없으면 Apps Script 기본 문구 사용)
+    let customMsg='';
+    try{ const {data:cfg}=await sb.rpc('get_config',{p_key:'approval_mail_msg'}); customMsg=cfg||''; }catch(_){}
     const q=new URLSearchParams({
       action:'mail', to:n.email, name:n.approver_name||'',
       role:n.role_label||'', team, date,
       from_name:actorName||'', url:location.origin
     });
+    if(customMsg) q.set('custom_msg', customMsg);
     // JSONP로 호출 (응답 대기 안 함 — 결재 흐름을 막지 않기 위해)
     const cb='mailCb_'+Date.now();
     window[cb]=(r)=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s);
