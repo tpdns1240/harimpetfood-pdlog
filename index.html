@@ -840,7 +840,7 @@ async function initLogin(){
     if(error) throw error;
     const sel=$('#loginName'); sel.innerHTML='<option value="">선택하세요</option>';
     (data||[]).filter(u=>u.role!=='admin' && u.active)
-      .sort((a,b)=>((a.team||'')+a.name).localeCompare((b.team||'')+b.name,'ko'))
+      .sort((a,b)=>a.name.localeCompare(b.name,'ko'))
       .forEach(u=>{
         const o=document.createElement('option');
         o.value=u.user_id;
