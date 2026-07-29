@@ -1969,9 +1969,9 @@ function switchLineTab(tab){
       <span class="desc">제품코드(오더) 단위 · ${od.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
         <thead><tr><th>제품코드</th><th>제품명</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
-        <tbody>${od.map(o=>`<tr>
+        <tbody>${od.map(o=>`<tr class="ld-orow" style="cursor:pointer" onclick="openOrderSummary('${o.prod_code}','${(o.prod_name||'').replace(/'/g,'')}','${o.kind||''}')" title="클릭하면 오더 종합 보기">
           <td class="mono">${o.prod_code}</td>
-          <td class="l">${o.prod_name||'-'}</td>
+          <td class="l">${o.prod_name||'-'} <span style="color:var(--blue);font-size:11px">🔍</span></td>
           <td><span class="kind-tag ${o.kind==='완제품'?'fin':o.kind==='반제품'?'semi':''}">${o.kind}</span></td>
           <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
           <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
@@ -1987,8 +1987,8 @@ function switchLineTab(tab){
         <span class="desc">제품 단위 · ${pd.length}건</span></div>
         <div class="sec-bd" style="overflow-x:auto"><table>
           <thead><tr><th>제품명</th><th>제품코드</th><th>계획</th><th>실적</th><th>달성률</th><th>로스금액</th></tr></thead>
-          <tbody>${pd.map(o=>`<tr>
-            <td class="l">${o.prod_name||'-'}</td>
+          <tbody>${pd.map(o=>`<tr class="ld-prow" style="cursor:pointer" onclick="openProductTrend('${o.prod_code}','${(o.prod_name||'').replace(/'/g,'')}')" title="클릭하면 달성률 추이 보기">
+            <td class="l">${o.prod_name||'-'} <span style="color:var(--blue);font-size:11px">📊</span></td>
             <td class="mono">${o.prod_code}</td>
             <td class="mono">${fmt(Math.round(o.plan_sum))}</td>
             <td class="mono">${fmt(Math.round(o.actual_sum))}</td>
@@ -1998,21 +1998,190 @@ function switchLineTab(tab){
         </table></div></div>`;
     });
   }else if(tab==='loss'){
-    const sc=LD.sc||[], df=LD.df||[];
-    body.innerHTML=`<div class="dash-2col">
-      <div class="sec"><div class="sec-hd"><span class="no c5">◆</span><h3>스크랩 유형별</h3></div>
+    LD.lossPeriod=LD.lossPeriod||'now';   // now=현재 조회기간, 10d/1m/3m
+    renderLossTab();
+  }
+}
+// 기간 계산: 오늘 기준 N일/개월 전 ~ 오늘
+function lossPeriodRange(key){
+  const t=kstToday(); const [y,m,d]=t.split('-').map(Number);
+  const to=t; let from;
+  const dt=new Date(y,m-1,d);
+  if(key==='10d'){ dt.setDate(dt.getDate()-9); }
+  else if(key==='1m'){ dt.setMonth(dt.getMonth()-1); }
+  else if(key==='3m'){ dt.setMonth(dt.getMonth()-3); }
+  else return {from:LD.from,to:LD.to};   // now=라인상세 기본 기간
+  from=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return {from,to};
+}
+async function renderLossTab(){
+  const body=$('#ldTabBody');
+  const pk=LD.lossPeriod;
+  const btn=(k,lb)=>`<button class="seg-btn ${pk===k?'on':''}" onclick="LD.lossPeriod='${k}';renderLossTab()">${lb}</button>`;
+  const periodBar=`<div class="seg" style="margin-bottom:12px">
+    ${btn('now','조회기간')}${btn('10d','최근 10일')}${btn('1m','최근 1개월')}${btn('3m','최근 3개월')}
+  </div>`;
+  const {from,to}=lossPeriodRange(pk);
+  body.innerHTML=periodBar+'<div class="skel" style="height:280px;border-radius:14px"></div>';
+  LD.charts.forEach(c=>{try{c.destroy()}catch(e){}}); LD.charts=[];
+  try{
+    const [scR,dfR]=await Promise.all([
+      sb.rpc('team_scrap_types',{p_team:LD.team,p_from:from,p_to:to}),
+      sb.rpc('team_defect_types',{p_team:LD.team,p_from:from,p_to:to})
+    ]);
+    const sc=scR.data||[], df=dfR.data||[];
+    body.innerHTML=periodBar+`<div style="font-size:12px;color:var(--mut);margin-bottom:10px">기간: ${from} ~ ${to} · ${LD.team}</div>
+    <div class="dash-2col">
+      <div class="sec"><div class="sec-hd"><span class="no c5">◆</span><h3>스크랩 유형별 점유</h3></div>
         <div class="sec-bd"><div style="height:240px"><canvas id="ldScrap"></canvas></div>
-        <table style="margin-top:12px"><tbody>${sc.map(s=>`<tr><td class="l">${s.scrap_type}</td><td class="mono neg">${fmt(Math.round(s.amt))}원</td><td class="mono">${s.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 스크랩 없음</td></tr>'}</tbody></table>
+        <table style="margin-top:12px"><tbody>${sc.map(s=>`<tr><td class="l">${s.scrap_type}</td><td class="mono neg">${fmt(Math.round(s.amt))}원</td><td class="mono">${s.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">스크랩 없음</td></tr>'}</tbody></table>
         </div></div>
-      <div class="sec"><div class="sec-hd"><span class="no c4">◆</span><h3>불량 유형별</h3></div>
+      <div class="sec"><div class="sec-hd"><span class="no c4">◆</span><h3>불량 유형별 점유</h3></div>
         <div class="sec-bd"><div style="height:240px"><canvas id="ldDefect"></canvas></div>
-        <table style="margin-top:12px"><tbody>${df.map(d=>`<tr><td class="l">${d.defect_type}</td><td class="mono">${fmt(d.qty)}</td><td class="mono">${d.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">저장된 불량 없음</td></tr>'}</tbody></table>
+        <table style="margin-top:12px"><tbody>${df.map(d=>`<tr><td class="l">${d.defect_type}</td><td class="mono">${fmt(d.qty)}</td><td class="mono">${d.cnt}건</td></tr>`).join('')||'<tr><td style="color:var(--mut);padding:12px">불량 없음</td></tr>'}</tbody></table>
         </div></div>
     </div>`;
     const donutColors=['#4a6784','#4e9a72','#c99a4a','#c17a5a','#8a6da0','#6a9ab5','#b5896a'];
-    if(sc.length){ const c=new Chart($('#ldScrap'),{type:'doughnut',data:{labels:sc.map(s=>s.scrap_type),datasets:[{data:sc.map(s=>Math.round(s.amt)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); LD.charts.push(c); }
-    if(df.length){ const c=new Chart($('#ldDefect'),{type:'doughnut',data:{labels:df.map(d=>d.defect_type),datasets:[{data:df.map(d=>Math.round(d.qty)),backgroundColor:donutColors}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}}); LD.charts.push(c); }
-  }
+    const donutOpt={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);const v=c.parsed;const p=t?(v/t*100).toFixed(1):0;return ` ${c.label}: ${fmt(v)} (${p}%)`;}}}}};
+    if(sc.length){ const c=new Chart($('#ldScrap'),{type:'doughnut',data:{labels:sc.map(s=>s.scrap_type),datasets:[{data:sc.map(s=>Math.round(s.amt)),backgroundColor:donutColors}]},options:donutOpt}); LD.charts.push(c); }
+    if(df.length){ const c=new Chart($('#ldDefect'),{type:'doughnut',data:{labels:df.map(d=>d.defect_type),datasets:[{data:df.map(d=>Math.round(d.qty)),backgroundColor:donutColors}]},options:donutOpt}); LD.charts.push(c); }
+  }catch(e){ body.innerHTML=periodBar+'<div class="sec"><div class="sec-bd" style="color:var(--red);padding:16px">조회 실패: '+(e.message||e)+'</div></div>'; }
+}
+
+/* ===== 제품별 달성률 추이 팝업 ===== */
+let PT={code:null,name:null,limit:10,chart:null,rows:[]};
+async function openProductTrend(code,name){
+  PT={code,name,limit:10,metric:'actual',chart:null,rows:[]};
+  const old=document.getElementById('ptModal'); if(old)old.remove();
+  const m=document.createElement('div'); m.id='ptModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
+  m.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:24px;width:640px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:var(--sh-lg)">
+      <div style="display:flex;align-items:center;margin-bottom:6px">
+        <h3 style="margin:0;font-size:18px">📊 ${name} · 달성률 추이</h3>
+        <button class="tbtn" style="margin-left:auto" onclick="document.getElementById('ptModal').remove()">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--mut);margin-bottom:4px">품번 ${code} · ${LD.team} · 동일 품번 최근 생산 이력</div>
+      <div class="seg" style="margin:8px 0 6px">
+        <button class="seg-btn ${PT.limit===3?'on':''}" id="ptSeg3" onclick="setProductTrend(3)">최근 3회</button>
+        <button class="seg-btn ${PT.limit===10?'on':''}" id="ptSeg10" onclick="setProductTrend(10)">최근 10회</button>
+      </div>
+      <div class="seg" style="margin:0 0 14px">
+        <button class="seg-btn on" id="ptMet_actual" onclick="setProductMetric('actual')">실적량</button>
+        <button class="seg-btn" id="ptMet_achieve" onclick="setProductMetric('achieve')">달성률</button>
+      </div>
+      <div style="height:280px"><canvas id="ptChart"></canvas></div>
+      <div id="ptTable" style="margin-top:12px"></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{ if(e.target===m)m.remove(); });
+  loadProductTrend();
+}
+function setProductTrend(n){ PT.limit=n;
+  ['3','10'].forEach(x=>{const el=document.getElementById('ptSeg'+x); if(el)el.classList.toggle('on',String(n)===x);});
+  loadProductTrend();
+}
+async function loadProductTrend(){
+  const box=document.getElementById('ptTable'); if(box)box.innerHTML='<div class="skel" style="height:60px;border-radius:10px"></div>';
+  if(PT.chart){try{PT.chart.destroy()}catch(e){}PT.chart=null;}
+  PT.metric=PT.metric||'actual';   // actual(실적) | achieve(달성률)
+  try{
+    const {data,error}=await sb.rpc('product_achieve_history',{p_team:LD.team,p_prod_code:PT.code,p_limit:PT.limit});
+    if(error)throw error;
+    const rows=(data||[]).slice().reverse(); // 과거→현재
+    PT.rows=rows;
+    const cv=document.getElementById('ptChart'); if(!cv)return;
+    if(!rows.length){ cv.parentNode.innerHTML='<div style="color:var(--mut);padding:40px;text-align:center">생산 이력이 없습니다.</div>';
+      if(box)box.innerHTML=''; return; }
+    const labels=rows.map(r=>String(r.work_date).slice(5));
+    const validCnt=rows.filter(r=>r.plan_valid).length;
+    let ds, yTitle, kpiHtml;
+    if(PT.metric==='achieve'){
+      // 달성률: 계획 정상인 날만 값, 부실한 날은 null(빈 막대)
+      const vals=rows.map(r=>r.plan_valid&&r.achieve!=null?Number(r.achieve):null);
+      const bg=rows.map(r=>{ if(!r.plan_valid||r.achieve==null)return '#d5dbe6'; const v=Number(r.achieve); return v>=100?'#2e9e6a':v>=90?'#4a6784':v>=70?'#c99a4a':'#c0392b'; });
+      ds=[{label:'달성률(%)',data:vals,backgroundColor:bg,borderRadius:5,maxBarThickness:46}];
+      yTitle='%';
+      const okVals=vals.filter(v=>v!=null);
+      const avg=okVals.length?(okVals.reduce((a,b)=>a+b,0)/okVals.length).toFixed(1):'–';
+      const mx=okVals.length?Math.max(...okVals):'–', mn=okVals.length?Math.min(...okVals):'–';
+      const kpi='display:inline-block;padding:5px 12px;background:#f1f4fa;border-radius:8px;font-size:12.5px';
+      kpiHtml=`<span style="${kpi}">평균 <b>${avg}%</b></span>
+        <span style="${kpi};color:#2e9e6a">최고 <b>${mx}%</b></span>
+        <span style="${kpi};color:#c0392b">최저 <b>${mn}%</b></span>
+        <span style="${kpi}">계획정상 <b>${validCnt}/${rows.length}회</b></span>`;
+    }else{
+      // 실적량: 항상 정확
+      const vals=rows.map(r=>Number(r.actual_sum));
+      ds=[{label:'실적량(KG)',data:vals,backgroundColor:'#4a6784',borderRadius:5,maxBarThickness:46}];
+      yTitle='KG';
+      const avg=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(0);
+      const mx=Math.max(...vals), mn=Math.min(...vals);
+      const kpi='display:inline-block;padding:5px 12px;background:#f1f4fa;border-radius:8px;font-size:12.5px';
+      kpiHtml=`<span style="${kpi}">평균 <b>${fmt(Math.round(avg))}</b></span>
+        <span style="${kpi};color:#2e9e6a">최다 <b>${fmt(Math.round(mx))}</b></span>
+        <span style="${kpi};color:#c17a5a">최소 <b>${fmt(Math.round(mn))}</b></span>
+        <span style="${kpi}">회차 <b>${rows.length}회</b></span>`;
+    }
+    PT.chart=new Chart(cv,{type:'bar',
+      data:{labels,datasets:ds},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const r=rows[c.dataIndex];
+          return [' 실적 '+fmt(r.actual_sum)+' / 계획 '+fmt(r.plan_sum), r.plan_valid?(' 달성률 '+r.achieve+'%'):' (계획 미입력·달성률 제외)'];}}}},
+        scales:{y:{beginAtZero:true,ticks:{callback:v=>v+(yTitle==='%'?'%':'')}}}}});
+    const warn=(PT.metric==='achieve'&&validCnt<rows.length)?`<div style="font-size:11.5px;color:#c2410c;margin-bottom:8px">⚠ 계획 미입력(회색) ${rows.length-validCnt}건은 달성률에서 제외됩니다.</div>`:'';
+    if(box)box.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">${kpiHtml}</div>${warn}
+      <table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">일자</th><th>계획</th><th>실적</th><th>달성률</th></tr></thead>
+      <tbody>${rows.slice().reverse().map(r=>`<tr><td class="l">${r.work_date}</td><td class="mono">${fmt(r.plan_sum)}</td><td class="mono">${fmt(r.actual_sum)}</td><td class="mono ${r.plan_valid?(r.achieve>=90?'pos':'neg'):'mut'}">${r.plan_valid?r.achieve+'%':'–'}</td></tr>`).join('')}</tbody></table>`;
+  }catch(e){ if(box)box.innerHTML='<div style="color:var(--red);padding:12px">조회 실패: '+(e.message||e)+'</div>'; }
+}
+function setProductMetric(mt){ PT.metric=mt;
+  ['actual','achieve'].forEach(x=>{const el=document.getElementById('ptMet_'+x); if(el)el.classList.toggle('on',x===mt);});
+  loadProductTrend();
+}
+
+/* ===== 오더 종합 팝업 (달성률·로스·불량) ===== */
+async function openOrderSummary(code,name,kind){
+  const old=document.getElementById('osModal'); if(old)old.remove();
+  const m=document.createElement('div'); m.id='osModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.5);display:grid;place-items:center;z-index:999;padding:20px';
+  m.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;width:620px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:var(--sh-lg)">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0;font-size:18px">🔍 ${name} · 오더 종합</h3>
+      <button class="tbtn" style="margin-left:auto" onclick="document.getElementById('osModal').remove()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:14px">품번 ${code} · ${kind||''} · ${LD.team} · ${LD.from} ~ ${LD.to}</div>
+    <div id="osBody"><div class="skel" style="height:240px;border-radius:14px"></div></div>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{ if(e.target===m)m.remove(); });
+  try{
+    const {data,error}=await sb.rpc('order_summary_popup',{p_team:LD.team,p_prod_code:code,p_from:LD.from,p_to:LD.to});
+    if(error)throw error;
+    const d=data||{};
+    const plan=Number(d.plan_sum||0), act=Number(d.actual_sum||0);
+    const planValid=plan>1;
+    const ach=planValid?(act/plan*100).toFixed(1):null;
+    const scraps=d.scraps||[], defects=d.defects||[];
+    const kpi='background:#f7f9fc;border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:center';
+    const body=document.getElementById('osBody'); if(!body)return;
+    body.innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+        <div style="${kpi}"><div style="font-size:11px;color:var(--mut)">계획</div><div style="font-size:16px;font-weight:800" class="mono">${fmt(Math.round(plan))}</div></div>
+        <div style="${kpi}"><div style="font-size:11px;color:var(--mut)">실적</div><div style="font-size:16px;font-weight:800;color:var(--blue)" class="mono">${fmt(Math.round(act))}</div></div>
+        <div style="${kpi}"><div style="font-size:11px;color:var(--mut)">달성률</div><div style="font-size:16px;font-weight:800" class="mono">${planValid?ach+'%':'<span style="color:var(--mut);font-size:12px">계획없음</span>'}</div></div>
+        <div style="${kpi}"><div style="font-size:11px;color:var(--mut)">로스금액</div><div style="font-size:15px;font-weight:800" class="mono ${Number(d.loss_amount)<0?'neg':''}">${fmtWon(Number(d.loss_amount||0))}</div></div>
+      </div>
+      ${!planValid?`<div style="font-size:11.5px;color:#c2410c;margin-bottom:14px">⚠ 계획이 미입력(0~1)이라 달성률은 참고용입니다. 실적·로스·불량은 정확합니다.</div>`:''}
+      <div style="font-weight:800;font-size:14px;margin:6px 0 8px">원부자재 로스 (${d.loss_cnt||0}건)</div>
+      ${scraps.length?`<table style="width:100%;font-size:12.5px;margin-bottom:16px"><thead><tr><th style="text-align:left">자재</th><th style="text-align:left">유형</th><th>금액</th><th>건</th></tr></thead>
+        <tbody>${scraps.map(s=>`<tr><td class="l">${s.mat_name||'-'}</td><td class="l">${s.scrap_type||'-'}</td><td class="mono neg">${fmt(Math.round(s.amt))}원</td><td class="mono">${s.cnt}</td></tr>`).join('')}</tbody></table>`
+        :'<div style="color:var(--mut);font-size:12.5px;padding:8px 0 16px">등록된 로스 없음</div>'}
+      <div style="font-weight:800;font-size:14px;margin:6px 0 8px">불량 (${d.defect_cnt||0}건 · 총 ${fmt(d.defect_qty||0)})</div>
+      ${defects.length?`<table style="width:100%;font-size:12.5px"><thead><tr><th style="text-align:left">불량유형</th><th>수량</th><th>건</th></tr></thead>
+        <tbody>${defects.map(x=>`<tr><td class="l">${x.defect_type||'-'}</td><td class="mono">${fmt(x.qty)}</td><td class="mono">${x.cnt}</td></tr>`).join('')}</tbody></table>`
+        :'<div style="color:var(--mut);font-size:12.5px;padding:8px 0">등록된 불량 없음</div>'}`;
+  }catch(e){ const b=document.getElementById('osBody'); if(b)b.innerHTML='<div style="color:var(--red);padding:16px">조회 실패: '+(e.message||e)+'</div>'; }
 }
 
 /* ============ 경영 대시보드 ============ */
@@ -2025,13 +2194,13 @@ function monthBounds(ym){
   const lastStr=`${ym}-${String(last).padStart(2,'0')}`;
   return {from:first,to:lastStr};
 }
-function shiftMonth(ym,delta){
+function dashShiftMonth(ym,delta){
   const [y,m]=ym.split('-').map(Number);
   const d=new Date(y,m-1+delta,1);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 function dashMonthMove(delta){
-  DASH.month=shiftMonth(DASH.month,delta);
+  DASH.month=dashShiftMonth(DASH.month,delta);
   const b=monthBounds(DASH.month); DASH.from=b.from; DASH.to=b.to;
   DASH.custom=false;
   renderDashboard();
@@ -4620,9 +4789,9 @@ function renderClosing(){
   <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>라인별 가동 요약</h3>
     <span class="desc">라인(공정)별 오더·계획·실적·달성률 · 완제품/반제품 구분</span></div>
     <div class="tabbar">
-      <button class="tab on" id="tabLineFin" onclick="switchLineTab('fin')">완제품 ${finCount}</button>
-      <button class="tab" id="tabLineSemi" onclick="switchLineTab('semi')">반제품 ${semiCount}</button>
-      <button class="tab" id="tabLineAll" onclick="switchLineTab('all')">전체합산</button>
+      <button class="tab on" id="tabLineFin" onclick="switchLineSumTab('fin')">완제품 ${finCount}</button>
+      <button class="tab" id="tabLineSemi" onclick="switchLineSumTab('semi')">반제품 ${semiCount}</button>
+      <button class="tab" id="tabLineAll" onclick="switchLineSumTab('all')">전체합산</button>
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>라인</th><th>오더수</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>스크랩</th></tr></thead>
@@ -5504,7 +5673,7 @@ async function saveClosing(submit){
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* ① 라인별 요약: 완/반/전체 탭 전환 (1팀) */
-function switchLineTab(k){
+function switchLineSumTab(k){
   ['fin','semi','all'].forEach(x=>{
     const el=$('#tabLine'+(x==='fin'?'Fin':x==='semi'?'Semi':'All'));
     if(el)el.classList.toggle('on',x===k);
