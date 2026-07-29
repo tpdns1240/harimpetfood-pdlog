@@ -3258,6 +3258,11 @@ async function doUpload(rows){
       + (data.scrap_cleaned>0?` · 편차 사라진 로스사유 ${data.scrap_cleaned}건 자동정리`:'');
     toast('업로드 완료','ok');
     $('#upPaste').value='';
+    // 새 팀/라인/호기가 들어왔으면 CAPA 마스터에 자동 반영 (중복은 unique로 차단)
+    try{
+      const {data:sc}=await sb.rpc('sync_capa_from_plan');
+      if(sc&&Number(sc)>0){ res.textContent+=` · 신규 라인 ${sc}개 CAPA 등록`; }
+    }catch(_){/* sync 실패해도 업로드 자체는 정상 */}
   }catch(e){
     res.className='upload-result err';
     res.textContent='업로드 실패: '+(e.message||e);
