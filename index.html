@@ -2577,10 +2577,11 @@ async function unlockUser(id){
 
 /* --- 기준시간 관리 탭 (생산2팀 공정별 기준·계획 가동시간) --- */
 let STD_LIST=[];
+let STD_TEAM='생산2팀';   // 기준시간 관리 팀 선택
 async function renderStdTimeMgmt(){
   $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
-  try{ const {data}=await sb.rpc('get_std_time',{p_team:'생산2팀'}); STD_LIST=data||[]; }
-  catch(e){ toast('기준시간 조회 실패: '+(e.message||e),'err'); STD_LIST=[]; }
+  try{ const {data}=await sb.rpc('get_std_time',{p_team:STD_TEAM}); STD_LIST=data||[]; }
+  catch(e){ toast('생산기준시간 조회 실패: '+(e.message||e),'err'); STD_LIST=[]; }
   const rows=STD_LIST.map((s,i)=>{
     const off=s.active===false;
     return `<tr style="${off?'opacity:.5':''}">
@@ -2595,16 +2596,18 @@ async function renderStdTimeMgmt(){
         <button class="rowbtn ${off?'act':'del'}" onclick="toggleStd(${i})">${off?'↻ 활성화':'비활성'}</button>
       </td></tr>`;
   }).join('');
+  const teamBtn=(t)=>`<button class="seg-btn ${STD_TEAM===t?'on':''}" onclick="STD_TEAM='${t}';renderStdTimeMgmt()">${t}</button>`;
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ⏱ <b>생산2팀</b> 공정별 <b>기준시간</b>(정규 가동시간)과 <b>계획시간</b>(당일 계획 가동시간)을 관리합니다.<br>
+    ⏱ 공정별 <b>생산기준시간</b>(정규 가동시간)과 <b>계획시간</b>(당일 계획 가동시간)을 팀별로 관리합니다.<br>
     · 편성률 = 계획시간 ÷ 기준시간 · 가동률 = 실적 ÷ 계획시간 · 마감 화면 ①요약에 자동 반영됩니다.
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no c1">⏱</span><h3>공정별 기준시간 · 계획시간</h3>
+  <div class="seg" style="margin-bottom:14px">${teamBtn('생산1팀')}${teamBtn('생산2팀')}</div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⏱</span><h3>${STD_TEAM} · 공정별 생산기준시간 · 계획시간</h3>
     <span class="desc">${STD_LIST.length}개 공정 · 단위 시간(hr)</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
       <thead><tr><th>공정(라인)</th><th>기준시간(hr)</th><th>계획시간(hr)</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">공정 없음</td></tr>'}</tbody>
+      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">'+STD_TEAM+' 공정 없음 (호기 CAPA에 라인이 등록되면 여기 표시됩니다)</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
@@ -2613,7 +2616,7 @@ async function saveStd(i){
   const std=Number($('#std_'+i).value)||0;
   const plan=Number($('#plan_'+i).value)||0;
   try{
-    const {error}=await sb.rpc('set_std_time',{p_team:'생산2팀',p_line:s.line,p_std:std,p_plan:plan,p_active:s.active!==false});
+    const {error}=await sb.rpc('set_std_time',{p_team:STD_TEAM,p_line:s.line,p_std:std,p_plan:plan,p_active:s.active!==false});
     if(error)throw error;
     s.std_hours=std; s.plan_hours=plan;
     toast(`${s.line} 저장완료`,'ok');
@@ -2626,7 +2629,7 @@ async function toggleStd(i){
   const s=STD_LIST[i]; if(!s)return;
   const next=!(s.active!==false);
   try{
-    const {error}=await sb.rpc('set_std_time',{p_team:'생산2팀',p_line:s.line,
+    const {error}=await sb.rpc('set_std_time',{p_team:STD_TEAM,p_line:s.line,
       p_std:Number($('#std_'+i).value)||s.std_hours||0,
       p_plan:Number($('#plan_'+i).value)||s.plan_hours||0,p_active:next});
     if(error)throw error;
@@ -2743,40 +2746,34 @@ async function renderCapaMgmt(){
   try{ const {data}=await sb.rpc('get_capa_list',{p_team:null}); CAPA_LIST=data||[]; }
   catch(e){ toast('CAPA 조회 실패: '+(e.message||e),'err'); CAPA_LIST=[]; }
 
-  // 팀 > 라인 단위로 그룹핑
-  const groups={};
-  CAPA_LIST.forEach((c,i)=>{
-    const k=c.team+'||'+c.line;
-    if(!groups[k])groups[k]={team:c.team,line:c.line,line_active:c.line_active!==false,items:[]};
-    groups[k].items.push({...c,_i:i});
-  });
-  const gk=Object.keys(groups);
   let offCnt=0; CAPA_LIST.forEach(c=>{ if(c.active===false||c.line_active===false)offCnt++; });
+  const teamCnt=new Set(CAPA_LIST.map(c=>c.team)).size;
+  const lineCnt=new Set(CAPA_LIST.map(c=>c.team+'||'+c.line)).size;
+  const esc=s=>String(s).replace(/'/g,"\\'");
 
-  const body=gk.map(k=>{
-    const g=groups[k]; const lOff=!g.line_active;
-    const esc=s=>String(s).replace(/'/g,"\\'");
-    const rows=g.items.map(c=>{
-      const off=lOff||c.active===false;
-      return `<tr class="${off?'cap-off':''}">
-        <td class="l" style="padding-left:22px">${c.hoki?`<b>${c.hoki}</b>호기`:'<span style="color:var(--mut)">호기 미지정</span>'}</td>
-        <td><input type="number" id="capa_${c._i}" value="${c.capa_hourly||''}" placeholder="0" ${off?'disabled':''}
-          style="width:110px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-        <td><input type="number" id="days_${c._i}" value="${c.work_days_month||22}" ${off?'disabled':''}
-          style="width:66px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-        <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
-        <td style="white-space:nowrap" class="cap-act">
-          <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${c._i})">저장</button>
-          <button class="rowbtn ${c.active===false?'act':'del'}" ${lOff?'disabled':''}
-            onclick="toggleHoki(${c._i})">${c.active===false?'↻ 활성화':'비활성'}</button>
-        </td></tr>`;
-    }).join('');
-    return `<tr class="cap-linehd ${lOff?'cap-off':''}">
-        <td class="l"><b>${g.line}</b> <span style="color:var(--mut);font-size:12px">· ${g.team} · 호기 ${g.items.length}</span></td>
-        <td colspan="3"></td>
-        <td class="cap-act"><button class="rowbtn ${lOff?'act':'del'}" onclick="toggleLine('${esc(g.team)}','${esc(g.line)}',${lOff})">
-          ${lOff?'↻ 라인 활성화':'라인 전체 비활성'}</button></td>
-      </tr>${rows}`;
+  // 팀 > 라인 > 호기 순 정렬 (한 줄씩)
+  const sorted=CAPA_LIST.map((c,i)=>({...c,_i:i}))
+    .sort((a,b)=>(a.team+a.line+(a.hoki||'')).localeCompare(b.team+b.line+(b.hoki||''),'ko'));
+
+  const teamColor={'생산1팀':'#2670c9','생산2팀':'#1a9d5c','공통':'#9b6dc9'};
+  const body=sorted.map(c=>{
+    const off=(c.line_active===false)||c.active===false;
+    const tc=teamColor[c.team]||'#6b7688';
+    return `<tr class="${off?'cap-off':''}">
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#fff;background:${tc}">${c.team||'-'}</span></td>
+      <td class="l"><b>${c.line}</b></td>
+      <td class="l">${c.hoki?`<b>${c.hoki}</b>호기`:'<span style="color:var(--mut)">미지정</span>'}</td>
+      <td><input type="number" id="capa_${c._i}" value="${c.capa_hourly||''}" placeholder="0" ${off?'disabled':''}
+        style="width:110px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+      <td><input type="number" id="days_${c._i}" value="${c.work_days_month||22}" ${off?'disabled':''}
+        style="width:66px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
+      <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
+      <td style="white-space:nowrap" class="cap-act">
+        <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${c._i})">저장</button>
+        <button class="rowbtn ${c.active===false?'act':'del'}" ${c.line_active===false?'disabled':''}
+          onclick="toggleHoki(${c._i})">${c.active===false?'↻ 활성화':'비활성'}</button>
+        <button class="rowbtn ${c.line_active===false?'act':'del'}" onclick="toggleLine('${esc(c.team)}','${esc(c.line)}',${c.line_active===false})">${c.line_active===false?'↻ 라인ON':'라인OFF'}</button>
+      </td></tr>`;
   }).join('');
 
   $('#settingsBody').innerHTML=`
@@ -2785,11 +2782,11 @@ async function renderCapaMgmt(){
     · <b>비활성</b> 처리하면 해당 호기(또는 라인 전체)는 <b>계획·실적·가동시간·비가동·생산량 등 모든 지표에서 제외</b>됩니다.<br>
     · 성능가동률 = 실제 생산량 ÷ (호기 CAPA 합계 × 실제 가동시간) × 100
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>호기별 CAPA · 활성 관리</h3>
-    <span class="desc">${gk.length}개 라인 · ${CAPA_LIST.length}개 호기${offCnt?` · <b style="color:var(--red)">비활성 ${offCnt}</b>`:''}</span></div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>팀·라인·호기별 CAPA · 활성 관리</h3>
+    <span class="desc">${teamCnt}팀 · ${lineCnt}개 라인 · ${CAPA_LIST.length}개 호기${offCnt?` · <b style="color:var(--red)">비활성 ${offCnt}</b>`:''}</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인 / 호기</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>${body||'<tr><td colspan="5" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
+      <thead><tr><th>팀</th><th>라인</th><th>호기</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>${body||'<tr><td colspan="7" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
