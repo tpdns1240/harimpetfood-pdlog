@@ -3422,17 +3422,16 @@ async function openDay(date, team){
     }catch(e){ CUR_DAY.apprLine={}; }
 
     // ── 생산2팀: 별도 로직용 추가 데이터 로드 ──
-    if(team==='생산2팀'){
-      try{
-        const [stRes,mhRes]=await Promise.all([
-          sb.rpc('get_std_time',{p_team:team}),
-          sb.from('t_cl_mh').select('*').eq('work_date',date).eq('team',team)
-        ]);
-        CUR_DAY.stdTime=stRes.data||[];
-        const mhMap={}; (mhRes.data||[]).forEach(m=>{mhMap[m.prod_code]={mh:m.mh,note:m.note};});
-        CUR_DAY.mhMap=mhMap;
-      }catch(e){ CUR_DAY.stdTime=[]; CUR_DAY.mhMap={}; }
-    }
+    // stdTime(기준시간)·mhMap(투입공수)는 양 팀 모두 로드 (①·② 생산성 표시용)
+    try{
+      const [stRes,mhRes]=await Promise.all([
+        sb.rpc('get_std_time',{p_team:team}),
+        sb.from('t_cl_mh').select('*').eq('work_date',date).eq('team',team)
+      ]);
+      CUR_DAY.stdTime=stRes.data||[];
+      const mhMap={}; (mhRes.data||[]).forEach(m=>{mhMap[m.prod_code]={mh:m.mh,note:m.note};});
+      CUR_DAY.mhMap=mhMap;
+    }catch(e){ CUR_DAY.stdTime=[]; CUR_DAY.mhMap={}; }
   }catch(e){ toast('조회 실패: '+(e.message||e),'err'); return; }
 
   // 팀별 분기: 생산2팀은 전용 렌더
@@ -3555,7 +3554,7 @@ function renderClosing2(){
 
   <!-- ① 완제품 라인별 가동 요약 -->
   <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
-    <span class="desc">완제품 기준 계획/실적/MH 집계 · 계획시간은 설정에서 관리</span></div>
+    <span class="desc">기준시간 고정 · 계획/실적 집계 · 생산량 집계 · 시간당생산성=공정생산량÷생산시간 · 인시당생산성=공정생산량÷투입공수</span></div>
     <div class="tabbar">
       <button class="tab ${T2_SUM==='fin'?'on':''}" onclick="switchT2Sum('fin')">완제품 ${finCnt}</button>
       <button class="tab ${T2_SUM==='semi'?'on':''}" onclick="switchT2Sum('semi')">반제품 ${semiCnt}</button>
@@ -4667,23 +4666,51 @@ function renderClosing(){
     </tr>`;
   }).join('');
   const lineRowsByKind=(kind)=>{
+    const {stdTime,mhMap,downtime}=CUR_DAY;
+    // 기준시간 맵
+    const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0)}; });
+    // 라인별 가동/정지 시간
+    const runByLine={}, stopByLine={};
+    (downtime||[]).forEach(t=>{
+      const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+      const dur=diffMin(t.start_time,t.end_time);
+      if(t.category==='run') runByLine[k]=(runByLine[k]||0)+dur;
+      else if(['plan','unplan','sudden'].includes(t.category)) stopByLine[k]=(stopByLine[k]||0)+dur;
+    });
+    // 오더 집계 (해당 kind만, all이면 완+반 전체)
     const agg={};
-    orders.filter(o=>o.kind===kind).forEach(o=>{
+    orders.filter(o=> kind==='all' ? (o.kind==='fin'||o.kind==='semi') : o.kind===kind).forEach(o=>{
       const k=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
-      if(!agg[k])agg[k]={plan:0,act:0,cnt:0};
+      if(!agg[k])agg[k]={plan:0,act:0,cnt:0,mh:0};
       agg[k].plan+=Number(o.plan_sum||0); agg[k].act+=Number(o.actual_sum||0); agg[k].cnt++;
+      const mh=mhMap&&mhMap[o.prod_code]; if(mh)agg[k].mh+=Number(mh.mh||0);
     });
     const keys=Object.keys(agg).sort();
-    if(!keys.length)return `<tr><td colspan="6" style="color:var(--mut);padding:16px">${kind==='fin'?'완제품':'반제품'} 없음</td></tr>`;
+    if(!keys.length)return `<tr><td colspan="13" style="color:var(--mut);padding:16px">${kind==='fin'?'완제품':kind==='semi'?'반제품':'데이터'} 없음</td></tr>`;
     return keys.map((k,i)=>{
-      const a=agg[k]; const ach=a.plan>0?a.act/a.plan:0;
+      const a=agg[k]; const st=stdMap[k]||{std:0};
+      const planH=(runByLine[k]||0)/60;                 // 계획 가동시간 = run 합
+      const stopH=(stopByLine[k]||0)/60;
+      const actH=Math.max(planH-stopH,0);               // 실적 가동시간 = 계획 - 정지
+      const planEff=st.std>0?(planH/st.std*100):0;      // 편성률 = 계획 ÷ 기준
+      const rate=planH>0?(actH/planH*100):0;            // 가동률 = 실적 ÷ 계획
+      const ach=a.plan>0?(a.act/a.plan*100):0;          // 달성률
+      const hrProd=actH>0?(a.act/actH):0;               // 시간당 생산성 = 실적 ÷ 실적시간
+      const mhProd=a.mh>0?(a.act/a.mh):0;               // 인시당 생산성 = 실적 ÷ MH
       return `<tr>
-        <td class="l"><span class="t2-lno">L${i+1}</span> <b>${k}</b></td>
-        <td class="mono">${a.cnt}</td>
-        <td class="mono">${fmt(a.plan)}</td>
-        <td class="mono">${fmt(a.act)}</td>
-        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td>
-        <td class="mono">–</td>
+        <td class="l"><span class="t2-lno">L${i+1}</span> ${k}</td>
+        <td class="mono">${st.std||'–'}</td>
+        <td class="mono">${planH?planH.toFixed(1):'–'}</td>
+        <td class="mono">${actH?actH.toFixed(1):'–'}</td>
+        <td class="mono">${planEff?planEff.toFixed(1)+'%':'–'}</td>
+        <td class="mono"><b style="color:${rate>=90?'var(--grn)':rate>0?'var(--org,#d97706)':'var(--mut)'}">${planH?rate.toFixed(1)+'%':'–'}</b></td>
+        <td class="mono">${a.plan?fmt(a.plan):'–'}</td>
+        <td class="mono">${a.act?fmt(a.act):'0'}</td>
+        <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${a.plan?ach.toFixed(1)+'%':'–'}</b></td>
+        <td class="mono">${hrProd?fmt(Math.round(hrProd)):'–'}</td>
+        <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
+        <td class="mono">${a.mh?a.mh.toFixed(1):'–'}</td>
+        <td></td>
       </tr>`;
     }).join('');
   };
@@ -4786,21 +4813,20 @@ function renderClosing(){
   </div>
 
   <!-- ① 라인별 요약 -->
-  <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>라인별 가동 요약</h3>
-    <span class="desc">라인(공정)별 오더·계획·실적·달성률 · 완제품/반제품 구분</span></div>
+  <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
+    <span class="desc">기준시간 고정 · 계획/실적 집계 · 생산량 집계 · 시간당생산성=공정생산량÷생산시간 · 인시당생산성=공정생산량÷투입공수</span></div>
     <div class="tabbar">
-      <button class="tab on" id="tabLineFin" onclick="switchLineSumTab('fin')">완제품 ${finCount}</button>
-      <button class="tab" id="tabLineSemi" onclick="switchLineSumTab('semi')">반제품 ${semiCount}</button>
-      <button class="tab" id="tabLineAll" onclick="switchLineSumTab('all')">전체합산</button>
+      <button class="tab ${LINE_SUM_TAB==='fin'?'on':''}" id="tabLineFin" onclick="switchLineSumTab('fin')">완제품 ${finCount}</button>
+      <button class="tab ${LINE_SUM_TAB==='semi'?'on':''}" id="tabLineSemi" onclick="switchLineSumTab('semi')">반제품 ${semiCount}</button>
+      <button class="tab ${LINE_SUM_TAB==='all'?'on':''}" id="tabLineAll" onclick="switchLineSumTab('all')">전체합산</button>
     </div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>라인</th><th>오더수</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>스크랩</th></tr></thead>
-      <tbody id="lineSummaryBody">${lineRowsByKind('fin')}</tbody>
-      <tfoot><tr style="background:#f1f4fa;font-weight:800">
-        <td class="l">합계</td><td class="mono">${totOrders}</td>
-        <td class="mono">${fmt(totPlan)}</td><td class="mono">${fmt(totActual)}</td>
-        <td class="mono">${pct(totAch)}</td><td class="mono">${totScrap}</td>
-      </tr></tfoot>
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
+      <thead>
+        <tr><th rowspan="2">라인</th><th colspan="5">가동시간 (hr)</th><th colspan="3">생산량 (KG)</th>
+            <th rowspan="2">시간당생산성<br>(KG/HR)</th><th rowspan="2">인시당생산성<br>(KG/MH)</th><th rowspan="2">투입공수<br>(MH)</th><th rowspan="2">비고</th></tr>
+        <tr><th>기준</th><th>계획</th><th>실적</th><th>편성률</th><th>가동률</th><th>계획</th><th>실적</th><th>달성률</th></tr>
+      </thead>
+      <tbody id="lineSummaryBody">${lineRowsByKind(LINE_SUM_TAB)}</tbody>
     </table></div>
   </div>
 
@@ -5673,41 +5699,8 @@ async function saveClosing(submit){
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* ① 라인별 요약: 완/반/전체 탭 전환 (1팀) */
-function switchLineSumTab(k){
-  ['fin','semi','all'].forEach(x=>{
-    const el=$('#tabLine'+(x==='fin'?'Fin':x==='semi'?'Semi':'All'));
-    if(el)el.classList.toggle('on',x===k);
-  });
-  const orders=CUR_DAY.orders||[];
-  let html;
-  if(k==='all'){
-    // 전체합산: get_line_summary 그대로
-    html=(CUR_DAY.lines||[]).map((l,i)=>{
-      const ach=Number(l.achieve||0);
-      return `<tr><td class="l"><span class="t2-lno">L${i+1}</span> <b>${l.line_name}</b></td>
-        <td class="mono">${l.order_count}</td><td class="mono">${fmt(l.plan_sum)}</td>
-        <td class="mono">${fmt(l.actual_sum)}</td>
-        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td>
-        <td class="mono ${Number(l.scrap_count)>0?'neg':''}">${l.scrap_count}</td></tr>`;
-    }).join('');
-  }else{
-    const agg={};
-    orders.filter(o=>o.kind===k).forEach(o=>{
-      const key=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
-      if(!agg[key])agg[key]={plan:0,act:0,cnt:0};
-      agg[key].plan+=Number(o.plan_sum||0); agg[key].act+=Number(o.actual_sum||0); agg[key].cnt++;
-    });
-    const keys=Object.keys(agg).sort();
-    html=keys.map((key,i)=>{
-      const a=agg[key]; const ach=a.plan>0?a.act/a.plan:0;
-      return `<tr><td class="l"><span class="t2-lno">L${i+1}</span> <b>${key}</b></td>
-        <td class="mono">${a.cnt}</td><td class="mono">${fmt(a.plan)}</td>
-        <td class="mono">${fmt(a.act)}</td>
-        <td class="mono ${ach>=.98?'pos':'neg'}">${pct(ach)}</td><td class="mono">–</td></tr>`;
-    }).join('');
-  }
-  $('#lineSummaryBody').innerHTML=html||`<tr><td colspan="6" style="color:var(--mut);padding:16px">${k==='fin'?'완제품':k==='semi'?'반제품':'데이터'} 없음</td></tr>`;
-}
+let LINE_SUM_TAB='fin';   // 1팀 ① 라인요약 선택 탭
+function switchLineSumTab(k){ LINE_SUM_TAB=k; rerenderClosing(); }
 function switchOrderTab(k){
   $('#tabFin').classList.toggle('on',k==='fin');
   $('#tabSemi').classList.toggle('on',k==='semi');
