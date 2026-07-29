@@ -2016,23 +2016,44 @@ function switchLineTab(tab){
 }
 
 /* ============ 경영 대시보드 ============ */
-let DASH={from:null,to:null,team:null,charts:[]};
+let DASH={from:null,to:null,team:null,charts:[],month:null};
+// 'YYYY-MM' → 그 달의 1일, 말일
+function monthBounds(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const first=`${ym}-01`;
+  const last=new Date(y,m,0).getDate(); // m월의 말일
+  const lastStr=`${ym}-${String(last).padStart(2,'0')}`;
+  return {from:first,to:lastStr};
+}
+function shiftMonth(ym,delta){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function dashMonthMove(delta){
+  DASH.month=shiftMonth(DASH.month,delta);
+  const b=monthBounds(DASH.month); DASH.from=b.from; DASH.to=b.to;
+  renderDashboard();
+}
 function renderDashboard(){
-  // 기본 기간: 올해 1월~오늘
-  if(!DASH.from){
-    DASH.from=kstToday().slice(0,4)+'-01-01';
-    DASH.to=kstToday();
+  // 기본: 금월 (전월/이번달/다음달 이동)
+  if(!DASH.month){
+    DASH.month=kstToday().slice(0,7);       // YYYY-MM
+    const b=monthBounds(DASH.month); DASH.from=b.from; DASH.to=b.to;
   }
+  const [yy,mm]=DASH.month.split('-');
   $('#wrap').innerHTML=`
   <div class="day-hd"><div><h2>경영 대시보드</h2>
     <div class="en">MANAGEMENT DASHBOARD · 생산·원가 종합</div></div>
-    <div class="meta">기간별 KPI 집계</div></div>
-  <div class="dash-filter">
-    <label>기간</label>
-    <input type="date" id="dashFrom" value="${DASH.from}">
-    <span>~</span>
-    <input type="date" id="dashTo" value="${DASH.to}">
-    <label style="margin-left:10px">팀</label>
+    <div class="meta">월별 KPI 집계</div></div>
+  <div class="dash-filter" style="align-items:center">
+    <div class="month-nav" style="display:flex;align-items:center;gap:6px">
+      <button class="tbtn" onclick="dashMonthMove(-1)">‹ 전월</button>
+      <b style="font-size:16px;min-width:96px;text-align:center">${yy}년 ${Number(mm)}월</b>
+      <button class="tbtn" onclick="dashMonthMove(1)">다음월 ›</button>
+      <button class="tbtn" onclick="DASH.month=null;renderDashboard()" style="margin-left:4px">이번달</button>
+    </div>
+    <label style="margin-left:14px">팀</label>
     <select id="dashTeam">
       <option value="">전체</option>
       <option value="생산1팀">생산1팀</option>
@@ -2046,15 +2067,20 @@ function renderDashboard(){
       <option value="semi">반제품(중간)</option>
     </select>
     <button class="tbtn submit" onclick="loadDashboard()">조회</button>
+    <span style="margin-left:auto;font-size:11.5px;color:var(--mut)">${DASH.from} ~ ${DASH.to}</span>
   </div>
   <div id="dashBody"><div class="skel" style="height:400px;border-radius:14px"></div></div>`;
+  // 팀/구분 선택값 유지
+  if(DASH.team) $('#dashTeam').value=DASH.team;
+  if(DASH.kind) $('#dashKind').value=DASH.kind;
   loadDashboard();
 }
 
 async function loadDashboard(){
-  DASH.from=$('#dashFrom').value; DASH.to=$('#dashTo').value;
-  DASH.team=$('#dashTeam').value||null;
-  DASH.kind=$('#dashKind').value||null;
+  // 기간은 DASH.month 기준(월 네비), 팀/구분만 셀렉트에서
+  const b=monthBounds(DASH.month); DASH.from=b.from; DASH.to=b.to;
+  DASH.team=$('#dashTeam')?.value||null;
+  DASH.kind=$('#dashKind')?.value||null;
   DASH.charts.forEach(c=>{try{c.destroy()}catch(e){}}); DASH.charts=[];
   $('#dashBody').innerHTML='<div class="skel" style="height:400px;border-radius:14px"></div>';
   const p={p_from:DASH.from,p_to:DASH.to,p_team:DASH.team,p_kind:DASH.kind};
