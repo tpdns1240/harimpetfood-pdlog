@@ -3970,17 +3970,19 @@ function buildSection2(){
   const procs=Object.keys(byProc).sort();
   if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
   const curOrders=byProc[T2_PROC]||[];
-  const orderRows=curOrders.map(o=>{
+  const orderRows=curOrders.map((o,oi)=>{
     const mh=mhMap[o.prod_code]||{mh:'',note:''};
     const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
     const ach=oPlan>0?(oAct/oPlan*100):0;
     const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
     const pedit=!!o.plan_edited;
-    const canEditPlan=(o.kind==='fin'||o.kind==='완제품');  // 완제품만 계획 수정 (반제품은 자재합산이라 잠금)
+    // 완제품만 계획 수정 (반제품은 자재합산이라 잠금). kind 누락 시 prod_code 앞자리(2·3) 폴백
+    const canEditPlan=isFin(o);
+    const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
       ? `<td style="white-space:nowrap">
-          <input class="inp-cell op-plan" data-code="${o.prod_code}" value="${oPlan?fmt(oPlan):''}" placeholder="0" style="width:74px;text-align:right;background:#fff8e8" onchange="markOrderPlanEdit('${o.prod_code}')">
-          <button class="rowbtn op-apply" id="opApply_${o.prod_code}" onclick="saveOrderOverride('${o.prod_code}')" style="display:none;margin-left:3px">적용</button>
+          <input class="inp-cell op-plan" id="${rid}_in" data-code="${o.prod_code}" data-orig="${oPlan||0}" data-rid="${rid}" value="${oPlan?fmt(oPlan):''}" placeholder="0" style="width:74px;text-align:right;background:#fff8e8" oninput="markOrderPlanEdit('${rid}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${o.prod_code}','${rid}');}">
+          <button class="rowbtn op-apply" id="${rid}_btn" onclick="saveOrderOverride('${o.prod_code}','${rid}')" style="display:none;margin-left:3px">적용</button>
           ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
         </td>`
       : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt(oPlan)}</td>`;
@@ -3997,8 +3999,8 @@ function buildSection2(){
   }).join('');
   const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 나머지 자동</span><span class="sp"></span>
-    <button class="tbtn save" onclick="saveT2MH()">투입공수 저장</button></div>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
+    <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
     <div class="tabbar">
       <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
       <button class="tab ${T2_ORD==='semi'?'on':''}" onclick="switchT2Ord('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
@@ -4026,32 +4028,7 @@ function renderMore2(){
       return String(o.prod_code||'')[0]==='6'; }
     return String(o||'')[0]==='6';
   };
-  const kindOrders=(orders||[]).filter(o=>T2_ORD==='fin'?isFin(o):isSemi(o));
-  // 공정별 그룹
-  const byProc={};
-  kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
-  const procs=Object.keys(byProc).sort();
-  if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
-  const curOrders=byProc[T2_PROC]||[];
-
-  const orderRows=curOrders.map(o=>{
-    const mh=mhMap[o.prod_code]||{mh:'',note:''};
-    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
-    const ach=oPlan>0?(oAct/oPlan*100):0;
-    const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
-    return `<tr data-ord="${o.prod_code}">
-      <td class="mono">${o.prod_code}</td>
-      <td class="l">${o.prod_name||'-'}</td>
-      <td class="mono">${fmt(oPlan)}</td>
-      <td class="mono">${fmt(oAct)}</td>
-      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
-      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
-      <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
-      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
-    </tr>`;
-  }).join('');
-  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
-
+  // ② 오더별 실적·투입공수·계획수정 렌더는 buildSection2() 단일 소스로 통일 (중복 렌더 코드 제거)
   // ⑤ 가동/비가동: 공정별 작업시간(run) + 정지
   const runRows=(downtime||[]).filter(t=>t.category==='run');
   const stopRows=(downtime||[]).filter(t=>t.category!=='run');
@@ -4363,13 +4340,38 @@ async function saveT2MH(){
     const note=noteEl?noteEl.value:'';
     if(mh||note) rows.push({work_date:date,team,prod_code:code,mh,note});
   });
-  if(!rows.length){toast('입력된 투입공수 없음','err');return;}
+  // ── 미적용 계획(KG) 변경분 수집 : '적용' 버튼을 안 눌러도 함께 저장 (값 유실 방지) ──
+  const planMap={};
+  document.querySelectorAll('.op-plan').forEach(inp=>{
+    const code=inp.dataset.code;
+    const orig=Number(inp.dataset.orig||0);
+    const cur=Number(String(inp.value).replace(/,/g,'').trim());
+    if(code && !isNaN(cur) && cur!==orig) planMap[code]=cur;   // 동일 품번 중복행은 마지막 입력 기준
+  });
+  const planJobs=Object.keys(planMap);
+  if(!rows.length && !planJobs.length){toast('저장할 입력값 없음','err');return;}
   try{
-    const {error}=await sb.from('t_cl_mh').upsert(rows,{onConflict:'work_date,team,prod_code'});
-    if(error)throw error;
-    rows.forEach(r=>{CUR_DAY.mhMap[r.prod_code]={mh:r.mh,note:r.note};});
-    toast('투입공수 저장완료','ok');
-    rerenderClosing();  // ①요약 인시당 생산성 재계산 (팀 무관)
+    if(rows.length){
+      const {error}=await sb.from('t_cl_mh').upsert(rows,{onConflict:'work_date,team,prod_code'});
+      if(error)throw error;
+      rows.forEach(r=>{CUR_DAY.mhMap[r.prod_code]={mh:r.mh,note:r.note};});
+    }
+    let planOk=0, planFail=[];
+    for(const code of planJobs){
+      const {error}=await sb.rpc('set_order_override',{
+        p_work_date:date, p_team:team, p_prod_code:code, p_plan:planMap[code],
+        p_by:(S.user&&S.user.name)||'-'
+      });
+      if(error){ planFail.push(code); } else { planOk++; }
+    }
+    const msg=[rows.length?`투입공수 ${rows.length}건`:'',planOk?`계획 ${planOk}건`:''].filter(Boolean).join(' · ');
+    if(planFail.length) toast(`${msg} 저장 · 계획 실패 ${planFail.length}건(${planFail.join(',')})`,'err');
+    else toast((msg||'저장')+' 저장완료','ok');
+    if(planOk){                                  // 계획이 바뀌면 달성률·①요약 전면 재계산 필요
+      const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);
+    }else{
+      rerenderClosing();  // ①요약 인시당 생산성 재계산 (팀 무관)
+    }
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* ④ 불량: 라인 선택 시 해당 라인 오더만 표시 */
@@ -4454,15 +4456,29 @@ function renderApprovalBar(){
     (status==='lead_ok'&&['division','admin'].includes(role)&&isLineMember('division'))||
     (status==='div_ok'&&['ceo','admin'].includes(role)&&isLineMember('ceo'))
   );
-  // 작성/제출: 해당 팀 결재라인에 속한 사람만 (작성자·팀장·본부장·CEO 중 본인)
+  // ── 작성/제출(상신) 권한 ────────────────────────────────────────
+  // 전 팀 상신: 본부장·대표·관리자 (팀 소속 무관 — 어느 팀 마감이든 대리 상신 가능)
+  // 관련 팀 상신: 팀원·팀장 → 결재라인 등록 팀 / 본인 소속팀 / 공통
   const inTeamLine = isAdmin || [AL.writer,AL.lead,AL.division,AL.ceo].filter(Boolean).includes(me)
     || (c.writer && c.writer===me);
-  const isWriter=['writer','admin'].includes(role) && inTeamLine;
+  const myTeam = (S.user&&S.user.team)||'';
+  const isMyTeam = !!myTeam && (myTeam===(CUR_DAY.team||'') || (CUR_DAY.team||'')==='공통');
+  const canSubmitAnyTeam = ['division','ceo','admin'].includes(role);
+  const isWriter = canSubmitAnyTeam || (['writer','lead'].includes(role) && (inTeamLine || isMyTeam));
+  // 대리 상신 안내(팀장·본부장·대표가 작성자 대신 올리는 경우)
+  const roleKo={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표',admin:'관리자'}[role]||role;
+  const proxyNote = (isWriter && role!=='writer' && ['none','draft','rejected'].includes(status))
+    ? `<span style="font-size:11.5px;color:#7b8595;margin-right:8px">대리 상신 가능 · ${roleKo}</span>` : '';
   // 권한 없음 안내
-  const noPermNote = (!isAdmin && !inTeamLine && ['none','draft','rejected'].includes(status))
+  const noPermNote = (!isWriter && ['none','draft','rejected'].includes(status))
     ? `<div class="lock-banner" style="background:#f8f9fb;border-color:#e2e8f2;color:#7b8595;margin-top:10px">
-        🔒 <b>${CUR_DAY.team||''} 결재라인에 등록되지 않아</b> 작성·제출할 수 없습니다. 관리자에게 결재라인 등록을 요청하세요.
+        🔒 <b>${CUR_DAY.team||''} 마감을 작성·제출할 권한이 없습니다.</b>
+        팀원·팀장은 본인 소속팀 또는 결재라인 등록 팀만, 본부장·대표·관리자는 전 팀 상신이 가능합니다.
+        관리자에게 소속팀 또는 결재라인 등록을 요청하세요.
        </div>` : '';
+  // 본인이 상신한 건을 본인이 결재하는 경우 주의 표시
+  const selfNote = (canApprove && c.writer && c.writer===me)
+    ? `<span style="font-size:11.5px;color:#c2410c;margin-right:8px">⚠ 본인 상신 건</span>` : '';
   const rejectBox = status==='rejected'
     ? `<div class="reject-box">⚠ 반려 (${c.reject_by||''}): ${c.reject_reason||''}</div>` : '';
   const commentBox = c.submit_comment
@@ -4474,6 +4490,7 @@ function renderApprovalBar(){
       <span class="tb-status ${statusCls}" id="tbStatus">${statusLabel}</span>
       <button class="tbtn" onclick="showApprovalLog()">결재이력</button>
       <span class="sp"></span>
+      ${proxyNote}${selfNote}
       ${isWriter&&['none','draft','rejected'].includes(status)?`
         <button class="tbtn" onclick="saveClosing(false)">임시저장</button>
         <button class="tbtn submit" onclick="saveClosing(true)">제출</button>`:''}
@@ -5380,14 +5397,23 @@ function toggleTypePanel(kind){
 }
 
 /* ② 오더 계획(KG) 수정 — 자재 로스와 별개, 달성률 조정용 */
-function markOrderPlanEdit(code){
-  const btn=document.getElementById('opApply_'+code);
+function markOrderPlanEdit(key){
+  // key = 행 고유 rid('op3') 또는 구버전 prod_code — 둘 다 지원
+  const btn=document.getElementById(key+'_btn')||document.getElementById('opApply_'+key);
   if(btn) btn.style.display='';
+  const inp=document.getElementById(key+'_in')||document.querySelector(`.op-plan[data-code="${key}"]`);
+  if(inp){ // 미저장 상태 시각화
+    const orig=Number(inp.dataset.orig||0);
+    const cur=Number(String(inp.value).replace(/,/g,'').trim());
+    const dirty=!isNaN(cur)&&cur!==orig;
+    inp.style.border=dirty?'2px solid #d97706':'';
+    inp.style.background=dirty?'#fff3dd':'#fff8e8';
+  }
 }
-async function saveOrderOverride(code){
+async function saveOrderOverride(code,rid){
   const {date,team}=CUR_DAY;
   const unfmt=v=>{ const n=Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?null:n; };
-  const el=document.querySelector(`.op-plan[data-code="${code}"]`);
+  const el=(rid&&document.getElementById(rid+'_in'))||document.querySelector(`.op-plan[data-code="${code}"]`);
   const plan=unfmt(el?el.value:'');
   if(plan===null){ toast('계획 값을 확인하세요','err'); return; }
   try{
