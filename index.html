@@ -5031,32 +5031,107 @@ function printClosing(){
 
   window.print();
 }
+/* ════════════════════════════════════════════════════════════════════
+   결재 알림 메일 (재설계)
+   ── 발신 주소는 시스템 계정 고정(Apps Script 소유자 제약). 대신
+      · 표시이름 = 행위자     "안영곤 (하림펫푸드 생산마감)"
+      · Reply-To = 행위자 메일 → 회신하면 실제 결재자에게 감
+   ── 통보 매트릭스
+      제출        → 팀장                          (행위자: 작성자)
+      팀장 승인    → 본부장                        (행위자: 팀장)
+      본부장 승인  → 대표                          (행위자: 본부장)
+      대표 승인    → 작성자+팀장+본부장 (완료통보)   (행위자: 대표)
+      반려        → 작성자 + 반려자보다 하위 결재자  (행위자: 반려자, 사유 포함)
+   ════════════════════════════════════════════════════════════════════ */
+const APPR_ROLE_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표',admin:'관리자'};
+const APPR_STEP_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표'};
+
+/* 공통 JSONP 발송 (응답 대기 안 함 — 결재 흐름을 막지 않음) */
+function apprMail(action, params){
+  const q=new URLSearchParams(Object.assign({action, url:location.origin}, params||{}));
+  const cb='apprCb_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+  window[cb]=(r)=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s);
+    if(r&&r.ok&&r.sent) toast(`결재 알림 발송 (${r.count||1}명)`,'ok');
+    else if(r&&r.ok===false) toast('알림 발송 실패: '+(r.error||''),'err'); };
+  const s=document.createElement('script');
+  s.src=`${MES_WEBAPP_URL}?${q.toString()}&callback=${cb}`;
+  s.onerror=()=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); };
+  document.body.appendChild(s);
+}
+
+/* 팀 결재라인 4단계의 이름·이메일 (RPC 2회로 일괄 확보) */
+async function apprLineContacts(team){
+  let names={}, users=[];
+  try{ const {data}=await sb.rpc('get_approval_line',{p_team:team});
+       (data||[]).forEach(r=>{ names[r.step]=r.approver_name; }); }catch(_){}
+  try{ const {data}=await sb.rpc('get_users',{p_team:null}); users=data||[]; }catch(_){}
+  const mail=n=>{ if(!n)return ''; const u=users.find(x=>x.name===n&&x.email); return u?u.email:''; };
+  // 작성자는 실제 마감 작성자(대리 상신 포함) 우선, 없으면 결재라인 등록자
+  const w=(CUR_DAY.closing&&CUR_DAY.closing.writer)||names.writer||'';
+  return {
+    writer:{name:w,               email:mail(w)},
+    lead:{name:names.lead||'',         email:mail(names.lead)},
+    division:{name:names.division||'', email:mail(names.division)},
+    ceo:{name:names.ceo||'',           email:mail(names.ceo)}
+  };
+}
+/* 수신자 목록 조립 — 중복 제거 + 이메일 미등록자 안내 */
+function apprPick(contacts, steps){
+  const seen=new Set(), to=[], miss=[];
+  steps.forEach(k=>{
+    const p=contacts[k]; if(!p||!p.name)return;
+    if(p.email){ if(!seen.has(p.email)){ seen.add(p.email); to.push(p.email); } }
+    else miss.push(`${p.name}(${APPR_STEP_KO[k]||k})`);
+  });
+  return {to, miss};
+}
+
+/* ① 다음 결재자 요청 알림 */
 async function notifyNextApprover(date,team,newStatus,actorName){
-  // 다음 결재 단계가 없으면(완료·반려) 발송 안 함
   if(!['submitted','lead_ok','div_ok'].includes(newStatus)) return;
   try{
     const {data,error}=await sb.rpc('get_next_approver',{p_team:team,p_status:newStatus});
     if(error||!data||!data.length) return;
     const n=data[0];
     if(!n.email){ toast(`${n.approver_name||'다음 결재자'} 이메일 미등록 — 알림 미발송`,'err'); return; }
-    // 설정에 저장된 커스텀 안내 문구 조회 (없으면 Apps Script 기본 문구 사용)
     let customMsg='';
     try{ const {data:cfg}=await sb.rpc('get_config',{p_key:'approval_mail_msg'}); customMsg=cfg||''; }catch(_){}
-    const q=new URLSearchParams({
-      action:'mail', to:n.email, name:n.approver_name||'',
-      role:n.role_label||'', team, date,
-      from_name:actorName||'', url:location.origin
-    });
-    if(customMsg) q.set('custom_msg', customMsg);
-    // JSONP로 호출 (응답 대기 안 함 — 결재 흐름을 막지 않기 위해)
-    const cb='mailCb_'+Date.now();
-    window[cb]=(r)=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s);
-      if(r&&r.ok&&r.sent) toast(`${n.approver_name}님께 결재 알림 발송`,'ok'); };
-    const s=document.createElement('script');
-    s.src=`${MES_WEBAPP_URL}?${q.toString()}&callback=${cb}`;
-    s.onerror=()=>{ delete window[cb]; if(s.parentNode)s.parentNode.removeChild(s); };
-    document.body.appendChild(s);
-  }catch(e){ /* 알림 실패가 결재를 막지 않도록 조용히 처리 */ }
+    const actorEmail=await getEmailByName(actorName);
+    const p={ to:n.email, name:n.approver_name||'', role:n.role_label||'', team, date,
+      from_name:actorName||'', actor:actorName||'',
+      actor_role:APPR_ROLE_KO[(S.user&&S.user.role)]||'', actor_email:actorEmail||'' };
+    if(customMsg) p.custom_msg=customMsg;
+    apprMail('mail', p);
+  }catch(e){ /* 알림 실패가 결재를 막지 않도록 */ }
+}
+
+/* ② 반려 알림 — 작성자 + 반려자보다 하위 단계 결재자 전원 (사유 포함) */
+async function notifyReject(date,team,reason,actorRole,actorName){
+  try{
+    const c=await apprLineContacts(team);
+    const below={ lead:['writer'], division:['writer','lead'],
+                  ceo:['writer','lead','division'], admin:['writer','lead','division'] }[actorRole]||['writer'];
+    const {to,miss}=apprPick(c, below);
+    if(miss.length) toast('이메일 미등록: '+miss.join(', '),'err');
+    if(!to.length){ toast('반려 알림 대상 이메일이 없습니다','err'); return; }
+    const actorEmail=await getEmailByName(actorName);
+    apprMail('appr_reject',{ to:to.join(','), team, date, reason:reason||'',
+      actor:actorName||'', actor_role:APPR_ROLE_KO[actorRole]||'', actor_email:actorEmail||'' });
+  }catch(e){ }
+}
+
+/* ③ 최종 완료 알림 — 작성자 + 팀장 + 본부장 (대표 본인 제외) */
+async function notifyDone(date,team,actorName){
+  try{
+    const c=await apprLineContacts(team);
+    const {to,miss}=apprPick(c, ['writer','lead','division']);
+    if(miss.length) toast('이메일 미등록: '+miss.join(', '),'err');
+    if(!to.length) return;
+    const actorEmail=await getEmailByName(actorName);
+    apprMail('appr_done',{ to:to.join(','), team, date,
+      actor:actorName||'', actor_role:'대표', actor_email:actorEmail||'',
+      ceo_name:(c.ceo&&c.ceo.name)||actorName||'' });
+  }catch(e){ }
 }
 async function doApprove(){
   const {date,team}=CUR_DAY;
@@ -5069,8 +5144,9 @@ async function doApprove(){
     if(error)throw error;
     if(!data.ok){ toast(data.msg||'승인 불가','err'); return; }
     toast('승인 완료','ok');
-    // 다음 결재자에게 메일 알림
-    notifyNextApprover(date,team,data.status||data.new_status,S.user.name);
+    const st=data.status||data.new_status;
+    if(st==='done') notifyDone(date,team,S.user.name);        // 최종 완료 → 작성자·팀장·본부장 통보
+    else notifyNextApprover(date,team,st,S.user.name);        // 다음 결재자 요청
     openDay(date,team);
   }catch(e){ toast('승인 실패: '+(e.message||e),'err'); }
 }
@@ -5085,7 +5161,9 @@ async function doReject(){
       p_actor:S.user.name,p_role:S.user.role,p_memo:reason});
     if(error)throw error;
     if(!data.ok){ toast(data.msg||'반려 불가','err'); return; }
-    toast('반려 처리됨','ok'); openDay(date,team);
+    toast('반려 처리됨','ok');
+    notifyReject(date,team,reason,S.user.role,S.user.name);   // 작성자+하위 결재자 전원 통보
+    openDay(date,team);
   }catch(e){ toast('반려 실패: '+(e.message||e),'err'); }
 }
 async function showApprovalLog(){
