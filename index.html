@@ -2405,7 +2405,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='appr'?'on':''}" onclick="switchSettingsTab('appr')">✍ 결재라인 구성</button>
     <button class="stab ${SETTINGS_TAB==='notice'?'on':''}" onclick="switchSettingsTab('notice')">📢 공지사항</button>
     <button class="stab ${SETTINGS_TAB==='capa'?'on':''}" onclick="switchSettingsTab('capa')">⚙ CAPA 관리</button>
-    <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 기준시간 (2팀)</button>
+    <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 생산기준시간</button>
     <button class="stab ${SETTINGS_TAB==='matx'?'on':''}" onclick="switchSettingsTab('matx')">🚫 로스 제외품목</button>
     <button class="stab ${SETTINGS_TAB==='mailmsg'?'on':''}" onclick="switchSettingsTab('mailmsg')">✉ 결재 알림 문구</button>
   </div>
@@ -2576,40 +2576,203 @@ async function unlockUser(id){
 }
 
 /* --- 기준시간 관리 탭 (생산2팀 공정별 기준·계획 가동시간) --- */
+/* ════════════════════════════════════════════════════════════════════
+   생산기준시간 관리 (재설계) — 생산1팀 · 생산2팀 · 공통 모두 관리
+   · 팀 전환 시에만 서버 조회, 입력·편성률 계산은 전부 클라이언트 → 0ms
+   · 변경분 일괄 저장(stdSaveAll) : 공정 여러 개 입력 후 버튼 한 번
+   · 편성률(계획÷기준) 실시간 미리보기 — 입력 즉시 색상으로 판정
+   ════════════════════════════════════════════════════════════════════ */
 let STD_LIST=[];
-let STD_TEAM='생산2팀';   // 기준시간 관리 팀 선택
+const STD_TEAMS=['생산1팀','생산2팀','공통'];
+const STD_TEAMCLR={'생산1팀':'#2670c9','생산2팀':'#1a9d5c','공통':'#9b6dc9'};
+// 기본 팀 = 로그인 사용자 소속팀(생산1팀·생산2팀·공통 중), 없으면 생산1팀
+let STD_TEAM=(()=>{ const t=(typeof S!=='undefined'&&S&&S.user&&S.user.team)||''; return STD_TEAMS.includes(t)?t:'생산1팀'; })();
+
+function stdSetTeam(t){ STD_TEAM=t; renderStdTimeMgmt(); }
+
+/* 편성률 실시간 재계산 (서버 호출 없음) */
+function stdRecalc(i){
+  const st=Number(($('#std_'+i)||{}).value)||0;
+  const pl=Number(($('#plan_'+i)||{}).value)||0;
+  const cell=document.getElementById('stdratio_'+i);
+  if(cell){
+    if(st>0&&pl>0){
+      const r=pl/st*100;
+      const clr=r>100?'#b42318':(r>=90?'var(--grn)':(r>0?'#d97706':'var(--mut)'));
+      cell.innerHTML=`<b style="color:${clr}">${r.toFixed(1)}%</b>`;
+      cell.title=r>100?'계획시간이 기준시간을 초과합니다 (연장가동)':'';
+    }else{ cell.innerHTML='<span style="color:var(--mut)">–</span>'; cell.title=''; }
+  }
+  stdMarkDirty(i);
+}
+function stdMarkDirty(i){
+  const s=STD_LIST[i]; if(!s)return;
+  const st=Number(($('#std_'+i)||{}).value)||0;
+  const pl=Number(($('#plan_'+i)||{}).value)||0;
+  const dirty=(st!==(Number(s.std_hours)||0))||(pl!==(Number(s.plan_hours)||0));
+  const row=document.getElementById('stdrow_'+i);
+  if(row) row.classList.toggle('dirty',dirty);
+  stdUpdateDirtyBar();
+}
+function stdDirtyList(){
+  const out=[];
+  STD_LIST.forEach((s,i)=>{
+    const se=$('#std_'+i), pe=$('#plan_'+i);
+    if(!se||!pe)return;
+    const st=Number(se.value)||0, pl=Number(pe.value)||0;
+    if(st!==(Number(s.std_hours)||0)||pl!==(Number(s.plan_hours)||0)) out.push({i,st,pl,s});
+  });
+  return out;
+}
+function stdUpdateDirtyBar(){
+  const n=stdDirtyList().length;
+  const bar=$('#stdDirtyBar'); if(!bar)return;
+  bar.style.display=n?'flex':'none';
+  const c=$('#stdDirtyCnt'); if(c) c.textContent=n;
+}
+async function stdSaveAll(){
+  const jobs=stdDirtyList();
+  if(!jobs.length){ toast('변경된 값이 없습니다','err'); return; }
+  const btn=$('#stdSaveAllBtn'); if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
+  let ok=0; const fail=[];
+  for(const j of jobs){
+    try{
+      const {error}=await sb.rpc('set_std_time',{p_team:STD_TEAM,p_line:j.s.line,
+        p_std:j.st,p_plan:j.pl,p_active:j.s.active!==false});
+      if(error)throw error;
+      j.s.std_hours=j.st; j.s.plan_hours=j.pl; ok++;
+    }catch(e){ fail.push(j.s.line); }
+  }
+  if(btn){ btn.disabled=false; btn.textContent='변경분 일괄 저장'; }
+  if(fail.length) toast(`${ok}건 저장 · 실패 ${fail.length}건 (${fail.slice(0,3).join(', ')})`,'err');
+  else toast(`${ok}건 일괄 저장완료`,'ok');
+  renderStdTimeMgmt();
+}
+
 async function renderStdTimeMgmt(){
   $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
-  try{ const {data}=await sb.rpc('get_std_time',{p_team:STD_TEAM}); STD_LIST=data||[]; }
-  catch(e){ toast('생산기준시간 조회 실패: '+(e.message||e),'err'); STD_LIST=[]; }
-  const rows=STD_LIST.map((s,i)=>{
-    const off=s.active===false;
-    return `<tr style="${off?'opacity:.5':''}">
-      <td class="l"><b>${s.line}</b></td>
-      <td><input type="number" step="0.1" id="std_${i}" value="${s.std_hours||''}" placeholder="0" ${off?'disabled':''}
-        style="width:90px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-      <td><input type="number" step="0.1" id="plan_${i}" value="${s.plan_hours||''}" placeholder="0" ${off?'disabled':''}
-        style="width:90px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-      <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
-      <td style="white-space:nowrap">
-        <button class="rowbtn edit" ${off?'disabled':''} onclick="saveStd(${i})">저장</button>
-        <button class="rowbtn ${off?'act':'del'}" onclick="toggleStd(${i})">${off?'↻ 활성화':'비활성'}</button>
-      </td></tr>`;
+  let loadErr='';
+  try{ const {data,error}=await sb.rpc('get_std_time',{p_team:STD_TEAM}); if(error)throw error; STD_LIST=data||[]; }
+  catch(e){ loadErr=(e.message||String(e)); toast('생산기준시간 조회 실패: '+loadErr,'err'); STD_LIST=[]; }
+
+  const M={total:STD_LIST.length,
+           nostd:STD_LIST.filter(s=>!(Number(s.std_hours)>0)).length,
+           noplan:STD_LIST.filter(s=>!(Number(s.plan_hours)>0)).length,
+           off:STD_LIST.filter(s=>s.active===false).length};
+
+  const rows=STD_LIST.slice()
+    .sort((a,b)=>String(a.line||'').localeCompare(String(b.line||''),'ko'))
+    .map(s=>{
+      const i=STD_LIST.indexOf(s);
+      const off=s.active===false;
+      const st=Number(s.std_hours)||0, pl=Number(s.plan_hours)||0;
+      let ratio='<span style="color:var(--mut)">–</span>';
+      if(st>0&&pl>0){
+        const r=pl/st*100;
+        const clr=r>100?'#b42318':(r>=90?'var(--grn)':'#d97706');
+        ratio=`<b style="color:${clr}">${r.toFixed(1)}%</b>`;
+      }
+      return `<tr id="stdrow_${i}" class="std2-row ${off?'off':''}">
+        <td class="l"><b>${s.line}</b>${off?'<span class="std2-offb">비활성</span>':''}</td>
+        <td><span class="std2-in">
+          <input type="number" step="0.1" id="std_${i}" value="${st>0?st:''}" placeholder="0" ${off?'disabled':''}
+            oninput="stdRecalc(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();stdSaveAll();}">
+          <span class="u">hr</span>
+          ${!(st>0)&&!off?'<span class="std2-dot" title="기준시간 미입력 — 편성률 계산 불가">!</span>':''}
+        </span></td>
+        <td><span class="std2-in">
+          <input type="number" step="0.1" id="plan_${i}" value="${pl>0?pl:''}" placeholder="0" ${off?'disabled':''}
+            oninput="stdRecalc(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();stdSaveAll();}">
+          <span class="u">hr</span>
+        </span></td>
+        <td class="mono" id="stdratio_${i}">${ratio}</td>
+        <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="rowbtn edit" ${off?'disabled':''} onclick="saveStd(${i})" title="이 공정만 저장">저장</button>
+          <button class="rowbtn ${off?'act':'del'}" onclick="toggleStd(${i})">${off?'↻ 활성화':'비활성'}</button>
+        </td></tr>`;
+    }).join('');
+
+  const teamChips=STD_TEAMS.map(t=>{
+    const on=STD_TEAM===t, clr=STD_TEAMCLR[t]||'#6b7688';
+    return `<button class="std2-chip ${on?'on':''}" style="${on?`background:${clr};border-color:${clr};color:#fff`:''}" onclick="stdSetTeam('${t}')">${t}</button>`;
   }).join('');
-  const teamBtn=(t)=>`<button class="seg-btn ${STD_TEAM===t?'on':''}" onclick="STD_TEAM='${t}';renderStdTimeMgmt()">${t}</button>`;
+
+  const kpi=(lb,vl,clr,sb)=>`<div class="std2-kpi"><div class="k-lb">${lb}</div><div class="k-vl" style="color:${clr}">${vl}</div><div class="k-sb">${sb}</div></div>`;
+
+  const emptyMsg = loadErr
+    ? `<div style="padding:26px;border:1.5px solid #fda29b;background:#fef3f2;border-radius:12px;color:#912018;font-size:13px;line-height:1.7">
+         <b>조회 실패</b> — ${loadErr}<br>
+         get_std_time 함수가 <code>p_team</code> 인자를 받지 않거나 반환 타입이 바뀐 경우입니다. 관리자에게 함수 정의 확인을 요청하세요.
+       </div>`
+    : `<div style="padding:26px;border:1.5px dashed var(--line);border-radius:12px;color:var(--sub);font-size:13px;line-height:1.75;background:#fafbfd">
+         <b>${STD_TEAM}</b>에 등록된 공정이 없습니다.<br>
+         · 공정 목록은 <b>설정 → CAPA 관리</b>의 라인에서 만들어집니다. 해당 팀 라인이 CAPA 관리에 있는지 먼저 확인하세요.<br>
+         · CAPA 관리에는 있는데 여기가 비어 있으면 <code>get_std_time</code>이 팀 조건을 적용하지 못하는 경우입니다.
+       </div>`;
+
   $('#settingsBody').innerHTML=`
+  <style>
+  .std2-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:13px}
+  .std2-kpi{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 13px}
+  .std2-kpi .k-lb{font-size:11.5px;color:var(--mut);font-weight:700}
+  .std2-kpi .k-vl{font-size:25px;font-weight:900;line-height:1.15;margin-top:3px;font-variant-numeric:tabular-nums}
+  .std2-kpi .k-sb{font-size:10.5px;color:#98a2b3;margin-top:1px}
+  .std2-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f7f9fc;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;margin-bottom:12px}
+  .std2-chip{padding:6px 15px;border:1.5px solid var(--line);background:#fff;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.14s;color:var(--sub)}
+  .std2-chip:hover{border-color:#93b4e0}
+  .std2-dbar{display:none;align-items:center;gap:10px;position:sticky;top:0;z-index:20;background:#fff7e6;border:1.5px solid #f0c060;border-radius:11px;padding:9px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(180,120,0,.10)}
+  .std2-dbar .d-txt{font-size:12.5px;font-weight:800;color:#92600a}
+  .std2-row{transition:.14s}
+  .std2-row:hover{background:#f8fbff}
+  .std2-row.off{opacity:.55}
+  .std2-row.dirty{background:#fffaf0;box-shadow:inset 3px 0 0 #e8a33d}
+  .std2-offb{margin-left:7px;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:1px 6px}
+  .std2-in{display:inline-flex;align-items:center;gap:5px}
+  .std2-in input{width:88px;padding:7px 9px;border:1.5px solid var(--line);border-radius:7px;text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .std2-in input:focus{outline:none;border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.12)}
+  .std2-in .u{font-size:10.5px;color:#98a2b3;font-weight:700}
+  .std2-dot{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#fee4e2;color:#b42318;font-size:11px;font-weight:900;border:1px solid #fda29b}
+  @media(max-width:900px){.std2-kpis{grid-template-columns:repeat(2,1fr)}}
+  </style>
+
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ⏱ 공정별 <b>생산기준시간</b>(정규 가동시간)과 <b>계획시간</b>(당일 계획 가동시간)을 팀별로 관리합니다.<br>
-    · 편성률 = 계획시간 ÷ 기준시간 · 가동률 = 실적 ÷ 계획시간 · 마감 화면 ①요약에 자동 반영됩니다.
+    ⏱ 공정별 <b>생산기준시간</b>(정규 가동시간)과 <b>계획시간</b>(당일 계획 가동시간)을 <b>팀별로</b> 관리합니다.<br>
+    · <b>편성률 = 계획시간 ÷ 기준시간</b> · <b>가동률 = 실적시간 ÷ 계획시간</b> — 마감 화면 ①라인요약에 자동 반영됩니다.<br>
+    · 편성률이 100%를 넘으면 연장가동을 의미하며 <b style="color:#b42318">빨간색</b>으로 표시됩니다.<br>
+    · 공정 목록은 <b>CAPA 관리</b>의 라인에서 자동 생성됩니다(호기는 합산, 기준시간은 라인 단위).
   </div>
-  <div class="seg" style="margin-bottom:14px">${teamBtn('생산1팀')}${teamBtn('생산2팀')}</div>
+
+  <div class="std2-kpis">
+    ${kpi('공정',M.total,'#334155',STD_TEAM+' 라인')}
+    ${kpi('기준시간 미입력',M.nostd,M.nostd?'#b42318':'var(--grn)','편성률 계산 불가')}
+    ${kpi('계획시간 미입력',M.noplan,M.noplan?'#d97706':'var(--grn)','가동률 계산 불가')}
+    ${kpi('비활성',M.off,M.off?'#d97706':'var(--grn)','지표 제외')}
+  </div>
+
+  <div class="std2-bar">
+    <span class="seg-label">팀 선택</span>
+    ${teamChips}
+    <span style="margin-left:auto;font-size:11.5px;color:var(--mut)">여러 공정을 입력한 뒤 아래 일괄 저장 (Enter도 동일)</span>
+  </div>
+
+  <div class="std2-dbar" id="stdDirtyBar">
+    <span class="d-txt">✎ 미저장 변경 <b id="stdDirtyCnt">0</b>건</span>
+    <span style="margin-left:auto"></span>
+    <button class="tbtn save" id="stdSaveAllBtn" onclick="stdSaveAll()">변경분 일괄 저장</button>
+    <button class="rowbtn" onclick="renderStdTimeMgmt()">되돌리기</button>
+  </div>
+
+  ${STD_LIST.length?`
   <div class="sec"><div class="sec-hd"><span class="no c1">⏱</span><h3>${STD_TEAM} · 공정별 생산기준시간 · 계획시간</h3>
     <span class="desc">${STD_LIST.length}개 공정 · 단위 시간(hr)</span></div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>공정(라인)</th><th>기준시간(hr)</th><th>계획시간(hr)</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">'+STD_TEAM+' 공정 없음 (호기 CAPA에 라인이 등록되면 여기 표시됩니다)</td></tr>'}</tbody>
+      <thead><tr><th>공정(라인)</th><th>기준시간</th><th>계획시간</th><th>편성률</th><th>상태</th><th>관리</th></tr></thead>
+      <tbody>${rows}</tbody>
     </table></div>
-  </div>`;
+  </div>`:emptyMsg}
+  `;
+  stdUpdateDirtyBar();
 }
 async function saveStd(i){
   const s=STD_LIST[i]; if(!s)return;
@@ -2619,6 +2782,8 @@ async function saveStd(i){
     const {error}=await sb.rpc('set_std_time',{p_team:STD_TEAM,p_line:s.line,p_std:std,p_plan:plan,p_active:s.active!==false});
     if(error)throw error;
     s.std_hours=std; s.plan_hours=plan;
+    const row=document.getElementById('stdrow_'+i); if(row) row.classList.remove('dirty');
+    if(typeof stdUpdateDirtyBar==='function') stdUpdateDirtyBar();
     toast(`${s.line} 저장완료`,'ok');
     const b=document.querySelector(`button[onclick="saveStd(${i})"]`);
     if(b){const o=b.textContent;b.textContent='✓ 저장됨';b.style.cssText='background:var(--grn);color:#fff;border-color:var(--grn)';
@@ -2741,54 +2906,296 @@ async function deleteMatExclude(matCode,matName){
 /* --- 로스 제외품목 관리 탭 끝 --- */
 /* --- CAPA 관리 탭 (호기별 + 활성/비활성) --- */
 let CAPA_LIST=[];
+/* ════════════════════════════════════════════════════════════════════
+   CAPA 관리 (재설계) — 팀 > 라인 > 호기 3단 구조를 시각적으로 분리
+   · 서버 호출 1회(get_capa_list) 후 필터·검색은 전부 클라이언트 처리 → 0ms
+   · 변경분 일괄 저장(capaSaveAll) : 여러 호기 입력 후 버튼 한 번
+   · 미지정 호기 = 반제품(6xxx) 공정 : MES가 호기를 부여하지 않음 (정상)
+   ════════════════════════════════════════════════════════════════════ */
+let CAPA_UI={team:'ALL', q:'', filter:'all', fold:new Set()};
+const CAPA_TEAMCLR={'생산1팀':'#2670c9','생산2팀':'#1a9d5c','공통':'#9b6dc9'};
+const capaEsc=s=>String(s==null?'':s).replace(/'/g,"\\'");
+const capaIsOff=c=>(c.line_active===false)||c.active===false;
+const capaNoCapa=c=>!(Number(c.capa_hourly)>0);
+const capaNoHoki=c=>!String(c.hoki||'').trim();
+
 async function renderCapaMgmt(){
-  $('#settingsBody').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
+  $('#settingsBody').innerHTML='<div class="skel" style="height:320px;border-radius:14px"></div>';
   try{ const {data}=await sb.rpc('get_capa_list',{p_team:null}); CAPA_LIST=data||[]; }
   catch(e){ toast('CAPA 조회 실패: '+(e.message||e),'err'); CAPA_LIST=[]; }
+  CAPA_LIST.forEach((c,i)=>{ c._i=i; });          // 고정 인덱스 (saveCapa/toggleHoki 호환)
+  CAPA_UI.fold=new Set();
+  capaRenderBody();
+}
 
-  let offCnt=0; CAPA_LIST.forEach(c=>{ if(c.active===false||c.line_active===false)offCnt++; });
-  const teamCnt=new Set(CAPA_LIST.map(c=>c.team)).size;
-  const lineCnt=new Set(CAPA_LIST.map(c=>c.team+'||'+c.line)).size;
-  const esc=s=>String(s).replace(/'/g,"\\'");
+/* 필터·검색·접기 — 서버 재조회 없이 즉시 재렌더 */
+function capaSetTeam(t){ CAPA_UI.team=t; capaRenderBody(); }
+function capaSetFilter(f){ CAPA_UI.filter=(CAPA_UI.filter===f?'all':f); capaRenderBody(); }
+function capaSearch(v){ CAPA_UI.q=String(v||'').trim(); capaRenderBody(); }
+function capaFoldTeam(t){ if(CAPA_UI.fold.has(t))CAPA_UI.fold.delete(t); else CAPA_UI.fold.add(t); capaRenderBody(); }
+function capaFoldAll(open){
+  const teams=[...new Set(CAPA_LIST.map(c=>c.team))];
+  CAPA_UI.fold = open ? new Set() : new Set(teams);
+  capaRenderBody();
+}
 
-  // 팀 > 라인 > 호기 순 정렬 (한 줄씩)
-  const sorted=CAPA_LIST.map((c,i)=>({...c,_i:i}))
-    .sort((a,b)=>(a.team+a.line+(a.hoki||'')).localeCompare(b.team+b.line+(b.hoki||''),'ko'));
+/* 입력 변경 감지 → 미저장 건수 표시 */
+function capaMarkDirty(el){
+  const i=Number(el.dataset.idx); const c=CAPA_LIST[i]; if(!c)return;
+  const hv=Number(($('#capa_'+i)||{}).value)||0;
+  const dv=Number(($('#days_'+i)||{}).value)||0;
+  const dirty=(hv!==(Number(c.capa_hourly)||0))||(dv!==(Number(c.work_days_month)||22));
+  const row=document.getElementById('caprow_'+i);
+  if(row) row.classList.toggle('dirty',dirty);
+  capaUpdateDirtyBar();
+}
+function capaDirtyList(){
+  const out=[];
+  CAPA_LIST.forEach((c,i)=>{
+    const he=$('#capa_'+i), de=$('#days_'+i);
+    if(!he||!de)return;                                    // 필터로 화면에 없으면 제외
+    const hv=Number(he.value)||0, dv=Number(de.value)||0;
+    if(hv!==(Number(c.capa_hourly)||0)||dv!==(Number(c.work_days_month)||22)) out.push({i,hv,dv,c});
+  });
+  return out;
+}
+function capaUpdateDirtyBar(){
+  const n=capaDirtyList().length;
+  const bar=$('#capaDirtyBar'); if(!bar)return;
+  bar.style.display=n?'flex':'none';
+  const cnt=$('#capaDirtyCnt'); if(cnt) cnt.textContent=n;
+}
 
-  const teamColor={'생산1팀':'#2670c9','생산2팀':'#1a9d5c','공통':'#9b6dc9'};
-  const body=sorted.map(c=>{
-    const off=(c.line_active===false)||c.active===false;
-    const tc=teamColor[c.team]||'#6b7688';
-    return `<tr class="${off?'cap-off':''}">
-      <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#fff;background:${tc}">${c.team||'-'}</span></td>
-      <td class="l"><b>${c.line}</b></td>
-      <td class="l">${c.hoki?`<b>${c.hoki}</b>호기`:'<span style="color:var(--mut)">미지정</span>'}</td>
-      <td><input type="number" id="capa_${c._i}" value="${c.capa_hourly||''}" placeholder="0" ${off?'disabled':''}
-        style="width:110px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-      <td><input type="number" id="days_${c._i}" value="${c.work_days_month||22}" ${off?'disabled':''}
-        style="width:66px;padding:7px;border:1.5px solid var(--line);border-radius:7px;text-align:right"></td>
-      <td><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></td>
-      <td style="white-space:nowrap" class="cap-act">
-        <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${c._i})">저장</button>
-        <button class="rowbtn ${c.active===false?'act':'del'}" ${c.line_active===false?'disabled':''}
-          onclick="toggleHoki(${c._i})">${c.active===false?'↻ 활성화':'비활성'}</button>
-        <button class="rowbtn ${c.line_active===false?'act':'del'}" onclick="toggleLine('${esc(c.team)}','${esc(c.line)}',${c.line_active===false})">${c.line_active===false?'↻ 라인ON':'라인OFF'}</button>
-      </td></tr>`;
+/* 변경분 일괄 저장 */
+async function capaSaveAll(){
+  const jobs=capaDirtyList();
+  if(!jobs.length){ toast('변경된 값이 없습니다','err'); return; }
+  const btn=$('#capaSaveAllBtn'); if(btn){ btn.disabled=true; btn.textContent='저장 중…'; }
+  let ok=0; const fail=[];
+  for(const j of jobs){
+    try{
+      const {error}=await sb.rpc('set_capa',{p_team:j.c.team,p_line:j.c.line,p_hoki:j.c.hoki||'',
+        p_hourly:j.hv,p_days:j.dv,p_active:j.c.active!==false});
+      if(error)throw error;
+      j.c.capa_hourly=j.hv; j.c.work_days_month=j.dv; ok++;
+    }catch(e){ fail.push(`${j.c.line}${j.c.hoki?' '+j.c.hoki+'호기':''}`); }
+  }
+  if(btn){ btn.disabled=false; btn.textContent='변경분 일괄 저장'; }
+  if(fail.length) toast(`${ok}건 저장 · 실패 ${fail.length}건 (${fail.slice(0,3).join(', ')})`,'err');
+  else toast(`${ok}건 일괄 저장완료`,'ok');
+  capaRenderBody();
+}
+
+/* ── 본체 렌더 ── */
+function capaRenderBody(){
+  const L=CAPA_LIST||[];
+  const teams=[...new Set(L.map(c=>c.team))].sort((a,b)=>String(a).localeCompare(String(b),'ko'));
+  // 스코어카드 지표 (전체 기준)
+  const M={total:L.length, nocapa:L.filter(capaNoCapa).length, nohoki:L.filter(capaNoHoki).length,
+           off:L.filter(capaIsOff).length,
+           lines:new Set(L.map(c=>c.team+'||'+c.line)).size, teams:teams.length};
+
+  // 필터 적용
+  const q=CAPA_UI.q.toLowerCase();
+  const view=L.filter(c=>{
+    if(CAPA_UI.team!=='ALL' && c.team!==CAPA_UI.team) return false;
+    if(q && !String(c.line||'').toLowerCase().includes(q)) return false;
+    if(CAPA_UI.filter==='nocapa' && !capaNoCapa(c)) return false;
+    if(CAPA_UI.filter==='nohoki' && !capaNoHoki(c)) return false;
+    if(CAPA_UI.filter==='off'    && !capaIsOff(c))  return false;
+    return true;
+  });
+
+  const card=(key,label,val,clr,sub)=>{
+    const on=CAPA_UI.filter===key;
+    const clickable=['nocapa','nohoki','off'].includes(key);
+    return `<div class="cap2-kpi ${on?'on':''} ${clickable?'clk':''}" ${clickable?`onclick="capaSetFilter('${key}')"`:''} title="${clickable?'클릭하면 이 항목만 필터링':''}">
+      <div class="k-lb">${label}</div>
+      <div class="k-vl" style="color:${clr}">${val}</div>
+      <div class="k-sb">${sub||''}</div>
+    </div>`;
+  };
+
+  // 팀 > 라인 그룹화
+  const groups={};
+  view.forEach(c=>{
+    const g=(groups[c.team]=groups[c.team]||{});
+    (g[c.line]=g[c.line]||[]).push(c);
+  });
+
+  const teamBlocks=Object.keys(groups).sort((a,b)=>String(a).localeCompare(String(b),'ko')).map(tm=>{
+    const tc=CAPA_TEAMCLR[tm]||'#6b7688';
+    const lineKeys=Object.keys(groups[tm]).sort((a,b)=>String(a).localeCompare(String(b),'ko'));
+    const hokiTot=lineKeys.reduce((a,k)=>a+groups[tm][k].length,0);
+    const folded=CAPA_UI.fold.has(tm);
+
+    const lineCards=lineKeys.map(ln=>{
+      const rows=groups[tm][ln].slice().sort((a,b)=>{
+        const ah=String(a.hoki||''), bh=String(b.hoki||'');
+        if(!ah&&bh)return -1; if(ah&&!bh)return 1;      // 미지정 먼저
+        return ah.localeCompare(bh,'ko',{numeric:true});
+      });
+      const lineOff=rows.some(r=>r.line_active===false);
+      const filled=rows.filter(r=>!capaNoCapa(r)).length;
+      const pct=rows.length?Math.round(filled/rows.length*100):0;
+      const ref=rows[0];
+
+      const hokiRows=rows.map(c=>{
+        const i=c._i, off=capaIsOff(c), nh=capaNoHoki(c);
+        return `<div class="cap2-row ${off?'off':''}" id="caprow_${i}">
+          <div class="c-hoki">${nh
+            ? `<span class="hk none" title="반제품(6xxx) 공정 — MES가 호기를 부여하지 않습니다">미지정</span>`
+            : `<span class="hk num">${c.hoki}<small>호기</small></span>`}</div>
+          <div class="c-in">
+            <input type="number" id="capa_${i}" data-idx="${i}" value="${Number(c.capa_hourly)>0?c.capa_hourly:''}" placeholder="0" ${off?'disabled':''}
+              oninput="capaMarkDirty(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();capaSaveAll();}">
+            <span class="unit">kg/hr</span>
+            ${capaNoCapa(c)&&!off?`<span class="warn-dot" title="CAPA 미입력 — 성능가동률 계산 불가">!</span>`:''}
+          </div>
+          <div class="c-in sm">
+            <input type="number" id="days_${i}" data-idx="${i}" value="${c.work_days_month||22}" ${off?'disabled':''}
+              oninput="capaMarkDirty(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();capaSaveAll();}">
+            <span class="unit">일</span>
+          </div>
+          <div class="c-st"><span class="cap-badge ${off?'off':'on'}">${off?'비활성':'활성'}</span></div>
+          <div class="c-act">
+            <button class="rowbtn edit" ${off?'disabled':''} onclick="saveCapa(${i})" title="이 호기만 저장">저장</button>
+            <button class="rowbtn ${c.active===false?'act':'del'}" ${c.line_active===false?'disabled':''} onclick="toggleHoki(${i})">${c.active===false?'↻ 활성화':'비활성'}</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<div class="cap2-line ${lineOff?'lineoff':''}">
+        <div class="cap2-lhd">
+          <div class="l-name">${ln}${lineOff?'<span class="l-offbadge">라인 비활성</span>':''}</div>
+          <div class="l-meta">
+            <span class="l-cnt">호기 ${rows.length}</span>
+            <span class="l-prog" title="CAPA 입력 완료 ${filled}/${rows.length}">
+              <b style="color:${pct===100?'var(--grn)':pct>0?'#d97706':'var(--red)'}">${filled}/${rows.length}</b>
+              <i><em style="width:${pct}%;background:${pct===100?'var(--grn)':pct>0?'#d97706':'var(--red)'}"></em></i>
+            </span>
+            <button class="rowbtn ${lineOff?'act':'del'}" onclick="toggleLine('${capaEsc(tm)}','${capaEsc(ln)}',${lineOff})">${lineOff?'↻ 라인 ON':'라인 OFF'}</button>
+          </div>
+        </div>
+        <div class="cap2-rhd"><div>호기</div><div>시간당 생산능력</div><div>월 가동일수</div><div>상태</div><div>관리</div></div>
+        ${hokiRows}
+      </div>`;
+    }).join('');
+
+    return `<div class="cap2-team">
+      <div class="cap2-thd" onclick="capaFoldTeam('${capaEsc(tm)}')" title="클릭하면 접기/펼치기">
+        <span class="t-badge" style="background:${tc}">${tm}</span>
+        <span class="t-meta">라인 ${lineKeys.length} · 호기 ${hokiTot}</span>
+        <span class="t-fold">${folded?'▸ 펼치기':'▾ 접기'}</span>
+      </div>
+      ${folded?'':`<div class="cap2-lines">${lineCards}</div>`}
+    </div>`;
   }).join('');
 
+  const teamChips=['ALL',...teams].map(t=>{
+    const on=CAPA_UI.team===t;
+    const clr=t==='ALL'?'#334155':(CAPA_TEAMCLR[t]||'#6b7688');
+    const n=t==='ALL'?L.length:L.filter(c=>c.team===t).length;
+    return `<button class="cap2-chip ${on?'on':''}" style="${on?`background:${clr};border-color:${clr};color:#fff`:''}" onclick="capaSetTeam('${capaEsc(t)}')">${t==='ALL'?'전체':t}<b>${n}</b></button>`;
+  }).join('');
+
+  const filterKo={all:'',nocapa:'CAPA 미입력',nohoki:'미지정 호기',off:'비활성'}[CAPA_UI.filter];
+
   $('#settingsBody').innerHTML=`
+  <style>
+  .cap2-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+  .cap2-kpi{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:12px 13px;transition:.16s;position:relative;overflow:hidden}
+  .cap2-kpi.clk{cursor:pointer}
+  .cap2-kpi.clk:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(15,30,60,.10);border-color:#c7d3e6}
+  .cap2-kpi.on{border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.13)}
+  .cap2-kpi .k-lb{font-size:11.5px;color:var(--mut);font-weight:700;letter-spacing:-.2px}
+  .cap2-kpi .k-vl{font-size:25px;font-weight:900;line-height:1.15;margin-top:3px;font-variant-numeric:tabular-nums}
+  .cap2-kpi .k-sb{font-size:10.5px;color:#98a2b3;margin-top:1px}
+  .cap2-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f7f9fc;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;margin-bottom:12px}
+  .cap2-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1.5px solid var(--line);background:#fff;border-radius:20px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.14s;color:var(--sub)}
+  .cap2-chip:hover{border-color:#93b4e0}
+  .cap2-chip b{font-size:11px;opacity:.75;font-weight:800}
+  .cap2-srch{flex:1;min-width:150px;padding:7px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:13px}
+  .cap2-dbar{display:none;align-items:center;gap:10px;position:sticky;top:0;z-index:20;background:#fff7e6;border:1.5px solid #f0c060;border-radius:11px;padding:9px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(180,120,0,.10)}
+  .cap2-dbar .d-txt{font-size:12.5px;font-weight:800;color:#92600a}
+  .cap2-team{margin-bottom:14px;border:1.5px solid var(--line);border-radius:13px;background:#fff;overflow:hidden}
+  .cap2-thd{display:flex;align-items:center;gap:10px;padding:11px 14px;background:linear-gradient(180deg,#fbfcfe,#f4f7fb);border-bottom:1.5px solid var(--line);cursor:pointer;user-select:none}
+  .cap2-thd:hover{background:linear-gradient(180deg,#f4f8ff,#eaf1fb)}
+  .t-badge{display:inline-block;padding:4px 12px;border-radius:7px;font-size:12.5px;font-weight:800;color:#fff}
+  .t-meta{font-size:12px;color:var(--mut);font-weight:600}
+  .t-fold{margin-left:auto;font-size:11.5px;color:#8a94a6;font-weight:700}
+  .cap2-lines{padding:11px 12px;display:grid;gap:11px}
+  .cap2-line{border:1.5px solid #e5eaf3;border-radius:11px;overflow:hidden;background:#fdfefe}
+  .cap2-line.lineoff{opacity:.62;background:#f7f8fa}
+  .cap2-lhd{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#f2f6fc;border-bottom:1px solid #e5eaf3;flex-wrap:wrap}
+  .l-name{font-size:13.5px;font-weight:800;color:#1f2937;letter-spacing:-.2px}
+  .l-offbadge{margin-left:7px;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:1px 6px}
+  .l-meta{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .l-cnt{font-size:11.5px;color:var(--mut);font-weight:700}
+  .l-prog{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800}
+  .l-prog i{display:inline-block;width:52px;height:5px;background:#e3e8f0;border-radius:3px;overflow:hidden}
+  .l-prog i em{display:block;height:100%;border-radius:3px;transition:.3s}
+  .cap2-rhd,.cap2-row{display:grid;grid-template-columns:96px minmax(170px,1fr) 128px 74px 190px;gap:8px;align-items:center;padding:7px 12px}
+  .cap2-rhd{font-size:10.5px;font-weight:800;color:#8a94a6;letter-spacing:-.2px;background:#fafbfd;border-bottom:1px solid #eef1f6}
+  .cap2-row{border-bottom:1px solid #f1f4f9;transition:.14s}
+  .cap2-row:last-child{border-bottom:none}
+  .cap2-row:hover{background:#f8fbff}
+  .cap2-row.off{opacity:.55}
+  .cap2-row.dirty{background:#fffaf0;box-shadow:inset 3px 0 0 #e8a33d}
+  .hk{display:inline-block;font-size:12px;font-weight:800;border-radius:7px;padding:3px 9px}
+  .hk.num{background:#e8f1fd;color:#1c5fb0;border:1px solid #bcd6f5}
+  .hk.num small{font-size:10px;font-weight:700;opacity:.8;margin-left:1px}
+  .hk.none{background:#f1f3f7;color:#7b8595;border:1px dashed #c9d1de}
+  .c-in{display:flex;align-items:center;gap:5px}
+  .c-in input{width:100%;max-width:118px;padding:7px 9px;border:1.5px solid var(--line);border-radius:7px;text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .c-in.sm input{max-width:56px}
+  .c-in input:focus{outline:none;border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.12)}
+  .c-in .unit{font-size:10.5px;color:#98a2b3;font-weight:700;white-space:nowrap}
+  .warn-dot{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#fee4e2;color:#b42318;font-size:11px;font-weight:900;border:1px solid #fda29b}
+  .c-act{display:flex;gap:5px;justify-content:flex-end}
+  @media(max-width:1100px){
+    .cap2-kpis{grid-template-columns:repeat(3,1fr)}
+    .cap2-rhd{display:none}
+    .cap2-row{grid-template-columns:1fr 1fr;row-gap:6px}
+    .c-act{grid-column:1/3;justify-content:flex-start}
+  }
+  </style>
+
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ℹ <b>호기별</b> 시간당 생산능력(kg/hr)을 입력하면 성능가동률이 계산됩니다. (예: EP 1호기·2호기 능력이 다를 때)<br>
-    · <b>비활성</b> 처리하면 해당 호기(또는 라인 전체)는 <b>계획·실적·가동시간·비가동·생산량 등 모든 지표에서 제외</b>됩니다.<br>
-    · 성능가동률 = 실제 생산량 ÷ (호기 CAPA 합계 × 실제 가동시간) × 100
+    ℹ <b>호기별</b> 시간당 생산능력(kg/hr)을 입력하면 성능가동률이 계산됩니다. 성능가동률 = 실제 생산량 ÷ (호기 CAPA 합계 × 실제 가동시간) × 100<br>
+    · <b>미지정</b> 호기는 <b>반제품(6xxx) 공정</b>입니다. MES가 반제품 행에 호기를 부여하지 않아 생기는 <b>정상 항목</b>이며 삭제 대상이 아닙니다.<br>
+    · <b>비활성</b> 처리하면 해당 호기(또는 라인 전체)는 계획·실적·가동시간·비가동·생산량 등 <b>모든 지표에서 제외</b>됩니다.<br>
+    · 라인 목록은 계획 업로드 시 <b>자동 누적</b>됩니다(삭제되지 않음) — 과거·신규 데이터를 모두 추적하기 위한 설계입니다.
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no c1">⚙</span><h3>팀·라인·호기별 CAPA · 활성 관리</h3>
-    <span class="desc">${teamCnt}팀 · ${lineCnt}개 라인 · ${CAPA_LIST.length}개 호기${offCnt?` · <b style="color:var(--red)">비활성 ${offCnt}</b>`:''}</span></div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>팀</th><th>라인</th><th>호기</th><th>시간당 능력(kg/hr)</th><th>월 가동일수</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>${body||'<tr><td colspan="7" style="color:var(--mut);padding:16px">라인 없음</td></tr>'}</tbody>
-    </table></div>
-  </div>`;
+
+  <div class="cap2-kpis">
+    ${card('teams','팀',M.teams,'#334155','등록된 팀')}
+    ${card('lines','라인',M.lines,'#334155','공정 라인')}
+    ${card('total','호기',M.total,'#334155','전체 항목')}
+    ${card('nocapa','CAPA 미입력',M.nocapa,M.nocapa?'#b42318':'var(--grn)','가동률 계산 불가')}
+    ${card('nohoki','미지정 호기',M.nohoki,'#7b8595','반제품 공정')}
+    ${card('off','비활성',M.off,M.off?'#d97706':'var(--grn)','지표 제외')}
+  </div>
+
+  <div class="cap2-bar">
+    ${teamChips}
+    <input class="cap2-srch" id="capaSrch" value="${CAPA_UI.q.replace(/"/g,'&quot;')}" placeholder="라인명 검색 (예: 포장, EP, 오븐)" oninput="capaSearch(this.value)">
+    ${filterKo?`<button class="cap2-chip on" style="background:#b42318;border-color:#b42318;color:#fff" onclick="capaSetFilter('${CAPA_UI.filter}')">${filterKo} 해제 ✕</button>`:''}
+    <button class="rowbtn" onclick="capaFoldAll(true)">전체 펼치기</button>
+    <button class="rowbtn" onclick="capaFoldAll(false)">전체 접기</button>
+  </div>
+
+  <div class="cap2-dbar" id="capaDirtyBar">
+    <span class="d-txt">✎ 미저장 변경 <b id="capaDirtyCnt">0</b>건</span>
+    <span style="font-size:11.5px;color:#a07a20">여러 호기를 입력한 뒤 한 번에 저장할 수 있습니다 (Enter도 동일)</span>
+    <span style="margin-left:auto"></span>
+    <button class="tbtn save" id="capaSaveAllBtn" onclick="capaSaveAll()">변경분 일괄 저장</button>
+    <button class="rowbtn" onclick="capaRenderBody()">되돌리기</button>
+  </div>
+
+  ${teamBlocks||`<div style="padding:34px;text-align:center;color:var(--mut);font-size:13px;border:1.5px dashed var(--line);border-radius:12px">조건에 맞는 라인이 없습니다.${filterKo?' 필터를 해제해 보세요.':''}</div>`}
+  `;
+  capaUpdateDirtyBar();
 }
 async function saveCapa(i){
   const c=CAPA_LIST[i]; if(!c)return;
@@ -2799,6 +3206,8 @@ async function saveCapa(i){
       p_hourly:hourly,p_days:days,p_active:c.active!==false});
     if(error)throw error;
     c.capa_hourly=hourly; c.work_days_month=days;
+    const row=document.getElementById('caprow_'+i); if(row) row.classList.remove('dirty');
+    if(typeof capaUpdateDirtyBar==='function') capaUpdateDirtyBar();
     toast(`${c.line}${c.hoki?' '+c.hoki+'호기':''} 저장완료`,'ok');
     // 버튼에 잠깐 체크 표시 → 저장됐음을 눈으로 확인
     const btns=document.querySelectorAll(`button[onclick="saveCapa(${i})"]`);
@@ -3238,6 +3647,20 @@ async function checkUpload(){
     const {data,error}=await sb.rpc('check_plan_impact',{p_rows:rows});
     if(error)throw error;
     let warn='';
+    // ── 공정(proc_sub1/proc_sub2) 이상 경고 : "/주식" 유형 쓰레기 라인 사전 차단 ──
+    const IS=LAST_PARSE_ISSUES||{fixed:[],blank:[]};
+    if(IS.fixed.length>0){
+      warn+=`🔧 공정 미분리 ${IS.fixed.length}행을 자동 보정했습니다 (공정명 "_" 기준 분리):\n`
+          + IS.fixed.slice(0,5).map(t=>'   · '+t).join('\n')
+          + (IS.fixed.length>5?`\n   · … 외 ${IS.fixed.length-5}행`:'')+'\n\n';
+    }
+    if(IS.blank.length>0){
+      warn+=`🔴 공정(대분류/소분류)이 비어 있는 ${IS.blank.length}행이 있습니다:\n`
+          + IS.blank.slice(0,5).map(t=>'   · '+t).join('\n')
+          + (IS.blank.length>5?`\n   · … 외 ${IS.blank.length-5}행`:'')
+          + `\n   → 그대로 올리면 "/공정명" 형태의 잘못된 라인이 생깁니다.\n`
+          + `   → 원본 엑셀의 공정 컬럼(N·O)을 채운 뒤 다시 붙여넣는 것을 권장합니다.\n\n`;
+    }
     if(data.done_count>0) warn+=`🔴 결재 완료된 마감 ${data.done_count}건이 포함됩니다: ${data.done_dates}\n   → 덮어쓰면 완료된 계획·실적이 변경됩니다. 작성한 로스·불량·비가동·인원은 유지됩니다.\n\n`;
     if(data.submitted_count>0) warn+=`🟡 결재 진행중 마감 ${data.submitted_count}건이 포함됩니다.\n   → 계획·실적이 변경됩니다.\n\n`;
     if(data.scrap_count>0) warn+=`ℹ 기존 로스 사유 ${data.scrap_count}건 범위입니다. 편차가 사라진 자재의 사유는 자동 정리됩니다.\n\n`;
@@ -3269,7 +3692,10 @@ async function doUpload(rows){
   }
 }
 /* 붙여넣기 파싱: 탭 구분 15컬럼 (작업일자 포함) → JSON 배열 */
+/* 업로드 파싱 중 발견된 공정(proc_sub1/proc_sub2) 이상 행 기록 — checkUpload에서 표시 */
+let LAST_PARSE_ISSUES={fixed:[],blank:[]};
 function parsePaste(text){
+  LAST_PARSE_ISSUES={fixed:[],blank:[]};
   const num=v=>{const n=Number(String(v).replace(/,/g,'').trim());return isNaN(n)?0:n;};
   const cleanTeam=t=>String(t).trim().replace(/생산\s+/,'생산').replace(/\s/g,'');
   const normDate=d=>{
@@ -3284,13 +3710,32 @@ function parsePaste(text){
     if(!line.trim())return;
     const c=line.split('\t');
     if(c.length<15)return;  // 15컬럼 필요
-    out.push({
+    const r={
       work_date:normDate(c[0]), team:cleanTeam(c[1]), process:c[2].trim(),
       prod_code:c[3].trim(), prod_name:c[4].trim(), hoki:c[5].trim(),
       mat_code:c[6].trim(), mat_name:c[7].trim(), mat_type:c[8].trim(),
       plan_qty:num(c[9]), actual_qty:num(c[10]), diff:num(c[11]), mat_unit:c[12].trim(),
       proc_sub1:c[13].trim(), proc_sub2:c[14].trim()
-    });
+    };
+    // ── 공정 정규화 : MES가 proc_sub1을 비운 채 내보내는 행 자동 보정 ──
+    // 예: 공정="주식_포장 공정", proc_sub1="", proc_sub2="주식"  →  proc_sub1="주식", proc_sub2="포장"
+    // "/주식" 같은 쓰레기 라인이 m_capa·대시보드에 등록되는 것을 업로드 시점에 차단
+    if(!r.proc_sub1 || !r.proc_sub2){
+      const before=`${r.proc_sub1}/${r.proc_sub2}`;
+      const parts=(r.process||'').split('_').map(x=>x.trim()).filter(Boolean);
+      if(parts.length>=2){
+        const s1=parts[0];
+        const s2=parts.slice(1).join('_').replace(/\s*공정\s*$/,'').trim();
+        if(s1&&s2){
+          r.proc_sub1=s1; r.proc_sub2=s2;
+          LAST_PARSE_ISSUES.fixed.push(`${r.work_date} ${r.team} ${r.prod_code} · 공정"${r.process}" : ${before} → ${s1}/${s2}`);
+        }
+      }
+      if(!r.proc_sub1 || !r.proc_sub2){
+        LAST_PARSE_ISSUES.blank.push(`${r.work_date} ${r.team} ${r.prod_code} ${r.prod_name} · 공정"${r.process}" : ${r.proc_sub1}/${r.proc_sub2}`);
+      }
+    }
+    out.push(r);
   });
   return out;
 }
@@ -3986,26 +4431,46 @@ function buildSection2(){
           ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
         </td>`
       : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt(oPlan)}</td>`;
-    return `<tr data-ord="${o.prod_code}">
+    // 계획 미입력(MES 부실) 판정: 계획 0 이하인데 실적은 존재 → 달성률 산출 불가
+    const noPlan = (oPlan<=0 && oAct>0);
+    const noPlanBadge = noPlan
+      ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:4px;padding:1px 5px;vertical-align:1px" title="MES 계획이 없어 달성률을 낼 수 없습니다. 계획(KG)을 입력해 주세요">계획없음</span>` : '';
+    const achCell = noPlan
+      ? `<td class="mono" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
+      : `<td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`;
+    return `<tr data-ord="${o.prod_code}"${noPlan?' style="background:#fffbfa"':''}>
       <td class="mono">${o.prod_code}</td>
-      <td class="l">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}</td>
+      <td class="l">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}${noPlanBadge}</td>
       ${planCell}
       <td class="mono">${fmt(oAct)}</td>
-      <td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>
+      ${achCell}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
     </tr>`;
   }).join('');
-  const procTabs=procs.map((p,i)=>`<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b></button>`).join('');
+  const procTabs=procs.map((p,i)=>{
+    const np=(byProc[p]||[]).filter(o=>Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
+    return `<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b>${np?`<b class="pt-cnt" style="background:#fee4e2;color:#b42318" title="계획 미입력 ${np}건">!${np}</b>`:''}</button>`;
+  }).join('');
+  // 현재 탭(완/반) 전체 기준 계획 미입력 건수
+  const noPlanCnt=kindOrders.filter(o=>Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
+  const noPlanBar = noPlanCnt
+    ? `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
+        ⚠ <b>계획 미입력 ${noPlanCnt}건</b> — MES에 계획(KG)이 없어 달성률을 낼 수 없는 오더입니다.
+        해당 행의 <b>계획(KG)</b> 칸에 값을 입력하고 아래 <b>[투입공수 · 계획 저장]</b>을 한 번 누르면 <b>여러 건이 한꺼번에</b> 저장됩니다.
+        (행별 <b>적용</b> 버튼 또는 <b>Enter</b>로 한 건씩 저장도 가능)
+       </div>` : '';
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
     <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
+    ${noPlanCnt?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
     <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
     <div class="tabbar">
       <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
       <button class="tab ${T2_ORD==='semi'?'on':''}" onclick="switchT2Ord('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
     </div>
     ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
+    ${noPlanBar}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
