@@ -1445,7 +1445,7 @@ function ymRange(ym){
 }
 async function openTeamReport(team,ym){
   const {from,to}=ymRange(ym);
-  TR={team,from,to,ym,unit:'day',kind:null,charts:[]};
+  TR={team,from,to,ym,unit:'day',kind:'fin',charts:[]};   // 기본 완제품 — 반제품은 공정마다 재집계되어 중복
   S.view='teamreport';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
   await loadTeamReport();
@@ -1455,18 +1455,22 @@ async function loadTeamReport(){
   const teamParam = TR.team==='전체' ? null : TR.team;
   const p={p_team:teamParam,p_from:TR.from,p_to:TR.to,p_kind:TR.kind};
   try{
-    const [sum,trend,lines]=await Promise.all([
+    const [sum,trend,lines,yld]=await Promise.all([
       sb.rpc('report_summary',p),
       sb.rpc('report_trend',{...p,p_unit:TR.unit}),
-      sb.rpc('team_line_detail',{p_team:teamParam||TR.team,p_from:TR.from,p_to:TR.to})
+      sb.rpc('team_line_detail',{p_team:teamParam||TR.team,p_from:TR.from,p_to:TR.to}),
+      // 수율은 WIP(반제품 이월) 때문에 일별로는 의미가 없어 최소 주 단위로 집계
+      sb.rpc('yield_trend',{p_team:teamParam,p_from:TR.from,p_to:TR.to,p_unit:(TR.unit==='month'?'month':'week')})
     ]);
     const s=sum.data||{}, dd=trend.data||[], ld=lines.data||[];
+    const yd=(yld&&!yld.error&&yld.data)?yld.data:[];
     const teamBtns=['전체','생산1팀','생산2팀','공통'].map(t=>
       `<button class="seg-btn ${TR.team===t?'on':''}" onclick="setTRTeam('${t}')">${t}</button>`).join('');
     const unitBtns=[['day','일 단위'],['week','주 단위'],['month','월 단위']].map(([u,label])=>
       `<button class="seg-btn ${TR.unit===u?'on':''}" onclick="setTRUnit('${u}')">${label}</button>`).join('');
+    const kindTip={'':'완제품+반제품 단순 합산 — 반제품이 공정마다 재집계되어 실제보다 큽니다(참고용)','fin':'완제품(2·3번대) 기준 — 실제 최종 생산량','semi':'반제품(6번대) 기준 — 공정 중복 포함'};
     const kindBtns=[['','전체'],['fin','완제품'],['semi','반제품']].map(([k,label])=>
-      `<button class="seg-btn ${(TR.kind||'')===k?'on':''}" onclick="setTRKind('${k}')">${label}</button>`).join('');
+      `<button class="seg-btn ${(TR.kind||'')===k?'on':''}" onclick="setTRKind('${k}')" title="${kindTip[k]}">${label}${k===''?' <span style="font-size:9px;color:#c2410c">참고</span>':''}</button>`).join('');
     $('#wrap').innerHTML=`
     <div class="tr-hero">
       <div><div class="tr-crumb" onclick="go('cal')" style="cursor:pointer">← 뒤로 · 캘린더</div>
@@ -1485,14 +1489,83 @@ async function loadTeamReport(){
       <div class="seg"><span class="seg-label">구분</span>${kindBtns}</div>
     </div>
 
+    ${(()=>{
+      // 완제품(2·3번대) 기준이 실제 최종 생산량. 반제품(6번대)은 공정마다 재계상되므로 참고값.
+      const finA=Number(s.fin_actual??s.actual_sum??0), finP=Number(s.fin_plan??s.plan_sum??0);
+      const semiA=Number(s.semi_actual??0),             semiP=Number(s.semi_plan??0);
+      const finAch=(s.fin_achieve!=null)?Number(s.fin_achieve):(finP>0?Math.round(finA/finP*1000)/10:0);
+      const days=Number(s.work_days||0);
+      const t=v=>(Number(v)/1000).toFixed(1)+'t';
+      const semiTip='반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 다시 집계되어 공정 중복이 포함된 참고값입니다.';
+      return `
     <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="sc"><div class="l">작성 일보수</div><div class="v mono">${s.work_days||0}<span style="font-size:11px">건</span></div></div>
-      <div class="sc b"><div class="l">총 생산량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(s.actual_sum))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc"><div class="l">총 계획량</div><div class="v mono" style="font-size:16px">${fmt(Math.round(s.plan_sum))}<span style="font-size:10px">KG</span></div></div>
-      <div class="sc ${s.achieve>=100?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${s.achieve||0}%</div></div>
-      <div class="sc"><div class="l">완제품 실적</div><div class="v mono" style="font-size:15px">${fmt(Math.round(s.fin_actual))}<span style="font-size:10px">KG</span></div></div>
+      <div class="sc"><div class="l">작성 일보수</div><div class="v mono">${days}<span style="font-size:11px">건</span></div></div>
+      <div class="sc b"><div class="l">총 생산량 <span style="font-size:9.5px;color:#98a2b3;font-weight:700">완제품</span></div>
+        <div class="v mono" style="font-size:16px">${fmt(Math.round(finA))}<span style="font-size:10px">KG</span></div>
+        <div class="sc-sub" title="${semiTip}">[반제품 ${t(semiA)} · 중복포함]</div></div>
+      <div class="sc"><div class="l">총 계획량 <span style="font-size:9.5px;color:#98a2b3;font-weight:700">완제품</span></div>
+        <div class="v mono" style="font-size:16px">${fmt(Math.round(finP))}<span style="font-size:10px">KG</span></div>
+        <div class="sc-sub" title="${semiTip}">[반제품 ${t(semiP)} · 중복포함]</div></div>
+      <div class="sc ${finAch>=100?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${finAch||0}%</div>
+        <div class="sc-sub">완제품 기준</div></div>
+      <div class="sc ${(()=>{const y=Number(s.yield_rate);return !isFinite(y)||s.yield_rate==null?'':(y>=95?'g':y>=85?'':'r');})()}">
+        <div class="l">종합수율 <span style="font-size:9.5px;color:#98a2b3;font-weight:700">누계</span></div>
+        <div class="v mono" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (조회기간 누계·물량가중). 일별로는 반제품 이월(WIP) 때문에 100%를 넘나들어 기간 누계로만 표시합니다.">${s.yield_rate!=null?Number(s.yield_rate).toFixed(1)+'%':'–'}</div>
+        <div class="sc-sub">완제품 SKU ${s.fin_sku!=null?s.fin_sku:'–'}${Number(s.raw_input)>0?` · 원자재 ${t(s.raw_input)}`:''}</div></div>
       <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:14px">${fmtWon(s.net_loss)}</div></div>
-    </div>
+    </div>`;
+    })()}
+
+    ${(()=>{
+      // ── 종합수율 : 원자재 투입 → 완제품 산출 ──
+      const raw=Number(s.raw_input||0), out=Number(s.yield_out||0);
+      if(!(raw>0)) return `<div class="sec"><div class="sec-hd"><span class="no c1">%</span><h3>종합수율 · 원자재 투입 대비 산출</h3></div>
+        <div class="sec-bd" style="padding:22px;color:var(--mut);font-size:13px;line-height:1.7">
+          수율 데이터가 없습니다. <b>report_summary</b> v4 · <b>yield_trend</b> 함수가 적용되었는지 확인하세요.
+        </div></div>`;
+      const yr=Number(s.yield_rate||0), lossKg=raw-out;
+      const clr=yr>=95?'var(--grn)':yr>=85?'#d97706':'var(--red)';
+      const barW=Math.max(4,Math.min(100,yr));
+      const tt=v=>(Number(v)/1000).toFixed(1);
+      const yv=(yd||[]).filter(r=>r.yield_rate!=null);
+      const ymin=yv.length?Math.min(...yv.map(r=>Number(r.yield_rate))):0;
+      const ymax=yv.length?Math.max(...yv.map(r=>Number(r.yield_rate))):0;
+      const unitKo=(TR.unit==='month'?'월':'주');
+      return `
+    <div class="sec"><div class="sec-hd"><span class="no c1">%</span><h3>종합수율 · 원자재 투입 대비 산출</h3>
+      <span class="desc">수율 = 완제품 산출 ÷ 원자재 투입 · ${unitKo} 누계 기준</span><span class="sp"></span>
+      <span style="font-size:20px;font-weight:900;color:${clr};font-variant-numeric:tabular-nums">${yr.toFixed(1)}%</span></div>
+      <div class="sec-bd" style="padding:16px">
+        <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center;margin-bottom:16px">
+          <div style="background:#f7f9fc;border:1.5px solid var(--line);border-radius:11px;padding:13px 15px">
+            <div style="font-size:11.5px;color:var(--mut);font-weight:700">원자재 투입</div>
+            <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px">${tt(raw)}<span style="font-size:11px">t</span></div>
+            <div style="font-size:10.5px;color:#98a2b3">${fmt(Math.round(raw))} KG</div></div>
+          <div style="font-size:19px;color:#c3ccda">&rarr;</div>
+          <div style="background:#f7f9fc;border:1.5px solid var(--line);border-radius:11px;padding:13px 15px">
+            <div style="font-size:11.5px;color:var(--mut);font-weight:700">완제품 산출</div>
+            <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:var(--blue)">${tt(out)}<span style="font-size:11px">t</span></div>
+            <div style="font-size:10.5px;color:#98a2b3">${fmt(Math.round(out))} KG · SKU ${s.fin_sku!=null?s.fin_sku:'-'}</div></div>
+          <div style="font-size:19px;color:#c3ccda">=</div>
+          <div style="background:${lossKg>0?'#fef3f2':'#f0fdf4'};border:1.5px solid ${lossKg>0?'#fda29b':'#bbf7d0'};border-radius:11px;padding:13px 15px">
+            <div style="font-size:11.5px;color:${lossKg>0?'#b42318':'#166534'};font-weight:700">${lossKg>0?'공정 손실':'증량(이월분 포함)'}</div>
+            <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:${lossKg>0?'#b42318':'#166534'}">${lossKg>0?'':'+'}${tt(Math.abs(lossKg))}<span style="font-size:11px">t</span></div>
+            <div style="font-size:10.5px;color:#98a2b3">${(100-yr).toFixed(1)}%p</div></div>
+        </div>
+        <div style="height:12px;background:#eef1f6;border-radius:7px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;width:${barW}%;background:${clr};border-radius:7px;transition:width .5s"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#98a2b3;margin-bottom:16px">
+          <span>0%</span><span>50%</span><span>100%</span></div>
+        ${yv.length>1?`<div style="height:250px"><canvas id="yldChart"></canvas></div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--mut)">${unitKo} 단위 ${yv.length}구간 · 범위 ${ymin.toFixed(1)}% ~ ${ymax.toFixed(1)}%</div>`
+        :`<div style="padding:16px;color:var(--mut);font-size:12.5px">추이를 그리려면 ${unitKo} 단위로 2구간 이상 필요합니다.</div>`}
+        <div style="margin-top:12px;padding:9px 12px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;font-size:11.5px;color:var(--sub);line-height:1.65">
+          &#8505; 반제품이 다음 날 포장되는 <b>이월(WIP)</b> 때문에 <b>일별 수율은 100%를 넘나듭니다.</b>
+          그래서 ${unitKo} 이상 누계로만 표시합니다. 구간이 짧을수록 변동이 큽니다.
+        </div>
+      </div>
+    </div>`;
+    })()}
 
     <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>달성률 · 로스금액 추이</h3>
       <span class="desc">막대=달성률(%), 선=로스금액(원) · ${TR.unit==='day'?'일별':TR.unit==='week'?'주별':'월별'}</span></div>
@@ -1520,17 +1593,23 @@ async function loadTeamReport(){
     </div>
 
     <div class="sec"><div class="sec-hd"><span class="no c3">◆</span><h3>라인별 상세</h3>
-      <span class="desc">라인을 클릭하면 상세 경영현황으로 이동</span></div>
+      <span class="desc">완제품 기준 · 괄호는 반제품(공정 중복 포함) · 라인 클릭 시 상세 이동</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
         <thead><tr><th>라인</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>순로스</th><th>손실(초과)</th></tr></thead>
-        <tbody>${ld.map(l=>`<tr class="line-row" onclick="openLineDetail('${(teamParam||TR.team)}','${l.line.replace(/'/g,"")}')" style="cursor:pointer">
+        <tbody>${ld.slice().sort((a,b)=>procOrderCmp(a.line,b.line)).map(l=>{
+          const hasSplit=(l.fin_actual!=null||l.semi_actual!=null);
+          const fp=Number(l.fin_plan??l.plan_sum??0),   fa=Number(l.fin_actual??l.actual_sum??0);
+          const sp=Number(l.semi_plan??0),              sa=Number(l.semi_actual??0);
+          const ach=(l.fin_achieve!=null)?Number(l.fin_achieve):Number(l.achieve||0);
+          const sub=v=>hasSplit&&v>0?`<div style="font-size:10px;color:#98a2b3;font-weight:600">[반 ${fmt(Math.round(v))}]</div>`:'';
+          return `<tr class="line-row" onclick="openLineDetail('${(teamParam||TR.team)}','${l.line.replace(/'/g,"")}')" style="cursor:pointer">
           <td class="l"><b>${l.line}</b> <span style="color:var(--blue);font-size:11px">▶</span></td>
-          <td class="mono">${fmt(Math.round(l.plan_sum))}</td>
-          <td class="mono">${fmt(Math.round(l.actual_sum))}</td>
-          <td class="mono ${l.achieve>=100?'pos':'neg'}">${l.achieve}%</td>
+          <td class="mono">${fmt(Math.round(fp))}${sub(sp)}</td>
+          <td class="mono">${fmt(Math.round(fa))}${sub(sa)}</td>
+          <td class="mono ${ach>=100?'pos':'neg'}">${fa>0||fp>0?ach+'%':'<span style="color:var(--mut)">–</span>'}</td>
           <td class="mono ${wonCls(l.net_loss)}">${fmtWon(l.net_loss)}</td>
           <td class="mono neg">${fmt(Math.round(l.over_loss))}원</td>
-        </tr>`).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+        </tr>`;}).join('')||'<tr><td colspan="6" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
       </table></div>
     </div>`;
 
@@ -1545,6 +1624,28 @@ async function loadTeamReport(){
           scales:{y:{title:{display:true,text:'달성률 %'},min:0},y1:{position:'right',title:{display:true,text:'로스금액 원'},grid:{drawOnChartArea:false}}},
           plugins:{legend:{position:'top'}}}});
       TR.charts.push(c);
+    }
+
+    // ── 종합수율 추이 (기간 누계 기준) ──
+    const yctx=$('#yldChart');
+    const yv2=(yd||[]).filter(r=>r.yield_rate!=null);
+    if(yctx && yv2.length>1){
+      const yc=new Chart(yctx,{type:'bar',
+        data:{labels:yv2.map(r=>r.bucket),datasets:[
+          {type:'bar',label:'원자재 투입(t)',data:yv2.map(r=>Math.round(Number(r.raw_input)/100)/10),backgroundColor:'#c7d3e6',yAxisID:'y1',order:3},
+          {type:'bar',label:'완제품 산출(t)',data:yv2.map(r=>Math.round(Number(r.yield_out)/100)/10),backgroundColor:'#4a6784',yAxisID:'y1',order:2},
+          {type:'line',label:'수율(%)',data:yv2.map(r=>Number(r.yield_rate)),borderColor:'#2e9e6a',backgroundColor:'#2e9e6a',yAxisID:'y',tension:.3,order:1,pointRadius:4,borderWidth:2.5}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          scales:{
+            y:{position:'left',title:{display:true,text:'수율 %'},suggestedMin:60,suggestedMax:120},
+            y1:{position:'right',title:{display:true,text:'물량 t'},grid:{drawOnChartArea:false},beginAtZero:true}},
+          plugins:{legend:{position:'top'},
+            tooltip:{callbacks:{afterBody:(it)=>{
+              const r=yv2[it[0].dataIndex]; if(!r)return '';
+              return `가동 ${r.days||0}일 · 완제품 SKU ${r.fin_sku||0}`;
+            }}}}}});
+      TR.charts.push(yc);
     }
   }catch(e){ toast('월간일보 조회 실패: '+(e.message||e),'err'); }
 }
@@ -1593,7 +1694,7 @@ async function renderTeamStatus(){
 let TD={team:null,ym:null,from:null,to:null,tab:'order',kind:null,charts:[]};
 async function openTeamDetail(team,ym){
   const {from,to}=ymRange(ym);
-  TD={team,ym,from,to,tab:'order',kind:null,charts:[]};
+  TD={team,ym,from,to,tab:'order',kind:'fin',charts:[]};   // 기본 완제품
   S.view='teamdetail';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
   await loadTeamDetail();
@@ -1654,14 +1755,25 @@ async function loadTeamDetail(){
     </div>
 
     <!-- 스코어카드 6 -->
+    ${(()=>{
+      // 물량 기반 지표는 완제품 기준(반제품은 공정마다 재집계되어 중복). 시간 기반은 영향 없음.
+      const fA=Number(M.fin_actual??M.actual??0), fP=Number(M.fin_plan??M.plan??0);
+      const fAch=(M.fin_achieve!=null)?Number(M.fin_achieve):Number(M.achieve||0);
+      const prod=(M.fin_productivity!=null)?Number(M.fin_productivity):Number(M.productivity||0);
+      const scR =(M.fin_scrap_rate!=null)?Number(M.fin_scrap_rate):Number(M.scrap_rate||0);
+      const dfR =(M.fin_defect_rate!=null)?Number(M.fin_defect_rate):Number(M.defect_rate||0);
+      const fin=(M.fin_actual!=null);
+      const tag=fin?'<span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span>':'';
+      return `
     <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="sc ${M.achieve>=100?'g':'r'}"><div class="l">계획대비</div><div class="v mono">${M.achieve||0}%</div><div class="sc-sub">${fmt(Math.round(M.actual))} / ${fmt(Math.round(M.plan))}</div></div>
+      <div class="sc ${fAch>=100?'g':'r'}"><div class="l">계획대비 ${tag}</div><div class="v mono">${fAch||0}%</div><div class="sc-sub">${fmt(Math.round(fA))} / ${fmt(Math.round(fP))}</div></div>
       <div class="sc b"><div class="l">계획가동률</div><div class="v mono">${M.run_rate||0}%</div><div class="sc-sub">${M.run_hours||0}hr 가동</div></div>
       <div class="sc"><div class="l">비계획정지율</div><div class="v mono" style="color:var(--red)">${M.unplan_rate||0}%</div><div class="sc-sub">${fmt(M.unplan_min||0)}분</div></div>
-      <div class="sc"><div class="l">생산성</div><div class="v mono">${fmt(M.productivity||0)}</div><div class="sc-sub">기본단위/hr</div></div>
-      <div class="sc"><div class="l">스크랩률</div><div class="v mono">${M.scrap_rate||0}%</div><div class="sc-sub">${fmtWon(M.scrap_amt||0)}</div></div>
-      <div class="sc"><div class="l">불량률</div><div class="v mono">${M.defect_rate||0}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
-    </div>
+      <div class="sc"><div class="l">생산성 ${tag}</div><div class="v mono">${fmt(prod)}</div><div class="sc-sub">KG/hr</div></div>
+      <div class="sc"><div class="l">스크랩률 ${tag}</div><div class="v mono">${scR}%</div><div class="sc-sub">${fmtWon(M.scrap_amt||0)}</div></div>
+      <div class="sc"><div class="l">불량률 ${tag}</div><div class="v mono">${dfR}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
+    </div>`;
+    })()}
 
     <!-- CAPA 가동률 -->
     <div class="sec"><div class="sec-hd"><span class="no c1">◆</span><h3>성능가동률 (CAPA 기준)</h3>
@@ -2185,7 +2297,7 @@ async function openOrderSummary(code,name,kind){
 }
 
 /* ============ 경영 대시보드 ============ */
-let DASH={from:null,to:null,team:null,charts:[],month:null,custom:false};
+let DASH={from:null,to:null,team:null,kind:'fin',charts:[],month:null,custom:false};
 // 'YYYY-MM' → 그 달의 1일, 말일
 function monthBounds(ym){
   const [y,m]=ym.split('-').map(Number);
@@ -2243,10 +2355,10 @@ function renderDashboard(){
       <option value="공통">공통</option>
     </select>
     <label style="margin-left:8px">구분</label>
-    <select id="dashKind">
-      <option value="">전체</option>
-      <option value="fin">완제품(출하)</option>
+    <select id="dashKind" title="반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 재집계되어 '전체'는 실제보다 큽니다">
+      <option value="fin" selected>완제품(출하)</option>
       <option value="semi">반제품(중간)</option>
+      <option value="">전체 (중복포함·참고)</option>
     </select>
     <button class="tbtn submit" onclick="loadDashboard()">조회</button>
     <div style="flex-basis:100%;height:0"></div>
@@ -3837,7 +3949,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -3845,7 +3957,8 @@ async function openDay(date, team){
       sb.rpc('get_downtime_pareto',{p_date:date,p_team:team}),
       sb.rpc('get_loss_types',{p_team:team}),
       sb.rpc('get_defect_types',{p_team:team}),
-      sb.rpc('get_line_downtime',{p_date:date,p_team:team})
+      sb.rpc('get_line_downtime',{p_date:date,p_team:team}),
+      sb.rpc('get_capa_list',{p_team:team})
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
@@ -3859,6 +3972,19 @@ async function openDay(date, team){
     CUR_DAY.lossTypes=ltRes.data||[];
     CUR_DAY.defectTypes=dtRes.data||[];
     CUR_DAY.lineDown=ldRes.data||[];
+    // ── 라인 활성 여부: 해당 라인의 호기가 전부 비활성이면 ② 공정 탭에서 숨김 ──
+    (function(){
+      const agg={};
+      ((capaRes&&capaRes.data)||[]).forEach(c=>{
+        const k=String(c.line||'');
+        if(!k)return;
+        const a=(agg[k]=agg[k]||{n:0,off:0});
+        a.n++; if(c.line_active===false||c.active===false) a.off++;
+      });
+      const off=new Set();
+      Object.keys(agg).forEach(k=>{ if(agg[k].n>0 && agg[k].off===agg[k].n) off.add(k); });
+      CUR_DAY.lineOff=off;
+    })();
     CUR_DAY.savedScraps=cl.scraps||[];
     CUR_DAY.closing=cl.closing||null;
     // 결재라인(예정 결재자) 조회 — 아직 결재 전 단계에도 담당자 이름 표시용
@@ -4005,7 +4131,7 @@ function renderClosing2(){
     <div class="tabbar">
       <button class="tab ${T2_SUM==='fin'?'on':''}" onclick="switchT2Sum('fin')">완제품 ${finCnt}</button>
       <button class="tab ${T2_SUM==='semi'?'on':''}" onclick="switchT2Sum('semi')">반제품 ${semiCnt}</button>
-      <button class="tab ${T2_SUM==='all'?'on':''}" onclick="switchT2Sum('all')">전체합산</button>
+      <button class="tab ${T2_SUM==='all'?'on':''}" onclick="switchT2Sum('all')" title="완제품+반제품 단순 합산입니다. 반제품은 공정마다 재집계되므로 실제 생산량보다 큽니다 — 참고용">전체합산 <span style="font-size:9.5px;color:#c2410c">참고</span></button>
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead>
@@ -4405,6 +4531,45 @@ function buildManpower6(){
 }
 /* ② 오더별 생산실적·투입공수 — 1팀·2팀 공용.
    완/반 탭 + 공정 서브탭 + 투입공수(MH)/인시당/특이사항 입력. T2_ORD/T2_PROC 상태 사용 */
+/* ── 공정(라인) 표시 순서 : 실제 생산 흐름 순 ──────────────────────
+   생산1팀 : 생육 → 분체배합 → 계량/배합 → EP → 진공코터 → 포장
+   목록에 없는 공정은 뒤쪽에 가나다순으로 붙습니다(누락 방지).
+   ※ 순서만 바꿉니다. 집계·계산 로직에는 영향 없음.                    */
+const PROC_FLOW_ORDER=[
+  '생육',
+  '분체배합',
+  '계량/배합 자동계량','계량/배합 리싸이클','계량/배합',
+  'EP','EP 리싸이클',
+  '진공코터','진공코터 리싸이클',
+  '오븐',
+  '포장'
+];
+function procOrderIdx(key){
+  // key 형식: "주식/포장"  →  sub2("포장") 기준으로 순서 결정
+  const s=String(key||'');
+  const cut=s.indexOf('/');
+  const sub2=(cut>=0?s.slice(cut+1):s).trim();
+  let i=PROC_FLOW_ORDER.indexOf(sub2);
+  if(i<0){ // 부분일치 보조(표기 흔들림 대비)
+    i=PROC_FLOW_ORDER.findIndex(p=>sub2.indexOf(p)===0);
+  }
+  return i<0?999:i;
+}
+function procOrderCmp(a,b){
+  const ia=procOrderIdx(a), ib=procOrderIdx(b);
+  if(ia!==ib) return ia-ib;
+  return String(a).localeCompare(String(b),'ko');
+}
+/* ③ 로스: 계획 > 실적(초과) 건 진단 배너 — 기존 데이터 정정 안내 */
+function lossOverBanner(){
+  const rows=(CUR_DAY.losses||[]).filter(l=>Number(l.plan_qty)>Number(l.actual_qty));
+  if(!rows.length) return '';
+  const top=rows.slice(0,4).map(l=>`${l.mat_name||l.mat_code} <b>${fmt(l.plan_qty)}</b>&gt;<b>${fmt(l.actual_qty)}</b>`).join(' · ');
+  return `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
+    ⚠ <b>계획이 실적을 초과한 자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량)을 넘을 수 없습니다.
+    해당 행의 계획을 실적 이하로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
+  </div>`;
+}
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -4412,7 +4577,13 @@ function buildSection2(){
   const kindOrders=(orders||[]).filter(o=>T2_ORD==='fin'?isFin(o):isSemi(o));
   const byProc={};
   kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
-  const procs=Object.keys(byProc).sort();
+  const procs=Object.keys(byProc)
+    .filter(k=>{
+      // 비활성 라인(호기 전부 OFF) 숨김. 단 해당 공정에 데이터가 있으면 유지(누락 방지)
+      const line=k.replace('/','|').replace('|','/');
+      return !(CUR_DAY.lineOff && CUR_DAY.lineOff.has(k) && (byProc[k]||[]).every(o=>!Number(o.actual_sum??o.actual_qty??0)));
+    })
+    .sort(procOrderCmp);
   if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
   const curOrders=byProc[T2_PROC]||[];
   const orderRows=curOrders.map((o,oi)=>{
@@ -4523,7 +4694,7 @@ function renderMore2(){
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
       <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:72px;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
       <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
       <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
@@ -4543,6 +4714,7 @@ function renderMore2(){
       <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(CUR_DAY._totLoss||0)}원</span></span>
       <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
       <div class="type-panel" id="typePanel_loss" style="display:none"></div>
+      ${lossOverBanner()}
       ${(()=>{
         const byLine={},byType={}; let cnt=0; const tot=CUR_DAY._totLoss||0;
         (losses||[]).forEach(l=>{
@@ -5247,7 +5419,7 @@ function renderClosing(){
       agg[k].plan+=Number(o.plan_sum||0); agg[k].act+=Number(o.actual_sum||0); agg[k].cnt++;
       const mh=mhMap&&mhMap[o.prod_code]; if(mh)agg[k].mh+=Number(mh.mh||0);
     });
-    const keys=Object.keys(agg).sort();
+    const keys=Object.keys(agg).sort(procOrderCmp);
     if(!keys.length)return `<tr><td colspan="13" style="color:var(--mut);padding:16px">${kind==='fin'?'완제품':kind==='semi'?'반제품':'데이터'} 없음</td></tr>`;
     return keys.map((k,i)=>{
       const a=agg[k]; const st=stdMap[k]||{std:0};
@@ -5314,7 +5486,7 @@ function renderClosing(){
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
     <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:72px;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
     <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
     <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
@@ -5380,7 +5552,7 @@ function renderClosing(){
     <div class="tabbar">
       <button class="tab ${LINE_SUM_TAB==='fin'?'on':''}" id="tabLineFin" onclick="switchLineSumTab('fin')">완제품 ${finCount}</button>
       <button class="tab ${LINE_SUM_TAB==='semi'?'on':''}" id="tabLineSemi" onclick="switchLineSumTab('semi')">반제품 ${semiCount}</button>
-      <button class="tab ${LINE_SUM_TAB==='all'?'on':''}" id="tabLineAll" onclick="switchLineSumTab('all')">전체합산</button>
+      <button class="tab ${LINE_SUM_TAB==='all'?'on':''}" id="tabLineAll" onclick="switchLineSumTab('all')" title="완제품+반제품 단순 합산입니다. 반제품은 공정마다 재집계되므로 실제 생산량보다 큽니다 — 참고용">전체합산 <span style="font-size:9.5px;color:#c2410c">참고</span></button>
     </div>
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead>
@@ -5401,6 +5573,7 @@ function renderClosing(){
     <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(totLoss)}원</span></span>
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
+    ${lossOverBanner()}
     ${(()=>{
       const byLine={},byType={}; let over=0,save=0,cnt=0;
       (CUR_DAY.losses||[]).forEach(l=>{
@@ -5993,10 +6166,19 @@ async function savePlanOverride(i){
   const {date,team}=CUR_DAY;
   const unfmt=v=>{ const n=Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?null:n; };
   const planEl=document.querySelector(`.pe-plan[data-i="${i}"]`);
-  const actEl =document.querySelector(`.pe-act[data-i="${i}"]`);
   const plan=unfmt(planEl?planEl.value:'');
-  const actual=unfmt(actEl?actEl.value:'');
-  if(plan===null&&actual===null){ toast('계획/실적 값을 확인하세요','err'); return; }
+  // 실적은 MES 원본 고정 — 화면 입력값을 쓰지 않고 항상 원본값을 그대로 재전송
+  const actual=Number(s.actual_qty);
+  if(plan===null){ toast('계획 값을 확인하세요','err'); return; }
+  if(plan<0){ toast('계획은 0 미만일 수 없습니다','err'); if(planEl)planEl.focus(); return; }
+  // ── 계획 ≤ 실적 검증 : 초과 입력은 등록 거부 ──
+  if(plan>actual){
+    const over=plan-actual;
+    toast(`등록 불가 — 계획(${fmt(plan)})이 실적(${fmt(actual)})을 ${fmt(Math.round(over*10)/10)} 초과합니다. 계획은 실적을 넘을 수 없습니다.`,'err');
+    if(planEl){ planEl.style.border='2px solid #b42318'; planEl.style.background='#fef3f2'; planEl.focus(); planEl.select(); }
+    return;
+  }
+  if(planEl){ planEl.style.border=''; planEl.style.background='#fff8e8'; }
   try{
     const {error}=await sb.rpc('set_plan_override',{
       p_work_date:date, p_team:team, p_prod_code:s.prod_code, p_mat_code:s.mat_code,
@@ -6005,8 +6187,8 @@ async function savePlanOverride(i){
     });
     if(error)throw error;
     // ── 그 행만 제자리 갱신 (재정렬·재렌더 없음 → 위치·순서 유지) ──
-    const newPlan  = plan!==null?plan:Number(s.plan_qty);
-    const newActual= actual!==null?actual:Number(s.actual_qty);
+    const newPlan  = plan;
+    const newActual= actual;
     const newDiff  = newActual - newPlan;
     const newLoss  = Math.round(newDiff * Number(s.unit_price||0));
     s.plan_qty=newPlan; s.actual_qty=newActual; s.diff=newDiff;
@@ -6018,7 +6200,6 @@ async function savePlanOverride(i){
       if(tds[2] && !/edit-badge/.test(tds[2].innerHTML))
         tds[2].innerHTML += ' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>';
       if(planEl) planEl.value=fmt(newPlan);
-      if(actEl)  actEl.value =fmt(newActual);
       const dcls=newDiff>0?'neg':'pos'; const diffSign=newDiff>0?'+':'';
       tds[5].className='mono '+dcls; tds[5].textContent=diffSign+fmt(newDiff);
       const lossVal=newDiff>0?-Math.abs(newLoss):Math.abs(newLoss);
