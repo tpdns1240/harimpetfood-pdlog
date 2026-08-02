@@ -1789,7 +1789,12 @@ async function loadTeamDetail(){
       <div class="sc b"><div class="l">계획가동률</div><div class="v mono">${M.run_rate||0}%</div><div class="sc-sub">${M.run_hours||0}hr 가동</div></div>
       <div class="sc"><div class="l">비계획정지율</div><div class="v mono" style="color:var(--red)">${M.unplan_rate||0}%</div><div class="sc-sub">${fmt(M.unplan_min||0)}분</div></div>
       <div class="sc"><div class="l">생산성 ${tag}</div><div class="v mono">${fmt(prod)}</div><div class="sc-sub">KG/hr</div></div>
-      <div class="sc"><div class="l">스크랩 금액</div><div class="v mono ${wonCls(-(M.scrap_amt||0))}" style="font-size:15px" title="스크랩 손실 금액. 생산량(kg) 대비 비율은 단위가 달라(원÷kg) 산출하지 않습니다.">${fmtWon(M.scrap_amt||0)}</div><div class="sc-sub">로스 등록 기준</div></div>
+      ${(()=>{const qr=M.scrap_qty_rate;
+        if(qr==null) return `<div class="sc"><div class="l">스크랩 금액</div><div class="v mono ${wonCls(-(M.scrap_amt||0))}" style="font-size:15px" title="생산량(kg) 대비 비율은 단위가 달라(원÷kg) 산출하지 않습니다.">${fmtWon(M.scrap_amt||0)}</div><div class="sc-sub">로스 등록 기준</div></div>`;
+        const q=Number(qr), cls=q<=2?'g':q<=5?'':'r';
+        return `<div class="sc ${cls}"><div class="l">스크랩률 <span style="font-size:9px;color:#98a2b3;font-weight:700">수량</span></div>
+          <div class="v mono" title="스크랩률 = 편차 수량 합계 ÷ 원자재 투입량 (kg ÷ kg). 금액이 아니라 물량 기준이라 비율로 해석할 수 있습니다.">${q.toFixed(2)}%</div>
+          <div class="sc-sub">${fmt(Math.round(M.scrap_qty||0))}kg · ${fmtWon(M.scrap_amt||0)}</div></div>`;})()}
       <div class="sc"><div class="l">불량률 ${tag}</div><div class="v mono">${dfR}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
     </div>`;
     })()}
