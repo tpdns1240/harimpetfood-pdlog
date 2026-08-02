@@ -4070,13 +4070,15 @@ function renderClosing2(){
   const finCnt=orders.filter(o=>isFin(o)).length;
   const semiCnt=orders.filter(o=>isSemi(o)).length;
 
-  // ── 스코어카드 집계 (완제품+반제품 전체 기준, 탭 선택과 무관) ──
-  let scPlan=0, scActual=0;
+  // ── 스코어카드 집계 : 완제품 기준(반제품은 공정마다 재집계되어 중복) ──
+  let scPlan=0, scActual=0, scSemiPlan=0, scSemiActual=0;
   (orders||[]).forEach(o=>{
-    if(!isFin(o)&&!isSemi(o))return;
-    scPlan+=Number(o.plan_sum??o.plan_qty??0); scActual+=Number(o.actual_sum??o.actual_qty??0);
+    const p=Number(o.plan_sum??o.plan_qty??0), a=Number(o.actual_sum??o.actual_qty??0);
+    if(isFin(o)){ scPlan+=p; scActual+=a; }
+    else if(isSemi(o)){ scSemiPlan+=p; scSemiActual+=a; }
   });
   const scAch=scPlan>0?scActual/scPlan:0;
+  // 종합수율 = 완제품 산출 ÷ 원자재 투입 (원자재 = 반제품 오더의 자재 투입 실적)
   const scLoss=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
   const scScrap=(CUR_DAY.losses||[]).length;
 
@@ -4117,12 +4119,17 @@ function renderClosing2(){
 
   <!-- 스코어카드 (생산1팀과 동일) -->
   <div class="score-row">
-    <div class="sc"><div class="l">총 계획</div>${scTon(scPlan)}</div>
-    <div class="sc b"><div class="l">총 실적</div>${scTon(scActual)}</div>
-    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div></div>
-    <div class="sc"><div class="l">완제품/반제품</div><div class="v mono">${finCnt}/${semiCnt}</div></div>
+    <div class="sc"><div class="l">총 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scPlan)}
+      <div class="sc-sub" title="반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
+    <div class="sc b"><div class="l">총 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scActual)}
+      <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
+    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
+      <div class="sc-sub">완제품 기준</div></div>
+    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCnt}</div>
+      <div class="sc-sub">반제품 ${semiCnt}종</div></div>
     <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div>
+      <div class="sc-sub">로스 등록 건수</div></div>
   </div>
 
   <!-- ① 완제품 라인별 가동 요약 -->
@@ -5386,6 +5393,15 @@ function renderClosing(){
   const totAch=totPlan>0?totActual/totPlan:0;
   const finCount=orders.filter(o=>o.kind==='fin').length;
   const semiCount=orders.filter(o=>o.kind==='semi').length;
+  // ── 스코어카드 : 완제품 기준(반제품은 EP·계량/배합·진공코터 등 공정마다 재집계되어 중복) ──
+  let scPlan=0, scActual=0, scSemiPlan=0, scSemiActual=0;
+  (orders||[]).forEach(o=>{
+    const p=Number(o.plan_sum??o.plan_qty??0), a=Number(o.actual_sum??o.actual_qty??0);
+    const fin=(o.kind==='fin')||(!o.kind&&['2','3'].includes(String(o.prod_code||'').charAt(0)));
+    const semi=(o.kind==='semi')||(!o.kind&&String(o.prod_code||'').charAt(0)==='6');
+    if(fin){ scPlan+=p; scActual+=a; } else if(semi){ scSemiPlan+=p; scSemiActual+=a; }
+  });
+  const scAch=scPlan>0?scActual/scPlan:0;
 
   // ① 라인별 요약 — 완제품/반제품 탭으로 필터 (오더 기준 재집계)
   const lineRowsAll=lines.map((l,i)=>{
@@ -5538,12 +5554,17 @@ function renderClosing(){
 
   <!-- 스코어카드 -->
   <div class="score-row">
-    <div class="sc"><div class="l">총 계획</div>${scTon(totPlan)}</div>
-    <div class="sc b"><div class="l">총 실적</div>${scTon(totActual)}</div>
-    <div class="sc ${totAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${pct(totAch)}</div></div>
-    <div class="sc"><div class="l">완제품/반제품</div><div class="v mono">${finCount}/${semiCount}</div></div>
+    <div class="sc"><div class="l">총 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scPlan)}
+      <div class="sc-sub" title="반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
+    <div class="sc b"><div class="l">총 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scActual)}
+      <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
+    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
+      <div class="sc-sub">완제품 기준</div></div>
+    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCount}</div>
+      <div class="sc-sub">반제품 ${semiCount}종</div></div>
     <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div>
+      <div class="sc-sub">로스 등록 건수</div></div>
   </div>
 
   <!-- ① 라인별 요약 -->
