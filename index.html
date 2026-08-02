@@ -282,8 +282,22 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
 /* ③ 로스 테이블: 제품·자재명 칸이 좁아 세로로 벌어지는 것 방지 */
-#lossTable td.l{min-width:120px;max-width:200px;word-break:keep-all}
-#lossTable{min-width:1050px}
+#lossTable{min-width:980px;table-layout:fixed}
+#lossTable th,#lossTable td{padding:6px 7px;font-size:12.5px}
+#lossTable td.l{word-break:break-word;white-space:normal;line-height:1.35}
+#lossTable th:nth-child(1),#lossTable td:nth-child(1){width:96px}    /* 라인 */
+#lossTable th:nth-child(2),#lossTable td:nth-child(2){width:150px}   /* 제품 */
+#lossTable th:nth-child(3),#lossTable td:nth-child(3){width:140px}   /* 자재명 */
+#lossTable th:nth-child(4),#lossTable td:nth-child(4){width:82px}    /* 계획 */
+#lossTable th:nth-child(5),#lossTable td:nth-child(5){width:74px}    /* 실적 */
+#lossTable th:nth-child(6),#lossTable td:nth-child(6){width:70px}    /* 편차 */
+#lossTable th:nth-child(7),#lossTable td:nth-child(7){width:64px}    /* 단가 */
+#lossTable th:nth-child(8),#lossTable td:nth-child(8){width:82px}    /* 로스금액 */
+#lossTable th:nth-child(9),#lossTable td:nth-child(9){width:104px}   /* 로스유형 */
+#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:auto;min-width:96px} /* 사유 */
+#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:74px}  /* 작업 */
+#lossTable select,#lossTable input{max-width:100%;box-sizing:border-box}
+#lossTable .inp-cell{width:100%;max-width:100%}
 .t2-table tbody tr:nth-child(even){background:#f6f9fd}
 .t2-lno{display:inline-block;background:#2954a0;color:#fff;font-size:10px;font-weight:800;
   padding:1px 6px;border-radius:5px;margin-right:5px}
@@ -2402,12 +2416,24 @@ async function loadDashboard(){
     $('#dashBody').innerHTML=`
     <!-- 요약 스코어카드 -->
     <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="sc"><div class="l">총 계획</div><div class="v mono">${fmtKg(s.plan_sum)}</div></div>
-      <div class="sc b"><div class="l">총 실적</div><div class="v mono">${fmtKg(s.actual_sum)}</div></div>
-      <div class="sc ${s.achieve>=1?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${(s.achieve*100).toFixed(1)}%</div></div>
-      <div class="sc"><div class="l">완제품 실적(출하)</div><div class="v mono" style="font-size:17px">${fmtKg(s.fin_actual)}</div></div>
-      <div class="sc"><div class="l">반제품 실적(중간)</div><div class="v mono" style="font-size:17px">${fmtKg(s.semi_actual)}</div></div>
-      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:16px">${fmtWon(s.net_loss)}</div></div>
+      ${(()=>{
+        const scTonD=(v)=>`<div class="v mono" style="font-size:19px">${(Number(v||0)/1000).toFixed(1)}<span style="font-size:11px">ton</span></div><div class="sc-sub">${fmt(Math.round(Number(v||0)))} kg</div>`;
+        const ach=Number(s.achieve||0)*100;
+        // 달성률 150% 초과 = MES 계획 미입력이 원인 (실적은 있는데 계획이 0)
+        const achBad=ach>150;
+        const yr=(s.yield_rate!=null)?Number(s.yield_rate):null;
+        return `
+      <div class="sc"><div class="l">총 계획</div>${scTonD(s.plan_sum)}</div>
+      <div class="sc b"><div class="l">총 실적</div>${scTonD(s.actual_sum)}</div>
+      <div class="sc ${achBad?'r':(ach>=100?'g':'r')}"><div class="l">평균 달성률</div>
+        <div class="v mono" ${achBad?'title="계획이 실적보다 현저히 작습니다. MES 완제품 계획이 미입력된 오더가 많다는 뜻이며, 마감화면 ②에서 계획을 채우면 정상화됩니다."':''}>${ach.toFixed(1)}%</div>
+        <div class="sc-sub" style="${achBad?'color:#b42318;font-weight:700':''}">${achBad?'⚠ 계획 미입력 다수':'완제품 기준'}</div></div>
+      <div class="sc"><div class="l">완제품 실적(출하)</div>${scTonD(s.fin_actual)}</div>
+      <div class="sc ${yr==null?'':(yr>=95?'g':yr>=85?'':'r')}"><div class="l">종합수율 <span style="font-size:9px;color:#98a2b3;font-weight:700">누계</span></div>
+        <div class="v mono" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (조회기간 누계·물량가중)">${yr!=null?yr.toFixed(1)+'%':'–'}</div>
+        <div class="sc-sub">${Number(s.raw_input)>0?`원자재 ${(Number(s.raw_input)/1000).toFixed(1)}t`:'반제품 '+((Number(s.semi_actual||0))/1000).toFixed(1)+'t'}</div></div>
+      <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:16px">${fmtWon(s.net_loss)}</div></div>`;
+      })()}
     </div>
 
     <!-- 1순위: 달성률 추이 -->
@@ -4700,8 +4726,8 @@ function renderMore2(){
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:72px;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
       <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
       <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
@@ -5501,8 +5527,8 @@ function renderClosing(){
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:72px;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:72px;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
     <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
     <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
@@ -5629,7 +5655,7 @@ function renderClosing(){
       <span class="fold-hint">클릭하여 접기</span>
     </div>
     <div class="fold-body open" id="foldBody_loss">
-    <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head">
+    <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
       <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
       <tbody id="lossBody1">${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
     </table></div>
