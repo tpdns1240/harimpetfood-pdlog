@@ -1522,10 +1522,13 @@ async function loadTeamReport(){
         <div class="sc-sub" title="${semiTip}">[반제품 ${t(semiP)} · 중복포함]</div></div>
       <div class="sc ${finAch>=100?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${finAch||0}%</div>
         <div class="sc-sub">완제품 기준</div></div>
-      <div class="sc ${(()=>{const y=Number(s.yield_rate);return !isFinite(y)||s.yield_rate==null?'':(y>=95?'g':y>=85?'':'r');})()}">
+      ${(()=>{const y=Number(s.yield_rate);const nul=(s.yield_rate==null||!isFinite(y));
+        const over=!nul&&y>103;   // 100% 초과 = 배합수 등 투입 과소집계 신호
+        const cls=nul?'':(over?'':(y>=95?'g':y>=85?'':'r'));
+        return `<div class="sc ${cls}">
         <div class="l">종합수율 <span style="font-size:9.5px;color:#98a2b3;font-weight:700">누계</span></div>
-        <div class="v mono" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (조회기간 누계·물량가중). 일별로는 반제품 이월(WIP) 때문에 100%를 넘나들어 기간 누계로만 표시합니다.">${s.yield_rate!=null?Number(s.yield_rate).toFixed(1)+'%':'–'}</div>
-        <div class="sc-sub">완제품 SKU ${s.fin_sku!=null?s.fin_sku:'–'}${Number(s.raw_input)>0?` · 원자재 ${t(s.raw_input)}`:''}</div></div>
+        <div class="v mono" style="${over?'color:#d97706':''}" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (기간 누계·물량가중).${over?' 100%를 넘는 것은 배합수 등 투입이 원자재 코드로 집계되지 않았다는 뜻입니다.':''}">${nul?'–':y.toFixed(1)+'%'}${over?' <span style="font-size:11px">⚠</span>':''}</div>
+        <div class="sc-sub" style="${over?'color:#d97706;font-weight:700':''}">${over?'투입 과소집계':'완제품 SKU '+(s.fin_sku!=null?s.fin_sku:'–')}${Number(s.raw_input)>0?` · 원자재 ${t(s.raw_input)}`:''}</div></div>`;})()}
       <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:14px">${fmtWon(s.net_loss)}</div></div>
     </div>`;
     })()}
@@ -1538,7 +1541,7 @@ async function loadTeamReport(){
           수율 데이터가 없습니다. <b>report_summary</b> v4 · <b>yield_trend</b> 함수가 적용되었는지 확인하세요.
         </div></div>`;
       const yr=Number(s.yield_rate||0), lossKg=raw-out;
-      const clr=yr>=95?'var(--grn)':yr>=85?'#d97706':'var(--red)';
+      const clr=yr>103?'#d97706':yr>=95?'var(--grn)':yr>=85?'#d97706':'var(--red)';
       const barW=Math.max(4,Math.min(100,yr));
       const tt=v=>(Number(v)/1000).toFixed(1);
       const yv=(yd||[]).filter(r=>r.yield_rate!=null);
@@ -1561,9 +1564,9 @@ async function loadTeamReport(){
             <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:var(--blue)">${tt(out)}<span style="font-size:11px">t</span></div>
             <div style="font-size:10.5px;color:#98a2b3">${fmt(Math.round(out))} KG · SKU ${s.fin_sku!=null?s.fin_sku:'-'}</div></div>
           <div style="font-size:19px;color:#c3ccda">=</div>
-          <div style="background:${lossKg>0?'#fef3f2':'#f0fdf4'};border:1.5px solid ${lossKg>0?'#fda29b':'#bbf7d0'};border-radius:11px;padding:13px 15px">
-            <div style="font-size:11.5px;color:${lossKg>0?'#b42318':'#166534'};font-weight:700">${lossKg>0?'공정 손실':'증량(이월분 포함)'}</div>
-            <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:${lossKg>0?'#b42318':'#166534'}">${lossKg>0?'':'+'}${tt(Math.abs(lossKg))}<span style="font-size:11px">t</span></div>
+          <div style="background:${lossKg>0?'#fef3f2':'#fffbeb'};border:1.5px solid ${lossKg>0?'#fda29b':'#fcd34d'};border-radius:11px;padding:13px 15px">
+            <div style="font-size:11.5px;color:${lossKg>0?'#b42318':'#d97706'};font-weight:700">${lossKg>0?'공정 손실':'투입 과소집계'}</div>
+            <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:${lossKg>0?'#b42318':'#d97706'}">${lossKg>0?'':'+'}${tt(Math.abs(lossKg))}<span style="font-size:11px">t</span></div>
             <div style="font-size:10.5px;color:#98a2b3">${(100-yr).toFixed(1)}%p</div></div>
         </div>
         <div style="height:12px;background:#eef1f6;border-radius:7px;overflow:hidden;margin-bottom:6px">
@@ -1576,6 +1579,8 @@ async function loadTeamReport(){
         <div style="margin-top:12px;padding:9px 12px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;font-size:11.5px;color:var(--sub);line-height:1.65">
           &#8505; 반제품이 다음 날 포장되는 <b>이월(WIP)</b> 때문에 <b>일별 수율은 100%를 넘나듭니다.</b>
           그래서 ${unitKo} 이상 누계로만 표시합니다. 구간이 짧을수록 변동이 큽니다.
+          ${yr>103?`<br><b style="color:#d97706">⚠ 수율이 100%를 넘습니다.</b> 배합수 등 일부 투입물이 원자재(자재코드 1번대)로 집계되지 않아 <b>분모가 과소</b>한 상태입니다.
+          현재 값은 <b>추세 비교용</b>으로만 쓰시고, 절대값 해석은 자재코드 체계 정비 후에 하세요.`:''}
         </div>
       </div>
     </div>`;
@@ -1784,7 +1789,7 @@ async function loadTeamDetail(){
       <div class="sc b"><div class="l">계획가동률</div><div class="v mono">${M.run_rate||0}%</div><div class="sc-sub">${M.run_hours||0}hr 가동</div></div>
       <div class="sc"><div class="l">비계획정지율</div><div class="v mono" style="color:var(--red)">${M.unplan_rate||0}%</div><div class="sc-sub">${fmt(M.unplan_min||0)}분</div></div>
       <div class="sc"><div class="l">생산성 ${tag}</div><div class="v mono">${fmt(prod)}</div><div class="sc-sub">KG/hr</div></div>
-      <div class="sc"><div class="l">스크랩률 ${tag}</div><div class="v mono">${scR}%</div><div class="sc-sub">${fmtWon(M.scrap_amt||0)}</div></div>
+      <div class="sc"><div class="l">스크랩 금액</div><div class="v mono ${wonCls(-(M.scrap_amt||0))}" style="font-size:15px" title="스크랩 손실 금액. 생산량(kg) 대비 비율은 단위가 달라(원÷kg) 산출하지 않습니다.">${fmtWon(M.scrap_amt||0)}</div><div class="sc-sub">로스 등록 기준</div></div>
       <div class="sc"><div class="l">불량률 ${tag}</div><div class="v mono">${dfR}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
     </div>`;
     })()}
