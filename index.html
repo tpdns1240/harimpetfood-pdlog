@@ -282,7 +282,7 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
 /* ③ 로스 테이블: 제품·자재명 칸이 좁아 세로로 벌어지는 것 방지 */
-#lossTable{min-width:980px;table-layout:fixed}
+#lossTable{min-width:1040px;table-layout:fixed}
 #lossTable th,#lossTable td{padding:6px 7px;font-size:12.5px}
 #lossTable td.l{word-break:break-word;white-space:normal;line-height:1.35}
 #lossTable th:nth-child(1),#lossTable td:nth-child(1){width:96px}    /* 라인 */
@@ -294,8 +294,10 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 #lossTable th:nth-child(7),#lossTable td:nth-child(7){width:64px}    /* 단가 */
 #lossTable th:nth-child(8),#lossTable td:nth-child(8){width:82px}    /* 로스금액 */
 #lossTable th:nth-child(9),#lossTable td:nth-child(9){width:104px}   /* 로스유형 */
-#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:auto;min-width:96px} /* 사유 */
-#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:74px}  /* 작업 */
+#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:auto;min-width:88px} /* 사유 */
+#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:178px;white-space:nowrap;text-align:center} /* 저장/변경 */
+#lossTable td:nth-child(11) .rowbtn{padding:4px 7px;font-size:11px;margin:1px 1px}
+#lossTable td:nth-child(11) .tbtn{padding:4px 9px;font-size:11.5px;margin:1px 1px}
 #lossTable select,#lossTable input{max-width:100%;box-sizing:border-box}
 #lossTable .inp-cell{width:100%;max-width:100%}
 .t2-table tbody tr:nth-child(even){background:#f6f9fd}
@@ -4687,11 +4689,11 @@ function buildSection2(){
     const noPlanBadge = noPlan
       ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:4px;padding:1px 5px;vertical-align:1px" title="MES 계획이 없어 달성률을 낼 수 없습니다. 계획(KG)을 입력해 주세요">계획없음</span>` : '';
     const achCell = noPlan
-      ? `<td class="mono" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
-      : `<td class="mono"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`;
-    return `<tr data-ord="${o.prod_code}"${noPlan?' style="background:#fffbfa"':''}>
+      ? `<td class="mono" id="${rid}_ach" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
+      : `<td class="mono" id="${rid}_ach"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`;
+    return `<tr data-ord="${o.prod_code}" id="${rid}_tr" data-act="${oAct}"${noPlan?' style="background:#fffbfa"':''}>
       <td class="mono">${o.prod_code}</td>
-      <td class="l">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}${noPlanBadge}</td>
+      <td class="l" id="${rid}_nm">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}${noPlanBadge}</td>
       ${planCell}
       <td class="mono">${fmt(oAct)}</td>
       ${achCell}
@@ -4826,7 +4828,7 @@ function renderMore2(){
         <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
       <div class="fold-body open" id="foldBody_loss2">
       <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
+        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
         <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
       </table></div>
       <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
@@ -5084,12 +5086,13 @@ async function saveT2MH(){
     }
     const msg=[rows.length?`투입공수 ${rows.length}건`:'',planOk?`계획 ${planOk}건`:''].filter(Boolean).join(' · ');
     if(planFail.length) toast(`${msg} 저장 · 계획 실패 ${planFail.length}건(${planFail.join(',')})`,'err');
-    else toast((msg||'저장')+' 저장완료','ok');
-    if(planOk){                                  // 계획이 바뀌면 달성률·①요약 전면 재계산 필요
-      const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);
-    }else{
-      rerenderClosing();  // ①요약 인시당 생산성 재계산 (팀 무관)
-    }
+    else toast((msg||'저장')+' 저장완료 · 화면 위치 유지','ok');
+    // 저장된 행만 제자리에서 확정 표시 (전체 리로드 없음 → 스크롤·탭·미저장값 유지)
+    planJobs.forEach(code=>{
+      if(planFail.includes(code))return;
+      const el=document.querySelector(`.op-plan[data-code="${code}"]`);
+      applyOrderSaved(code, el?el.dataset.rid:null, planMap[code]);
+    });
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 /* ④ 불량: 라인 선택 시 해당 라인 오더만 표시 */
@@ -5704,7 +5707,7 @@ function renderClosing(){
     </div>
     <div class="fold-body open" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-      <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>작업</th></tr></thead>
+      <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
       <tbody id="lossBody1">${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
     </table></div>
     <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
@@ -6219,7 +6222,23 @@ function markOrderPlanEdit(key){
     const dirty=!isNaN(cur)&&cur!==orig;
     inp.style.border=dirty?'2px solid #d97706':'';
     inp.style.background=dirty?'#fff3dd':'#fff8e8';
+    recalcOrderAchieve(inp.dataset.rid||key);   // 달성률 즉시 반영
   }
+}
+/* 계획 입력값 기준으로 달성률 셀을 즉시 다시 계산 (서버 왕복 없음) */
+function recalcOrderAchieve(rid){
+  const inp=document.getElementById(rid+'_in'), cell=document.getElementById(rid+'_ach');
+  const tr=document.getElementById(rid+'_tr');
+  if(!inp||!cell||!tr)return;
+  const plan=Number(String(inp.value).replace(/,/g,'').trim());
+  const act=Number(tr.dataset.act||0);
+  if(!(plan>0)){
+    cell.innerHTML='<span style="color:#b42318;font-size:11.5px">계획 미입력</span>'; return;
+  }
+  const a=act/plan*100;
+  const clr=a>=90?'var(--grn)':a>0?'var(--org,#d97706)':'var(--red)';
+  const dirty=inp.style.border&&inp.style.border.indexOf('2px')===0;
+  cell.innerHTML=`<b style="color:${clr}">${a.toFixed(1)}%</b>${dirty?' <span style="font-size:10px;color:#d97706">미저장</span>':''}`;
 }
 async function saveOrderOverride(code,rid){
   const {date,team}=CUR_DAY;
@@ -6233,9 +6252,39 @@ async function saveOrderOverride(code,rid){
       p_by:(S.user&&S.user.name)||'-'
     });
     if(error)throw error;
-    toast('오더 계획 수정 반영 (MES 재업로드해도 유지)','ok');
-    const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);   // 달성률 재계산, 위치 유지
+    applyOrderSaved(code, rid, plan);          // 화면 재렌더 없이 그 행만 확정 표시 (스크롤·입력 유지)
+    toast('오더 계획 저장 (MES 재업로드해도 유지)','ok');
   }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+/* 저장 성공한 행을 제자리에서 '저장됨' 상태로 전환 — 전체 리로드 없음
+   · 메모리(CUR_DAY.orders)도 갱신해 탭 전환 시에도 값이 유지됨
+   · data-orig 갱신 → 미저장 표시(주황) 해제, ✎계획 배지 부착              */
+function applyOrderSaved(code, rid, plan){
+  (CUR_DAY.orders||[]).forEach(o=>{
+    if(o.prod_code===code){ o.plan_sum=plan; o.plan_qty=plan; o.plan_edited=true;
+      const a=Number(o.actual_sum??o.actual_qty??0); o.achieve=plan>0?(a/plan):0; }
+  });
+  const el=rid?document.getElementById(rid+'_in'):document.querySelector(`.op-plan[data-code="${code}"]`);
+  if(el){
+    el.dataset.orig=plan;
+    el.value=fmt(plan);
+    el.style.border=''; el.style.background='#eef7ee';   // 저장 완료 = 연녹색
+    setTimeout(()=>{ if(el) el.style.background='#fff8e8'; }, 1200);
+    const b=document.getElementById((el.dataset.rid||rid)+'_btn'); if(b) b.style.display='none';
+    recalcOrderAchieve(el.dataset.rid||rid);
+  }
+  // ✎계획 배지 + ↺복원 버튼 부착 (아직 없으면)
+  const r=el&&(el.dataset.rid||rid);
+  const nm=r?document.getElementById(r+'_nm'):null;
+  if(nm && nm.querySelector('.edit-badge')===null){
+    const sp=document.createElement('span'); sp.className='edit-badge'; sp.title='계획 수정됨';
+    sp.textContent='✎계획'; nm.appendChild(document.createTextNode(' ')); nm.appendChild(sp);
+  }
+  if(el && !el.parentNode.querySelector('.rowbtn.del')){
+    const rb=document.createElement('button'); rb.className='rowbtn del';
+    rb.title='MES 원본 계획으로 복원'; rb.textContent='↺'; rb.style.marginLeft='3px';
+    rb.onclick=()=>resetOrderOverride(code); el.parentNode.appendChild(rb);
+  }
 }
 async function resetOrderOverride(code){
   const {date,team}=CUR_DAY;
