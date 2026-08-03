@@ -4581,14 +4581,15 @@ function buildManpower6(){
 /* ② 오더별 생산실적·투입공수 — 1팀·2팀 공용.
    완/반 탭 + 공정 서브탭 + 투입공수(MH)/인시당/특이사항 입력. T2_ORD/T2_PROC 상태 사용 */
 /* ── 공정(라인) 표시 순서 : 실제 생산 흐름 순 ──────────────────────
-   생산1팀 : 생육 → 분체배합 → 계량/배합 → EP → 진공코터 → 포장
+   생산1팀 : 생육 → 계량/배합 → EP → 분체배합 → 진공코터 → 오븐 → 포장
+     · 분체배합은 코팅분말을 만드는 공정이라 EP 뒤·진공코터 앞에 위치
    목록에 없는 공정은 뒤쪽에 가나다순으로 붙습니다(누락 방지).
    ※ 순서만 바꿉니다. 집계·계산 로직에는 영향 없음.                    */
 const PROC_FLOW_ORDER=[
   '생육',
-  '분체배합',
   '계량/배합 자동계량','계량/배합 리싸이클','계량/배합',
   'EP','EP 리싸이클',
+  '분체배합',
   '진공코터','진공코터 리싸이클',
   '오븐',
   '포장'
@@ -4618,6 +4619,36 @@ function lossOverBanner(){
     ⚠ <b>계획이 실적을 초과한 자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량)을 넘을 수 없습니다.
     해당 행의 계획을 실적 이하로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
   </div>`;
+}
+/* ⚡ 계획 제안값 채우기 — 공정 흐름 기준으로 계획 입력칸을 채움(저장 전까지 DB 무변경)
+   · 완제품 계획   ← 진공코터 실적 (같은 반제품을 쓰는 오더끼리 실적 비율로 안분)
+   · 진공코터 계획 ← EP 실적 (동일 방식)
+   · 근거 공정 실적이 없으면(전날 생산분 포장 등) 건드리지 않음               */
+async function fillSuggestPlan(){
+  const {date,team}=CUR_DAY;
+  if(!date||!team){ toast('날짜/팀 정보 없음','err'); return; }
+  let rows=[];
+  try{
+    const {data,error}=await sb.rpc('suggest_plan',{p_date:date,p_team:team});
+    if(error)throw error;
+    rows=data||[];
+  }catch(e){ toast('제안계획 조회 실패: '+(e.message||e),'err'); return; }
+  if(!rows.length){ toast('제안할 계획이 없습니다 (근거 공정 실적 없음)','err'); return; }
+
+  // 현재 화면(선택된 공정 탭)에 떠 있는 입력칸만 채움
+  const byCode={}; rows.forEach(r=>{ byCode[r.prod_code]=r; });
+  let filled=0, skipped=0;
+  document.querySelectorAll('.op-plan').forEach(inp=>{
+    const r=byCode[inp.dataset.code];
+    if(!r||!(Number(r.suggest)>0)){ skipped++; return; }
+    const v=Math.round(Number(r.suggest)*10)/10;
+    inp.value=fmt(v);
+    inp.title=`제안 근거: ${r.src} · 현재계획 ${fmt(Number(r.cur_plan))}`;
+    markOrderPlanEdit(inp.dataset.rid||inp.dataset.code);
+    filled++;
+  });
+  if(!filled){ toast(`이 공정 탭에는 제안 대상이 없습니다 (전체 ${rows.length}건)`,'err'); return; }
+  toast(`계획 제안값 ${filled}건 입력됨 — 확인 후 [투입공수 · 계획 저장]을 누르세요`,'ok');
 }
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
@@ -4684,6 +4715,7 @@ function buildSection2(){
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
     <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
     ${noPlanCnt?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
+    <button class="tbtn" onclick="fillSuggestPlan()" title="완제품 계획은 진공코터 실적, 진공코터 계획은 EP 실적을 기준으로 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않으며, 값은 직접 수정할 수 있습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>
     <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
     <div class="tabbar">
       <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
