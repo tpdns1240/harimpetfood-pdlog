@@ -1523,12 +1523,15 @@ async function loadTeamReport(){
       <div class="sc ${finAch>=100?'g':'r'}"><div class="l">평균 달성률</div><div class="v mono">${finAch||0}%</div>
         <div class="sc-sub">완제품 기준</div></div>
       ${(()=>{const y=Number(s.yield_rate);const nul=(s.yield_rate==null||!isFinite(y));
-        const over=!nul&&y>103;   // 100% 초과 = 배합수 등 투입 과소집계 신호
-        const cls=nul?'':(over?'':(y>=95?'g':y>=85?'':'r'));
+        // 수율 = 완제품 산출 ÷ (원자재 + 완제품에 투입된 타팀 반제품). 100% 근처가 정상.
+        // 130% 초과 = BOM rate 미정비/수기입력 구간 → 판정색 없이 '참고값'으로만 표시
+        const unrel=!nul&&y>130;
+        const cls=nul||unrel?'':(y>=97?'g':y>=90?'':'r');
+        const ext=Number(s.ext_semi||0);
         return `<div class="sc ${cls}">
         <div class="l">종합수율 <span style="font-size:9.5px;color:#98a2b3;font-weight:700">누계</span></div>
-        <div class="v mono" style="${over?'color:#d97706':''}" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (기간 누계·물량가중).${over?' 100%를 넘는 것은 배합수 등 투입이 원자재 코드로 집계되지 않았다는 뜻입니다.':''}">${nul?'–':y.toFixed(1)+'%'}${over?' <span style="font-size:11px">⚠</span>':''}</div>
-        <div class="sc-sub" style="${over?'color:#d97706;font-weight:700':''}">${over?'투입 과소집계':'완제품 SKU '+(s.fin_sku!=null?s.fin_sku:'–')}${Number(s.raw_input)>0?` · 원자재 ${t(s.raw_input)}`:''}</div></div>`;})()}
+        <div class="v mono" style="${unrel?'color:#8a94a6':''}" title="종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 완제품에 투입된 타팀 반제품). 100% 미만이 정상이며 부족분이 공정 손실입니다.${unrel?' 이 팀은 계획·실적을 수기 입력하고 BOM rate가 정비되지 않아 수율이 비정상적으로 높게 나옵니다.':''}">${nul?'–':y.toFixed(1)+'%'}</div>
+        <div class="sc-sub" style="${unrel?'color:#8a94a6;font-weight:700':''}">${nul?'완제품 오더 없음':(unrel?'BOM 정비 전 · 참고값':`SKU ${s.fin_sku!=null?s.fin_sku:'–'}${ext>0?` · 타팀반제품 ${t(ext)}`:''}`)}</div></div>`;})()}
       <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:14px">${fmtWon(s.net_loss)}</div></div>
     </div>`;
     })()}
@@ -1541,7 +1544,7 @@ async function loadTeamReport(){
           수율 데이터가 없습니다. <b>report_summary</b> v4 · <b>yield_trend</b> 함수가 적용되었는지 확인하세요.
         </div></div>`;
       const yr=Number(s.yield_rate||0), lossKg=raw-out;
-      const clr=yr>103?'#d97706':yr>=95?'var(--grn)':yr>=85?'#d97706':'var(--red)';
+      const clr=yr>130?'#8a94a6':yr>103?'#d97706':yr>=97?'var(--grn)':yr>=90?'#d97706':'var(--red)';
       const barW=Math.max(4,Math.min(100,yr));
       const tt=v=>(Number(v)/1000).toFixed(1);
       const yv=(yd||[]).filter(r=>r.yield_rate!=null);
@@ -1565,7 +1568,7 @@ async function loadTeamReport(){
             <div style="font-size:10.5px;color:#98a2b3">${fmt(Math.round(out))} KG · SKU ${s.fin_sku!=null?s.fin_sku:'-'}</div></div>
           <div style="font-size:19px;color:#c3ccda">=</div>
           <div style="background:${lossKg>0?'#fef3f2':'#fffbeb'};border:1.5px solid ${lossKg>0?'#fda29b':'#fcd34d'};border-radius:11px;padding:13px 15px">
-            <div style="font-size:11.5px;color:${lossKg>0?'#b42318':'#d97706'};font-weight:700">${lossKg>0?'공정 손실':'투입 과소집계'}</div>
+            <div style="font-size:11.5px;color:${lossKg>0?'#b42318':'#d97706'};font-weight:700">${lossKg>0?'공정 손실':'투입 미집계(이월)'}</div>
             <div class="mono" style="font-size:21px;font-weight:900;margin-top:2px;color:${lossKg>0?'#b42318':'#d97706'}">${lossKg>0?'':'+'}${tt(Math.abs(lossKg))}<span style="font-size:11px">t</span></div>
             <div style="font-size:10.5px;color:#98a2b3">${(100-yr).toFixed(1)}%p</div></div>
         </div>
@@ -1579,8 +1582,11 @@ async function loadTeamReport(){
         <div style="margin-top:12px;padding:9px 12px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px;font-size:11.5px;color:var(--sub);line-height:1.65">
           &#8505; 반제품이 다음 날 포장되는 <b>이월(WIP)</b> 때문에 <b>일별 수율은 100%를 넘나듭니다.</b>
           그래서 ${unitKo} 이상 누계로만 표시합니다. 구간이 짧을수록 변동이 큽니다.
-          ${yr>103?`<br><b style="color:#d97706">⚠ 수율이 100%를 넘습니다.</b> 배합수 등 일부 투입물이 원자재(자재코드 1번대)로 집계되지 않아 <b>분모가 과소</b>한 상태입니다.
-          현재 값은 <b>추세 비교용</b>으로만 쓰시고, 절대값 해석은 자재코드 체계 정비 후에 하세요.`:''}
+          <br><b>총 투입 = 원자재(자재코드 1번대) + 타팀에서 생산된 반제품</b>입니다.
+          공통(오븐·진공코터)처럼 다른 팀에서 넘어온 반제품도 투입물이므로 분모에 포함합니다.
+          ${yr>130?`<br><b style="color:#8a94a6">⚠ 이 팀은 계획·실적을 수기 입력하며 BOM rate가 정비되지 않아</b> 투입량이 실제보다 적게 잡힙니다.
+          현재 수율은 <b>참고값</b>이며, BOM 정비 후 다시 판단하세요.`
+          :(yr>103?`<br><b style="color:#d97706">⚠ 수율이 100%를 넘습니다.</b> 해당 기간에 투입 자재 등록이 누락됐거나, 앞선 기간에 만든 반제품이 이 기간에 포장(이월)된 경우입니다.`:'')}
         </div>
       </div>
     </div>`;
@@ -2439,9 +2445,9 @@ async function loadDashboard(){
         <div class="v mono" ${achBad?'title="계획이 실적보다 현저히 작습니다. MES 완제품 계획이 미입력된 오더가 많다는 뜻이며, 마감화면 ②에서 계획을 채우면 정상화됩니다."':''}>${ach.toFixed(1)}%</div>
         <div class="sc-sub" style="${achBad?'color:#b42318;font-weight:700':''}">${achBad?'⚠ 계획 미입력 다수':'완제품 기준'}</div></div>
       <div class="sc"><div class="l">완제품 실적(출하)</div>${scTonD(s.fin_actual)}</div>
-      <div class="sc ${yr==null?'':(yr>=95?'g':yr>=85?'':'r')}"><div class="l">종합수율 <span style="font-size:9px;color:#98a2b3;font-weight:700">누계</span></div>
-        <div class="v mono" title="종합수율 = 완제품 산출 ÷ 원자재 투입 (조회기간 누계·물량가중)">${yr!=null?yr.toFixed(1)+'%':'–'}</div>
-        <div class="sc-sub">${Number(s.raw_input)>0?`원자재 ${(Number(s.raw_input)/1000).toFixed(1)}t`:'반제품 '+((Number(s.semi_actual||0))/1000).toFixed(1)+'t'}</div></div>
+      <div class="sc ${yr==null||yr>130?'':(yr>=97?'g':yr>=90?'':'r')}"><div class="l">종합수율 <span style="font-size:9px;color:#98a2b3;font-weight:700">누계</span></div>
+        <div class="v mono" title="종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 타팀 생산 반제품)">${yr!=null?yr.toFixed(1)+'%':'–'}</div>
+        <div class="sc-sub">${Number(s.raw_input)>0?`총투입 ${(Number(s.raw_input)/1000).toFixed(1)}t`:'–'}</div></div>
       <div class="sc r"><div class="l">순 로스금액</div><div class="v mono ${wonCls(s.net_loss)}" style="font-size:16px">${fmtWon(s.net_loss)}</div></div>`;
       })()}
     </div>
