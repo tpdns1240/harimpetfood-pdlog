@@ -282,7 +282,17 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
 /* ③ 로스 테이블: 제품·자재명 칸이 좁아 세로로 벌어지는 것 방지 */
-#lossTable{min-width:1040px;table-layout:fixed}
+.dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
+.dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
+.dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
+.dev-num{width:72px;padding:5px 8px;border:1.5px solid var(--line);border-radius:7px;text-align:right;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.dev-num:focus{outline:none;border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.12)}
+.dev-u{font-size:11.5px;color:#98a2b3;font-weight:700;margin-left:-4px}
+.dev-mx{font-size:10.5px;color:#98a2b3;font-weight:600;white-space:nowrap}
+.dev-saved{font-size:10.5px;font-weight:800;color:#1e874b;background:#e7f7ee;border:1px solid #b7e4c9;border-radius:5px;padding:2px 7px}
+.dev-stat{font-size:11.5px;color:var(--mut);margin-left:auto;white-space:nowrap}
+@media(max-width:820px){.dev-stat{margin-left:0;width:100%}}
+#lossTable{min-width:1100px;table-layout:fixed}
 #lossTable th,#lossTable td{padding:6px 7px;font-size:12.5px}
 #lossTable td.l{word-break:break-word;white-space:normal;line-height:1.35}
 #lossTable th:nth-child(1),#lossTable td:nth-child(1){width:96px}    /* 라인 */
@@ -291,13 +301,14 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 #lossTable th:nth-child(4),#lossTable td:nth-child(4){width:82px}    /* 계획 */
 #lossTable th:nth-child(5),#lossTable td:nth-child(5){width:74px}    /* 실적 */
 #lossTable th:nth-child(6),#lossTable td:nth-child(6){width:70px}    /* 편차 */
-#lossTable th:nth-child(7),#lossTable td:nth-child(7){width:64px}    /* 단가 */
-#lossTable th:nth-child(8),#lossTable td:nth-child(8){width:82px}    /* 로스금액 */
-#lossTable th:nth-child(9),#lossTable td:nth-child(9){width:104px}   /* 로스유형 */
-#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:auto;min-width:88px} /* 사유 */
-#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:178px;white-space:nowrap;text-align:center} /* 저장/변경 */
-#lossTable td:nth-child(11) .rowbtn{padding:4px 7px;font-size:11px;margin:1px 1px}
-#lossTable td:nth-child(11) .tbtn{padding:4px 9px;font-size:11.5px;margin:1px 1px}
+#lossTable th:nth-child(7),#lossTable td:nth-child(7){width:64px}    /* 편차율 */
+#lossTable th:nth-child(8),#lossTable td:nth-child(8){width:62px}    /* 단가 */
+#lossTable th:nth-child(9),#lossTable td:nth-child(9){width:82px}    /* 로스금액 */
+#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:104px} /* 로스유형 */
+#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:auto;min-width:88px} /* 사유 */
+#lossTable th:nth-child(12),#lossTable td:nth-child(12){width:178px;white-space:nowrap;text-align:center} /* 저장/변경 */
+#lossTable td:nth-child(12) .rowbtn{padding:4px 7px;font-size:11px;margin:1px 1px}
+#lossTable td:nth-child(12) .tbtn{padding:4px 9px;font-size:11.5px;margin:1px 1px}
 #lossTable select,#lossTable input{max-width:100%;box-sizing:border-box}
 #lossTable .inp-cell{width:100%;max-width:100%}
 .t2-table tbody tr:nth-child(even){background:#f6f9fd}
@@ -1976,7 +1987,7 @@ async function loadTDTab(){
           <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
           <td class="mono">${o.unplan_min>0?fmt(o.unplan_min)+'분':'–'}</td>
           <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
-        </tr>`).join('')||'<tr><td colspan="12" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
+        </tr>`).join('')||'<tr><td colspan="11" style="color:var(--mut);padding:16px">데이터 없음</td></tr>'}</tbody>
       </table></div></div>`;
   }else{
     const {data}=await sb.rpc('team_product_detail',p);
@@ -4008,6 +4019,7 @@ async function openDay(date, team){
     CUR_DAY.lines=lineRes.data||[];
     CUR_DAY.orders=orderRes.data||[];
     CUR_DAY.losses=lossRes.data||[];
+    await loadDevMin();          // 편차율 하한(해당 일자·팀 고정값) 로드
     const cl=clRes.data||{};
     CUR_DAY.defects=cl.defects||[];
     CUR_DAY.downtime=cl.downtime||[];
@@ -4054,6 +4066,8 @@ async function openDay(date, team){
   // 팀별 분기: 생산2팀은 전용 렌더
   if(CUR_DAY.team==='생산2팀') renderClosing2();
   else renderClosing();
+  // 렌더 직후 편차율 필터 재적용 (고정값이 있으면 즉시 숨김)
+  setTimeout(()=>{ if(typeof applyDevFilter==='function') applyDevFilter(DEV_MIN, DEV_MIN>0); },0);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4478,7 +4492,7 @@ function buildSection5(){
       <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
         <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>출처</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
-        <tbody>${eRows||'<tr><td colspan="12" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
+        <tbody>${eRows||'<tr><td colspan="11" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
       </table></div>
 
       <!-- [F] 라인별 비가동 파레토 -->
@@ -4649,8 +4663,9 @@ async function fillSuggestPlan(){
     markOrderPlanEdit(inp.dataset.rid||inp.dataset.code);
     filled++;
   });
-  if(!filled){ toast(`이 공정 탭에는 제안 대상이 없습니다 (전체 ${rows.length}건)`,'err'); return; }
-  toast(`계획 제안값 ${filled}건 입력됨 — 확인 후 [투입공수 · 계획 저장]을 누르세요`,'ok');
+  if(!filled){ toast(`이 공정 탭에는 제안 대상이 없습니다 (전체 ${rows.length}건 · 다른 탭 확인)`,'err'); return; }
+  const coatCnt=Object.values(byCode).filter(r=>r.src==='EP 실적').length;
+  toast(`계획 제안값 ${filled}건 입력됨 — 확인 후 [투입공수 · 계획 저장]${coatCnt?' · 진공코터 제안은 EP 물량 기준이라 검토 필요':''}`,'ok');
 }
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
@@ -4674,16 +4689,20 @@ function buildSection2(){
     const ach=oPlan>0?(oAct/oPlan*100):0;
     const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
     const pedit=!!o.plan_edited;
-    // 완제품만 계획 수정 (반제품은 자재합산이라 잠금). kind 누락 시 prod_code 앞자리(2·3) 폴백
-    const canEditPlan=isFin(o);
+    // 계획 수정 허용 범위
+    //  · 완제품 : 항상 (kind 누락 시 prod_code 앞자리 2·3 폴백)
+    //  · 반제품 : 진공코터 공정만 (EP 실적 기준 제안계획을 넣기 위함). 그 외 반제품은
+    //             원부자재 합산값이라 잠금 유지
+    const isCoat=/진공코터/.test(String(o.proc_sub2||''));
+    const canEditPlan=isFin(o)||(isSemi(o)&&isCoat);
     const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
       ? `<td style="white-space:nowrap">
-          <input class="inp-cell op-plan" id="${rid}_in" data-code="${o.prod_code}" data-orig="${oPlan||0}" data-rid="${rid}" value="${oPlan?fmt(oPlan):''}" placeholder="0" style="width:74px;text-align:right;background:#fff8e8" oninput="markOrderPlanEdit('${rid}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${o.prod_code}','${rid}');}">
+          <input class="inp-cell op-plan" id="${rid}_in" data-code="${o.prod_code}" data-orig="${oPlan||0}" data-rid="${rid}" data-coat="${isCoat&&isSemi(o)?'1':''}" value="${oPlan?fmt1(oPlan):''}" placeholder="0" title="${isCoat&&isSemi(o)?'진공코터 계획 — 제안값은 EP 실적 기준입니다. EP 물량이 코터 외 공정으로도 가면 제안이 실제보다 클 수 있으니 확인 후 저장하세요.':'완제품 계획 — 제안값은 진공코터 실적 기준입니다.'}" style="width:74px;text-align:right;background:${isCoat&&isSemi(o)?'#f3f0ff':'#fff8e8'}" oninput="markOrderPlanEdit('${rid}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${o.prod_code}','${rid}');}">
           <button class="rowbtn op-apply" id="${rid}_btn" onclick="saveOrderOverride('${o.prod_code}','${rid}')" style="display:none;margin-left:3px">적용</button>
           ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
         </td>`
-      : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt(oPlan)}</td>`;
+      : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt1(oPlan)}</td>`;
     // 계획 미입력(MES 부실) 판정: 계획 0 이하인데 실적은 존재 → 달성률 산출 불가
     const noPlan = (oPlan<=0 && oAct>0);
     const noPlanBadge = noPlan
@@ -4695,9 +4714,9 @@ function buildSection2(){
       <td class="mono">${o.prod_code}</td>
       <td class="l" id="${rid}_nm">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}${noPlanBadge}</td>
       ${planCell}
-      <td class="mono">${fmt(oAct)}</td>
+      <td class="mono">${fmt1(oAct)}</td>
       ${achCell}
-      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh||''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
+      <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
     </tr>`;
@@ -4715,7 +4734,7 @@ function buildSection2(){
         (행별 <b>적용</b> 버튼 또는 <b>Enter</b>로 한 건씩 저장도 가능)
        </div>` : '';
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 및 진공코터 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
     ${noPlanCnt?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
     <button class="tbtn" onclick="fillSuggestPlan()" title="완제품 계획은 진공코터 실적, 진공코터 계획은 EP 실적을 기준으로 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않으며, 값은 직접 수정할 수 있습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>
     <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
@@ -4772,13 +4791,15 @@ function renderMore2(){
       const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
       const lossSign=lossVal<0?'-':lossVal>0?'+':'';
       const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
+      const dr=devRate(s);   // 편차율 = |편차| ÷ 계획 × 100
+      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" class="${isSaved?'row-saved':''}">
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+      <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
       <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+      <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
       <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
       <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
@@ -4823,13 +4844,14 @@ function renderMore2(){
           <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
           ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
         </div>`;})()}
+      ${devFilterBar()}
       <div class="fold-bar open" id="foldBar_loss2" onclick="toggleFold('loss2')">
         <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
         <span class="fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
       <div class="fold-body open" id="foldBody_loss2">
       <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
-        <tbody id="lossBody2">${lossRows2||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
+        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>편차율</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
+        <tbody id="lossBody2">${lossRows2||'<tr><td colspan="12" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
       </table></div>
       <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
       </div>
@@ -5039,15 +5061,33 @@ async function saveRunTime(){
 let T2_PROC='';
 function switchT2Proc(p){ T2_PROC=p; rerenderClosing(); }
 /* ③ 로스: 라인 필터 (담당자별 작업) — 1팀/2팀 공용 */
+let LOSS_LINE='';   // 현재 선택된 라인 필터 (편차율 필터와 함께 적용)
 function filterLossLine(ln){
+  LOSS_LINE=ln||'';
   document.querySelectorAll('#lossFilterBar .dtf-chip, #lossFilterBar1 .dtf-chip').forEach(b=>{
-    b.classList.toggle('on',(b.dataset.ln||'')===ln);
+    b.classList.toggle('on',(b.dataset.ln||'')===LOSS_LINE);
   });
-  let shown=0;
-  document.querySelectorAll('#lossBody2 tr, #lossBody1 tr').forEach(tr=>{
-    const hit=!ln||tr.dataset.ln===ln;
-    tr.style.display=hit?'':'none'; if(hit)shown++;
+  applyLossFilters();
+}
+/* 라인 필터 + 편차율 필터를 함께 적용 (서로 덮어쓰지 않도록 단일 창구) */
+function applyLossFilters(){
+  const m=Number(DEV_MIN)||0;
+  let shown=0, hid=0, hidAmt=0;
+  document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
+    const lnOk=!LOSS_LINE||tr.dataset.ln===LOSS_LINE;
+    const dr=tr.dataset.dr===''?null:Number(tr.dataset.dr);
+    const devHide=(dr!=null && dr<m);
+    tr.style.display=(lnOk&&!devHide)?'':'none';
+    if(lnOk&&devHide){ hid++;
+      const c=tr.querySelector('td:nth-child(9)');
+      if(c) hidAmt+=Math.abs(Number(String(c.textContent).replace(/[^0-9.-]/g,''))||0);
+    }
+    if(lnOk&&!devHide) shown++;
   });
+  const st=$('#devStat');
+  if(st) st.innerHTML=m>0
+    ? `<b style="color:#b42318">${hid}건 숨김</b> · 표시 ${shown}건 · 숨긴 로스금액 ${fmtWon(hidAmt)}`
+    : `전체 ${shown}건 표시`;
   const em=$('#lossEmptyMsg'); if(em) em.style.display=shown?'none':'block';
 }
 async function saveT2MH(){
@@ -5569,18 +5609,20 @@ function renderClosing(){
     const typeVal=saved?saved.scrap_type:'';
     const reasonVal=saved?(saved.reason||''):'';
     const typeSelOpts=lossTypeOpts.replace(`value="${typeVal}"`,`value="${typeVal}" selected`);
+    const dr=devRate(s);   // 편차율 = |편차| ÷ 계획 × 100
     const diffSign=Number(s.diff)>0?'+':''; // 편차 그대로
     // 로스금액: 편차+(초과사용)=손실=-금액(빨강), 편차-(절감)=+금액(초록)
     const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
     const lossSign=lossVal<0?'-':lossVal>0?'+':'';
     const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" class="${isSaved?'row-saved':''}">
+    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" class="${isSaved?'row-saved':''}">
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
-    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+    <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
     <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+    <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
     <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
     <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
@@ -5700,6 +5742,7 @@ function renderClosing(){
         <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(CUR_DAY.losses||[]).length}</b></button>
         ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
       </div>`;})()}
+    ${devFilterBar()}
     <div class="fold-bar open" id="foldBar_loss" onclick="toggleFold('loss')">
       <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
       <span class="fold-cnt">${(CUR_DAY.losses||[]).length}</span>
@@ -5707,8 +5750,8 @@ function renderClosing(){
     </div>
     <div class="fold-body open" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-      <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
-      <tbody id="lossBody1">${lossRows||'<tr><td colspan="11" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
+      <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>편차율</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
+      <tbody id="lossBody1">${lossRows||'<tr><td colspan="12" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
     </table></div>
     <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
     </div>
@@ -6211,6 +6254,99 @@ function toggleTypePanel(kind){
 }
 
 /* ② 오더 계획(KG) 수정 — 자재 로스와 별개, 달성률 조정용 */
+/* ════════════════════════════════════════════════════════════════════
+   ③ 원부자재 로스관리 — 편차율(Deviation Rate)
+   편차율 = |실적 − 계획| ÷ 계획 × 100
+   · 기준값 이하 행은 목록에서 숨김(허용 오차 범위로 간주)
+   · 기준값은 t_app_config 에 '날짜|팀' 단위로 저장 → 그 일자에 고정
+   ════════════════════════════════════════════════════════════════════ */
+let DEV_MIN=0;          // 현재 적용된 편차율 하한(%)
+let DEV_MAX=100;        // 해당 일자 최대 편차율(슬라이더 상한)
+
+function devRate(s){
+  const p=Math.abs(Number(s.plan_qty)), d=Math.abs(Number(s.diff));
+  if(!(p>0)) return null;              // 계획 0 → 산출 불가
+  return d/p*100;
+}
+function drCls(v){
+  if(v==null) return '';
+  return v>=10?'neg':v>=3?'':'pos';    // 10%↑ 빨강 · 3~10% 기본 · 3%↓ 초록
+}
+function devCfgKey(){
+  return 'loss_dev_'+(CUR_DAY.date||'')+'_'+(CUR_DAY.team||'');
+}
+/* 저장된 기준값 불러오기 (openDay에서 호출) */
+async function loadDevMin(){
+  DEV_MIN=0;
+  const rates=(CUR_DAY.losses||[]).map(devRate).filter(v=>v!=null);
+  DEV_MAX=rates.length?Math.ceil(Math.max(...rates)):100;
+  if(DEV_MAX<1)DEV_MAX=1;
+  try{
+    const {data}=await sb.rpc('get_config',{p_key:devCfgKey()});
+    const v=Number(data); if(isFinite(v)&&v>0) DEV_MIN=v;
+  }catch(_){}
+}
+/* 슬라이더/입력 변경 → 화면만 반영(저장은 별도 버튼) */
+function devSlide(v){
+  const n=Math.max(0,Number(v)||0);
+  const sl=$('#devSlider'), nb=$('#devNum');
+  if(sl) sl.value=Math.min(n,Number(sl.max)||n);   // 슬라이더는 구간 내에서만 이동
+  if(nb && document.activeElement!==nb) nb.value=n;
+  applyDevFilter(n,false);
+}
+/* 필터 적용 — 라인/편차율 통합 창구로 위임 */
+function applyDevFilter(min,saved){
+  DEV_MIN=Number(min)||0;
+  if(typeof applyLossFilters==='function') applyLossFilters();
+  const bd=$('#devSavedBadge');
+  if(bd) bd.style.display=saved?'':'none';
+}
+/* 기준값 고정(저장) — 해당 일자·팀에 유지 */
+async function saveDevMin(){
+  const n=Number(($('#devNum')||{}).value)||0;
+  try{
+    const {error}=await sb.rpc('set_config',{p_key:devCfgKey(),p_val:String(n)});
+    if(error)throw error;
+    DEV_MIN=n;
+    applyDevFilter(n,true);
+    toast(n>0?`편차율 ${n}% 이하 숨김 — ${CUR_DAY.date} ${CUR_DAY.team} 에 고정`:'편차율 필터 해제','ok');
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+function resetDevMin(){
+  devSlide(0);
+  const nb=$('#devNum'); if(nb)nb.value=0;
+  saveDevMin();
+}
+/* 필터 바 HTML — ③ 섹션에 삽입 */
+function devFilterBar(){
+  const rates=(CUR_DAY.losses||[]).map(devRate).filter(v=>v!=null).sort((a,b)=>a-b);
+  if(!rates.length) return '';
+  const realMax=Math.ceil(rates[rates.length-1]);
+  // 계획이 0/1 로 부실한 자재 때문에 편차율이 수만 %까지 치솟음 →
+  // 슬라이더는 중앙값 기반 실용 구간(상한 200%)으로 제한하고, 수기 입력은 무제한 허용
+  const p80=rates[Math.floor(rates.length*0.8)]||0;
+  const mx=Math.max(10, Math.min(200, Math.ceil(p80*1.5)));
+  const extreme=rates.filter(v=>v>mx).length;
+  return `<div class="dev-bar">
+    <span class="dev-t">편차율 하한</span>
+    <input type="range" id="devSlider" min="0" max="${mx}" step="0.1" value="${Math.min(DEV_MIN,mx)}"
+      oninput="devSlide(this.value)" class="dev-range" title="드래그해서 기준을 정하세요. 더 큰 값은 오른쪽 칸에 직접 입력할 수 있습니다.">
+    <input type="number" id="devNum" min="0" step="0.1" value="${DEV_MIN}"
+      oninput="devSlide(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();saveDevMin();}" class="dev-num" title="직접 입력 (상한 없음) · Enter 로 고정">
+    <span class="dev-u">%</span>
+    <span class="dev-mx">슬라이더 0~${mx}% · 최대 ${realMax.toLocaleString()}%${extreme?` (구간 밖 ${extreme}건)`:''}</span>
+    <button class="tbtn save" onclick="saveDevMin()">편차율 고정</button>
+    <button class="rowbtn" onclick="resetDevMin()">해제</button>
+    <span id="devSavedBadge" class="dev-saved" style="display:${DEV_MIN>0?'':'none'}">고정됨</span>
+    <span class="dev-stat" id="devStat"></span>
+  </div>`;
+}
+/* 소수점 1자리 고정 표기 (② 계획·실적·투입공수용) */
+function fmt1(v){ const n=Number(v); if(!isFinite(n))return '0.0';
+  return n.toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1}); }
+/* 정수 표기 (③ 로스 계획·실적용) */
+function fmt0(v){ const n=Number(v); if(!isFinite(n))return '0';
+  return Math.round(n).toLocaleString('ko-KR'); }
 function markOrderPlanEdit(key){
   // key = 행 고유 rid('op3') 또는 구버전 prod_code — 둘 다 지원
   const btn=document.getElementById(key+'_btn')||document.getElementById('opApply_'+key);
@@ -6221,7 +6357,7 @@ function markOrderPlanEdit(key){
     const cur=Number(String(inp.value).replace(/,/g,'').trim());
     const dirty=!isNaN(cur)&&cur!==orig;
     inp.style.border=dirty?'2px solid #d97706':'';
-    inp.style.background=dirty?'#fff3dd':'#fff8e8';
+    inp.style.background=dirty?'#fff3dd':(inp.dataset.coat==='1'?'#f3f0ff':'#fff8e8');
     recalcOrderAchieve(inp.dataset.rid||key);   // 달성률 즉시 반영
   }
 }
@@ -6267,9 +6403,9 @@ function applyOrderSaved(code, rid, plan){
   const el=rid?document.getElementById(rid+'_in'):document.querySelector(`.op-plan[data-code="${code}"]`);
   if(el){
     el.dataset.orig=plan;
-    el.value=fmt(plan);
+    el.value=fmt1(plan);
     el.style.border=''; el.style.background='#eef7ee';   // 저장 완료 = 연녹색
-    setTimeout(()=>{ if(el) el.style.background='#fff8e8'; }, 1200);
+    setTimeout(()=>{ if(el) el.style.background=(el.dataset.coat==='1'?'#f3f0ff':'#fff8e8'); }, 1200);
     const b=document.getElementById((el.dataset.rid||rid)+'_btn'); if(b) b.style.display='none';
     recalcOrderAchieve(el.dataset.rid||rid);
   }
@@ -6702,7 +6838,7 @@ function renderPO(){
     <span class="desc">편차 발생 자재 · 사유 작성</span><span class="sp"></span>
     ${scraps.length?`<button class="tbtn save" onclick="savePOScrap()">사유 저장</button>`:''}</div>
     <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>제품</th><th>자재명</th><th>편차</th><th>단가</th><th>로스금액</th><th>발생사유</th></tr></thead>
+      <thead><tr><th>제품</th><th>자재명</th><th>편차</th><th>편차율</th><th>단가</th><th>로스금액</th><th>발생사유</th></tr></thead>
       <tbody>${scrapRows||'<tr><td colspan="6" style="color:var(--mut);padding:16px">편차 발생 없음</td></tr>'}</tbody>
     </table></div>
   </div>
