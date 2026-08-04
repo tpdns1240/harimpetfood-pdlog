@@ -4643,12 +4643,12 @@ function procOrderCmp(a,b){
 }
 /* ③ 로스: 계획 > 실적(초과) 건 진단 배너 — 기존 데이터 정정 안내 */
 function lossOverBanner(){
-  const rows=(CUR_DAY.losses||[]).filter(l=>Number(l.plan_qty)>Number(l.actual_qty));
+  const rows=(CUR_DAY.losses||[]).filter(l=>Math.round(Number(l.plan_qty))<Math.round(Number(l.actual_qty)));
   if(!rows.length) return '';
-  const top=rows.slice(0,4).map(l=>`${l.mat_name||l.mat_code} <b>${fmt(l.plan_qty)}</b>&gt;<b>${fmt(l.actual_qty)}</b>`).join(' · ');
+  const top=rows.slice(0,4).map(l=>`${l.mat_name||l.mat_code} <b>${fmt0(l.plan_qty)}</b>&lt;<b>${fmt0(l.actual_qty)}</b>`).join(' · ');
   return `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
-    ⚠ <b>계획이 실적을 초과한 자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량)을 넘을 수 없습니다.
-    해당 행의 계획을 실적 이하로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
+    ⚠ <b>계획이 실적보다 적은 자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량) 이상이어야 합니다.
+    해당 행의 계획을 실적 이상으로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
   </div>`;
 }
 /* ⚡ 계획 제안값 채우기 — 공정 흐름 기준으로 계획 입력칸을 채움(저장 전까지 DB 무변경)
@@ -4811,12 +4811,12 @@ function renderMore2(){
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" inputmode="numeric" data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
       <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
-      <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+      <td class="mono ${dcls}">${diffSign}${fmt0(s.diff)}</td>
       <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
-      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
+      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt0(Math.abs(lossVal))}</td>
       <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
       <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
       <td class="row-actions">
@@ -5634,12 +5634,12 @@ function renderClosing(){
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" style="width:100%;text-align:right;background:#fff8e8" onchange="markPlanEdit(${i})"></td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" inputmode="numeric" data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
     <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
-    <td class="mono ${dcls}">${diffSign}${fmt(s.diff)}</td>
+    <td class="mono ${dcls}">${diffSign}${fmt0(s.diff)}</td>
     <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
-    <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
+    <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt0(Math.abs(lossVal))}</td>
     <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
     <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
     <td class="row-actions">
@@ -6279,7 +6279,8 @@ let DEV_MIN=0;          // 현재 적용된 편차율 하한(%)
 let DEV_MAX=100;        // 해당 일자 최대 편차율(슬라이더 상한)
 
 function devRate(s){
-  const p=Math.abs(Number(s.plan_qty)), d=Math.abs(Number(s.diff));
+  // 로스관리는 정수 기준으로 판단 (표시·저장 모두 정수)
+  const p=Math.abs(Math.round(Number(s.plan_qty))), d=Math.abs(Math.round(Number(s.actual_qty))-Math.round(Number(s.plan_qty)));
   if(!(p>0)) return null;              // 계획 0 → 산출 불가
   return d/p*100;
 }
@@ -6456,20 +6457,49 @@ function markPlanEdit(i){
   const btn=document.getElementById('peApply_'+i);
   if(btn) btn.style.display='';   // 값 바꾸면 '적용' 버튼 노출
 }
+/* ③ 계획 입력 : 정수 강제 + 편차·편차율 실시간 미리보기 + 계획<실적 경고 */
+function onPlanInput(i){
+  const el=document.querySelector(`.pe-plan[data-i="${i}"]`);
+  if(!el)return;
+  // 숫자 외 문자 제거(소수점 포함) → 정수만 남김
+  const raw=String(el.value).replace(/[^0-9-]/g,'');
+  if(String(el.value)!==raw && document.activeElement===el){
+    const p=el.selectionStart; el.value=raw; try{el.setSelectionRange(p,p);}catch(_){}
+  }
+  markPlanEdit(i);
+  const plan=Math.round(Number(String(el.value).replace(/,/g,''))||0);
+  const act=Number(el.dataset.act||0);
+  const tr=document.querySelector(`tr[data-loss="${i}"]`);
+  if(!tr)return;
+  const tds=tr.querySelectorAll('td');
+  const diff=act-plan;
+  const dr=plan>0?Math.abs(diff)/plan*100:null;
+  const bad=plan<act;   // 계획이 실적보다 작으면 저장 불가
+  el.style.border=bad?'2px solid #b42318':'2px solid #d97706';
+  el.style.background=bad?'#fef3f2':'#fff3dd';
+  el.title=bad?`계획이 실적(${fmt0(act)})보다 적습니다 — 저장할 수 없습니다`:'정수만 입력 · 계획은 실적 이상이어야 합니다';
+  if(tds[5]){ const dc=diff>0?'neg':diff<0?'pos':'';
+    tds[5].className='mono '+dc; tds[5].textContent=diff===0?'0':(diff>0?'+':'')+fmt0(diff); }
+  if(tds[6]){ tds[6].className='mono '+drCls(dr); tds[6].textContent=(dr==null?'–':dr.toFixed(1)+'%'); }
+  if(tds[8]){ const lv=diff>0?-Math.abs(diff*Number(CUR_DAY.losses[i].unit_price||0)):Math.abs(diff*Number(CUR_DAY.losses[i].unit_price||0));
+    const lc=lv<0?'neg':lv>0?'pos':''; tds[8].className='mono '+lc;
+    tds[8].textContent=diff===0?'0':(lv<0?'-':'+')+fmt0(Math.abs(lv)); }
+}
 async function savePlanOverride(i){
   const s=CUR_DAY.losses[i]; if(!s)return;
   const {date,team}=CUR_DAY;
-  const unfmt=v=>{ const n=Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?null:n; };
+  // 로스관리 계획·실적은 정수 단위로 관리 (소수점 입력·표시 없음)
+  const unfmt=v=>{ const n=Number(String(v).replace(/[^0-9.-]/g,'').trim()); return isNaN(n)?null:Math.round(n); };
   const planEl=document.querySelector(`.pe-plan[data-i="${i}"]`);
   const plan=unfmt(planEl?planEl.value:'');
-  // 실적은 MES 원본 고정 — 화면 입력값을 쓰지 않고 항상 원본값을 그대로 재전송
-  const actual=Number(s.actual_qty);
+  // 실적은 MES 원본 고정 — 화면 입력값을 쓰지 않고 항상 원본값을 정수로 반영
+  const actual=Math.round(Number(s.actual_qty));
   if(plan===null){ toast('계획 값을 확인하세요','err'); return; }
   if(plan<0){ toast('계획은 0 미만일 수 없습니다','err'); if(planEl)planEl.focus(); return; }
-  // ── 계획 ≤ 실적 검증 : 초과 입력은 등록 거부 ──
-  if(plan>actual){
-    const over=plan-actual;
-    toast(`등록 불가 — 계획(${fmt(plan)})이 실적(${fmt(actual)})을 ${fmt(Math.round(over*10)/10)} 초과합니다. 계획은 실적을 넘을 수 없습니다.`,'err');
+  // ── 계획 ≥ 실적 검증 : 계획을 실적보다 낮게 넣으면 로스가 부풀려지므로 거부 ──
+  if(plan<actual){
+    const short=actual-plan;
+    toast(`등록 불가 — 계획(${fmt0(plan)})이 실적(${fmt0(actual)})보다 ${fmt0(short)} 적습니다. 계획은 실적 이상이어야 합니다.`,'err');
     if(planEl){ planEl.style.border='2px solid #b42318'; planEl.style.background='#fef3f2'; planEl.focus(); planEl.select(); }
     return;
   }
@@ -6482,9 +6512,9 @@ async function savePlanOverride(i){
     });
     if(error)throw error;
     // ── 그 행만 제자리 갱신 (재정렬·재렌더 없음 → 위치·순서 유지) ──
-    const newPlan  = plan;
-    const newActual= actual;
-    const newDiff  = newActual - newPlan;
+    const newPlan  = plan;                       // 정수
+    const newActual= actual;                     // 정수
+    const newDiff  = newActual - newPlan;        // 정수 편차
     const newLoss  = Math.round(newDiff * Number(s.unit_price||0));
     s.plan_qty=newPlan; s.actual_qty=newActual; s.diff=newDiff;
     s.loss_amount=newLoss; s.is_edited=true;
@@ -6494,13 +6524,18 @@ async function savePlanOverride(i){
       // [2]자재명(뱃지) [3]계획 [4]실적 [5]편차 [7]로스금액
       if(tds[2] && !/edit-badge/.test(tds[2].innerHTML))
         tds[2].innerHTML += ' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>';
-      if(planEl) planEl.value=fmt(newPlan);
-      const dcls=newDiff>0?'neg':'pos'; const diffSign=newDiff>0?'+':'';
-      tds[5].className='mono '+dcls; tds[5].textContent=diffSign+fmt(newDiff);
+      if(planEl){ planEl.value=fmt0(newPlan); planEl.dataset.orig=newPlan; }
+      if(tds[4]){ const ai=tds[4].querySelector('input'); if(ai) ai.value=fmt0(newActual); }
+      const dcls=newDiff>0?'neg':newDiff<0?'pos':''; const diffSign=newDiff>0?'+':'';
+      tds[5].className='mono '+dcls; tds[5].textContent=newDiff===0?'0':diffSign+fmt0(newDiff);
+      // 편차율 = |편차| ÷ 계획 × 100 (정수 기준)
+      const dr=newPlan>0?Math.abs(newDiff)/newPlan*100:null;
+      tr.dataset.dr=(dr==null?'':dr.toFixed(2));
+      if(tds[6]){ tds[6].className='mono '+drCls(dr); tds[6].textContent=(dr==null?'–':dr.toFixed(1)+'%'); }
       const lossVal=newDiff>0?-Math.abs(newLoss):Math.abs(newLoss);
       const lossCls=lossVal<0?'neg':lossVal>0?'pos':''; const lossSign=lossVal<0?'-':lossVal>0?'+':'';
-      tds[7].className='mono '+lossCls; tds[7].style.fontWeight='800';
-      tds[7].textContent=lossSign+fmt(Math.abs(lossVal));
+      tds[8].className='mono '+lossCls; tds[8].style.fontWeight='800';
+      tds[8].textContent=newDiff===0?'0':lossSign+fmt0(Math.abs(lossVal));
       // 적용버튼 숨기고, ↺복원 버튼이 없으면 추가
       const applyBtn=document.getElementById('peApply_'+i);
       if(applyBtn) applyBtn.style.display='none';
@@ -6512,8 +6547,20 @@ async function savePlanOverride(i){
         actWrap.insertBefore(b, actWrap.firstChild);
       }
     }
-    // 총 로스금액·②합계는 조용히 뒤에서 재계산 (화면 위치는 그대로)
+    // ── 편차 0 = 로스 없음 → 목록에서 제거 (저장 후 자연 소멸) ──
+    if(newDiff===0){
+      const tr2=document.querySelector(`tr[data-loss="${i}"]`);
+      if(tr2){
+        tr2.style.transition='opacity .35s'; tr2.style.opacity='0';
+        setTimeout(()=>{ if(tr2&&tr2.parentNode) tr2.parentNode.removeChild(tr2);
+          if(typeof applyLossFilters==='function') applyLossFilters(); },360);
+      }
+      recalcLossTotals();
+      toast(`편차 0 — 로스 해소되어 목록에서 제외됩니다`,'ok');
+      return;
+    }
     recalcLossTotals();
+    if(typeof applyLossFilters==='function') applyLossFilters();   // 편차율 필터 재적용
     toast('수정 반영 (제자리 유지 · MES 재업로드해도 유지)','ok');
   }catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
 }
