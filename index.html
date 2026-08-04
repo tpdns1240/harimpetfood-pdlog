@@ -282,6 +282,14 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .t2-table td{text-align:center;font-size:12.5px;border:1px solid var(--line);padding:7px 6px}
 .t2-table td.l{text-align:left}
 /* ③ 로스 테이블: 제품·자재명 칸이 좁아 세로로 벌어지는 것 방지 */
+/* 사유 입력 : 포커스하면 오른쪽으로 넓게 펼쳐져 긴 문장도 편하게 입력 */
+#lossTable td:nth-child(11){position:relative;overflow:visible}
+#lossTable td:nth-child(11) input:focus{
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  width:calc(100% + 150px);max-width:420px;z-index:30;
+  background:#fff;box-shadow:0 4px 16px rgba(15,30,60,.18),0 0 0 3px rgba(38,112,201,.12);
+  border-color:#2670c9;padding:7px 10px;font-size:13px}
+#lossTable tbody tr:hover td:nth-child(11) input{background:#fffdf5}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
 .dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
 .dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
@@ -292,23 +300,30 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .dev-saved{font-size:10.5px;font-weight:800;color:#1e874b;background:#e7f7ee;border:1px solid #b7e4c9;border-radius:5px;padding:2px 7px}
 .dev-stat{font-size:11.5px;color:var(--mut);margin-left:auto;white-space:nowrap}
 @media(max-width:820px){.dev-stat{margin-left:0;width:100%}}
-#lossTable{min-width:1100px;table-layout:fixed}
-#lossTable th,#lossTable td{padding:6px 7px;font-size:12.5px}
-#lossTable td.l{word-break:break-word;white-space:normal;line-height:1.35}
-#lossTable th:nth-child(1),#lossTable td:nth-child(1){width:96px}    /* 라인 */
-#lossTable th:nth-child(2),#lossTable td:nth-child(2){width:150px}   /* 제품 */
-#lossTable th:nth-child(3),#lossTable td:nth-child(3){width:140px}   /* 자재명 */
-#lossTable th:nth-child(4),#lossTable td:nth-child(4){width:82px}    /* 계획 */
-#lossTable th:nth-child(5),#lossTable td:nth-child(5){width:74px}    /* 실적 */
-#lossTable th:nth-child(6),#lossTable td:nth-child(6){width:70px}    /* 편차 */
-#lossTable th:nth-child(7),#lossTable td:nth-child(7){width:64px}    /* 편차율 */
-#lossTable th:nth-child(8),#lossTable td:nth-child(8){width:62px}    /* 단가 */
-#lossTable th:nth-child(9),#lossTable td:nth-child(9){width:82px}    /* 로스금액 */
-#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:104px} /* 로스유형 */
-#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:auto;min-width:88px} /* 사유 */
-#lossTable th:nth-child(12),#lossTable td:nth-child(12){width:178px;white-space:nowrap;text-align:center} /* 저장/변경 */
-#lossTable td:nth-child(12) .rowbtn{padding:4px 7px;font-size:11px;margin:1px 1px}
-#lossTable td:nth-child(12) .tbtn{padding:4px 9px;font-size:11.5px;margin:1px 1px}
+#lossTable{min-width:1080px;table-layout:fixed}
+#lossTable th,#lossTable td{padding:5px 6px;font-size:12.5px}
+#lossTable td.l{word-break:break-word;white-space:normal;line-height:1.32}
+/* 숫자 컬럼은 폭을 줄이고 글자를 셀에 맞춤(축소) — 사유 입력 폭 확보 */
+#lossTable td.mono{font-size:11.5px;letter-spacing:-.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lossTable th:nth-child(1),#lossTable td:nth-child(1){width:84px;font-size:11.5px}  /* 라인 */
+#lossTable th:nth-child(2),#lossTable td:nth-child(2){width:132px}   /* 제품 */
+#lossTable th:nth-child(3),#lossTable td:nth-child(3){width:120px}   /* 자재명 */
+#lossTable th:nth-child(4),#lossTable td:nth-child(4){width:66px}    /* 계획 */
+#lossTable th:nth-child(5),#lossTable td:nth-child(5){width:62px}    /* 실적 */
+#lossTable th:nth-child(6),#lossTable td:nth-child(6){width:64px}    /* 편차 */
+#lossTable th:nth-child(7),#lossTable td:nth-child(7){width:54px}    /* 편차율 */
+#lossTable th:nth-child(8),#lossTable td:nth-child(8){width:54px}    /* 단가 */
+#lossTable th:nth-child(9),#lossTable td:nth-child(9){width:74px}    /* 로스금액 */
+#lossTable th:nth-child(10),#lossTable td:nth-child(10){width:92px}  /* 로스유형 */
+#lossTable th:nth-child(11),#lossTable td:nth-child(11){width:auto;min-width:210px} /* 사유 */
+#lossTable th:nth-child(12),#lossTable td:nth-child(12){width:168px;white-space:nowrap;text-align:center} /* 저장/변경 */
+#lossTable td:nth-child(12) .rowbtn{padding:4px 6px;font-size:10.5px;margin:1px}
+#lossTable td:nth-child(12) .tbtn{padding:4px 8px;font-size:11px;margin:1px}
+/* 입력칸은 셀 폭에 자동 맞춤 */
+#lossTable td:nth-child(4) input,#lossTable td:nth-child(5) input{width:100%;font-size:11.5px;padding:4px 5px}
+#lossTable td:nth-child(10) select{width:100%;font-size:11.5px;padding:4px 3px}
+#lossTable td:nth-child(11) input{width:100%;font-size:12.5px;padding:5px 8px;text-align:left}
+#lossTable td:nth-child(11) input{outline:none}
 #lossTable select,#lossTable input{max-width:100%;box-sizing:border-box}
 #lossTable .inp-cell{width:100%;max-width:100%}
 .t2-table tbody tr:nth-child(even){background:#f6f9fd}
@@ -4802,8 +4817,8 @@ function renderMore2(){
       <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
       <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
-      <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
-      <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
+      <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
+      <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
       <td class="row-actions">
         <button class="rowbtn pe-apply" id="peApply_${i}" onclick="savePlanOverride(${i})" style="display:none">계획/실적 적용</button>
         ${s.is_edited?`<button class="rowbtn del" onclick="resetPlanOverride(${i})" title="MES 원본값으로 되돌리기">↺MES복원</button>`:''}
@@ -5625,8 +5640,8 @@ function renderClosing(){
     <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
     <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt(Math.abs(lossVal))}</td>
-    <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="width:100px;text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
-    <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="width:130px;text-align:left" placeholder="사유" value="${reasonVal}"></td>
+    <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
+    <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
     <td class="row-actions">
       <button class="rowbtn pe-apply" id="peApply_${i}" onclick="savePlanOverride(${i})" style="display:none">계획/실적 적용</button>
       ${s.is_edited?`<button class="rowbtn del" onclick="resetPlanOverride(${i})" title="MES 원본값으로 되돌리기">↺MES복원</button>`:''}
@@ -6305,7 +6320,7 @@ function applyDevFilter(min,saved){
 async function saveDevMin(){
   const n=Number(($('#devNum')||{}).value)||0;
   try{
-    const {error}=await sb.rpc('set_config',{p_key:devCfgKey(),p_val:String(n)});
+    const {error}=await sb.rpc('set_config',{p_key:devCfgKey(),p_value:String(n),p_by:(S.user&&S.user.name)||'-'});
     if(error)throw error;
     DEV_MIN=n;
     applyDevFilter(n,true);
