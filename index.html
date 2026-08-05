@@ -290,6 +290,25 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
   background:#fff;box-shadow:0 4px 16px rgba(15,30,60,.18),0 0 0 3px rgba(38,112,201,.12);
   border-color:#2670c9;padding:7px 10px;font-size:13px}
 #lossTable tbody tr:hover td:nth-child(11) input{background:#fffdf5}
+.run-filter{margin:0 16px 10px;padding:10px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
+.rf-prog{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.rf-t{font-size:12px;font-weight:800;color:var(--sub)}
+.rf-n{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
+.rf-bar{display:inline-block;width:140px;height:7px;background:#e3e8f0;border-radius:4px;overflow:hidden}
+.rf-bar em{display:block;height:100%;border-radius:4px;transition:width .4s}
+.rf-pct{font-size:11.5px;font-weight:800;color:var(--sub)}
+.rf-left{font-size:11px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;cursor:help}
+.rf-done{font-size:11px;font-weight:800;color:#1e874b;background:#e7f7ee;border:1px solid #b7e4c9;border-radius:5px;padding:2px 7px}
+.rf-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rf-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border:1.5px solid var(--line);background:#fff;border-radius:16px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;transition:.14s}
+.rf-chip:hover{border-color:#93b4e0}
+.rf-chip.on{background:var(--navy,#1b2f55);border-color:var(--navy,#1b2f55);color:#fff}
+.rf-chip b{font-size:10.5px;opacity:.8;font-weight:800}
+.rf-q{padding:5px 10px;border:1.5px solid var(--line);border-radius:7px;font-size:12px;min-width:130px}
+.rf-q:focus{outline:none;border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.12)}
+.rf-stat{font-size:11.5px;color:var(--mut);margin-left:auto;white-space:nowrap}
+#runBody tr.just-added{animation:runFlash 1.6s ease-out}
+@keyframes runFlash{0%{background:#fff3cd}60%{background:#fff8e8}100%{background:transparent}}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
 .dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
 .dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
@@ -4019,7 +4038,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4028,12 +4047,19 @@ async function openDay(date, team){
       sb.rpc('get_loss_types',{p_team:team}),
       sb.rpc('get_defect_types',{p_team:team}),
       sb.rpc('get_line_downtime',{p_date:date,p_team:team}),
-      sb.rpc('get_capa_list',{p_team:team})
+      sb.rpc('get_capa_list',{p_team:team}),
+      sb.rpc('suggest_plan',{p_date:date,p_team:team})
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
     CUR_DAY.orders=orderRes.data||[];
     CUR_DAY.losses=lossRes.data||[];
+    // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
+    CUR_DAY.suggest={};
+    ((sugRes&&!sugRes.error&&sugRes.data)||[]).forEach(r=>{
+      CUR_DAY.suggest[r.prod_code+'|'+(r.proc_sub1||'')+'/'+(r.proc_sub2||'')]=r;
+      if(!CUR_DAY.suggest[r.prod_code]) CUR_DAY.suggest[r.prod_code]=r;   // 코드만으로도 조회
+    });
     await loadDevMin();          // 편차율 하한(해당 일자·팀 고정값) 로드
     const cl=clRes.data||{};
     CUR_DAY.defects=cl.defects||[];
@@ -4082,7 +4108,8 @@ async function openDay(date, team){
   if(CUR_DAY.team==='생산2팀') renderClosing2();
   else renderClosing();
   // 렌더 직후 편차율 필터 재적용 (고정값이 있으면 즉시 숨김)
-  setTimeout(()=>{ if(typeof applyDevFilter==='function') applyDevFilter(DEV_MIN, DEV_MIN>0); },0);
+  setTimeout(()=>{ if(typeof applyDevFilter==='function') applyDevFilter(DEV_MIN, DEV_MIN>0);
+                   if(typeof filterRunList==='function') filterRunList(); },0);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4273,6 +4300,32 @@ function renderClosingHeader2(){
     return '';
   })()}`;
 }
+/* ⑤ 가동 이력 목록 필터 (라인 / 출처 / 검색) — 등록 진행 확인용 */
+let RUN_FILTER='';
+function filterRunList(f){
+  if(f!==undefined) RUN_FILTER=f||'';
+  document.querySelectorAll('.rf-chip').forEach(b=>b.classList.toggle('on',(b.dataset.rf||'')===RUN_FILTER));
+  const q=String((($('#runSearch')||{}).value)||'').trim().toLowerCase();
+  let shown=0, tot=0, mins=0;
+  document.querySelectorAll('#runBody tr[data-down]').forEach(tr=>{
+    tot++;
+    let hit=true;
+    if(RUN_FILTER==='__manual')      hit=(tr.dataset.rsrc==='manual');
+    else if(RUN_FILTER==='__auto')   hit=(tr.dataset.rsrc==='auto');
+    else if(RUN_FILTER)              hit=(tr.dataset.rline===RUN_FILTER);
+    if(hit&&q){
+      const txt=(tr.dataset.rord+' '+(tr.children[2]?tr.children[2].textContent:'')).toLowerCase();
+      hit=txt.includes(q);
+    }
+    tr.style.display=hit?'':'none';
+    if(hit){ shown++;
+      const h=Number(String((tr.children[7]||{}).textContent||'').replace(/[^0-9.]/g,''))||0;
+      mins+=h;
+    }
+  });
+  const st=$('#runStat');
+  if(st) st.innerHTML=`${shown}/${tot}건 · 합계 <b>${mins.toFixed(1)}</b>hr`;
+}
 function buildSection5(){
   const downtime=CUR_DAY.downtime||[], orders=CUR_DAY.orders||[], lines=CUR_DAY.lines||[];
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -4291,7 +4344,7 @@ function buildSection5(){
       const srcBadge=t.source==='auto'
         ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
         : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
-      return `<tr data-down="${t.id}">
+      return `<tr data-down="${t.id}" data-rline="${(t.proc_sub1||'')}/${(t.proc_sub2||'')}" data-rkind="${kind}" data-rsrc="${t.source==='auto'?'auto':'manual'}" data-rord="${t.prod_code||''}">
         <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
         <td class="mono">${t.prod_code||'–'}</td>
         <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
@@ -4319,9 +4372,38 @@ function buildSection5(){
         <input id="runMemo" placeholder="비고(선택)" style="flex:1;min-width:100px">
         <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
       </div>
-      <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table class="t2-table">
+      ${(()=>{
+        // ── 등록 진행률 : 오더 기준으로 '어디까지 등록했는지' 파악 ──
+        const done=new Set(runList.map(t=>t.prod_code).filter(Boolean));
+        const allOrd=[...new Set((orders||[]).map(o=>o.prod_code))];
+        const left=allOrd.filter(c=>!done.has(c));
+        const pct=allOrd.length?Math.round(done.size/allOrd.length*100):0;
+        const lnSet=[...new Set(runList.map(t=>(t.proc_sub1||'')+'/'+(t.proc_sub2||'')))].sort(procOrderCmp);
+        const chips=lnSet.map(ln=>{
+          const n=runList.filter(t=>((t.proc_sub1||'')+'/'+(t.proc_sub2||''))===ln).length;
+          return `<button class="rf-chip" data-rf="${ln}" onclick="filterRunList('${ln.replace(/'/g,"")}')">${ln}<b>${n}</b></button>`;
+        }).join('');
+        return `<div class="run-filter">
+          <div class="rf-prog">
+            <span class="rf-t">등록 진행</span>
+            <b class="rf-n" style="color:${pct>=100?'var(--grn)':pct>0?'#d97706':'var(--red)'}">${done.size}/${allOrd.length}</b>
+            <i class="rf-bar"><em style="width:${pct}%;background:${pct>=100?'var(--grn)':pct>0?'#d97706':'var(--red)'}"></em></i>
+            <span class="rf-pct">${pct}%</span>
+            ${left.length?`<span class="rf-left" title="${left.join(', ')}">미등록 ${left.length}건</span>`:'<span class="rf-done">전체 등록 완료</span>'}
+          </div>
+          <div class="rf-chips">
+            <button class="rf-chip on" data-rf="" onclick="filterRunList('')">전체<b>${runList.length}</b></button>
+            ${chips}
+            <button class="rf-chip" data-rf="__manual" onclick="filterRunList('__manual')" title="사이트에서 직접 입력한 건">직접입력<b>${runList.filter(t=>t.source!=='auto').length}</b></button>
+            <button class="rf-chip" data-rf="__auto" onclick="filterRunList('__auto')" title="구글시트에서 자동 반영된 건">시트<b>${runList.filter(t=>t.source==='auto').length}</b></button>
+            <input class="rf-q" id="runSearch" placeholder="오더·제품명 검색" oninput="filterRunList()">
+            <span class="rf-stat" id="runStat"></span>
+          </div>
+        </div>`;
+      })()}
+      <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table class="t2-table" id="runTable">
         <thead><tr><th>라인</th><th>오더</th><th>제품명</th><th>제품구분</th><th>출처</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
-        <tbody>${runRows2||'<tr><td colspan="10" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
+        <tbody id="runBody">${runRows2||'<tr><td colspan="10" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
       </table></div>
 
       ${(()=>{
@@ -4700,16 +4782,22 @@ function buildSection2(){
   const curOrders=byProc[T2_PROC]||[];
   const orderRows=curOrders.map((o,oi)=>{
     const mh=mhMap[o.prod_code]||{mh:'',note:''};
-    const oPlan=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
-    const ach=oPlan>0?(oAct/oPlan*100):0;
+    const oPlanRaw=Number(o.plan_sum??o.plan_qty??0), oAct=Number(o.actual_sum??o.actual_qty??0);
     const mhProd=(mh.mh&&oAct)?(oAct/Number(mh.mh)):0;
     const pedit=!!o.plan_edited;
     // 계획 수정 허용 범위
-    //  · 완제품 : 항상 (kind 누락 시 prod_code 앞자리 2·3 폴백)
-    //  · 반제품 : 진공코터 공정만 (EP 실적 기준 제안계획을 넣기 위함). 그 외 반제품은
-    //             원부자재 합산값이라 잠금 유지
+    //  · 완제품 : 수정 가능 (kind 누락 시 prod_code 앞자리 2·3 폴백)
+    //  · 진공코터 : 계획 = 같은 오더의 EP 실적으로 자동 산출 → 수정 잠금
+    //  · 그 외 반제품 : 원부자재 합산값이라 잠금
     const isCoat=/진공코터/.test(String(o.proc_sub2||''));
-    const canEditPlan=isFin(o)||(isSemi(o)&&isCoat);
+    const canEditPlan=isFin(o)&&!isCoat;
+    // 진공코터 자동 계획 (suggest_plan 의 'EP 실적' 근거값)
+    const sg=(CUR_DAY.suggest||{})[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]
+           ||(CUR_DAY.suggest||{})[o.prod_code];
+    const coatPlan=(isCoat && sg && sg.src==='EP 실적' && Number(sg.suggest)>0)?Number(sg.suggest):null;
+    // 진공코터는 EP 실적 자동값을 계획으로 사용(달성률도 이 값 기준)
+    const oPlan = (coatPlan!=null) ? coatPlan : oPlanRaw;
+    const ach   = oPlan>0 ? (oAct/oPlan*100) : 0;
     const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
       ? `<td style="white-space:nowrap">
@@ -4717,14 +4805,28 @@ function buildSection2(){
           <button class="rowbtn op-apply" id="${rid}_btn" onclick="saveOrderOverride('${o.prod_code}','${rid}')" style="display:none;margin-left:3px">적용</button>
           ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
         </td>`
-      : `<td class="mono" title="반제품 계획은 원부자재 합산값이라 수정할 수 없습니다">${fmt1(oPlan)}</td>`;
+      : (coatPlan!=null
+        ? `<td class="mono" style="background:#f7f5ff" title="진공코터 계획 = 같은 오더의 EP 실적 ${fmt1(coatPlan)}kg. EP 압출 → 건조·오븐(수분 증발) → 코터 순서라 산출은 계획보다 적은 것이 정상입니다(기준 구간 70~80%). 자동 산출이라 수정할 수 없습니다.">
+             <b style="color:#6d47c9">${fmt1(coatPlan)}</b>
+             <div style="font-size:9.5px;color:#8b7bbd;font-weight:700;letter-spacing:-.2px">EP실적 자동</div>
+           </td>`
+        : `<td class="mono" title="${isCoat?'EP 실적이 없어 자동 산출 불가 (전일 생산분 코팅 등)':'반제품 계획은 원부자재 합산값이라 수정할 수 없습니다'}">${fmt1(oPlan)}${isCoat?'<div style="font-size:9.5px;color:#98a2b3">EP실적 없음</div>':''}</td>`);
     // 계획 미입력(MES 부실) 판정: 계획 0 이하인데 실적은 존재 → 달성률 산출 불가
     const noPlan = (oPlan<=0 && oAct>0);
     const noPlanBadge = noPlan
       ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:4px;padding:1px 5px;vertical-align:1px" title="MES 계획이 없어 달성률을 낼 수 없습니다. 계획(KG)을 입력해 주세요">계획없음</span>` : '';
+    // 진공코터 = EP→코터 건조수율. 원료(연어 등)에 따라 수분율이 달라 정상폭이 넓으므로
+    // 70~80% 를 기준 구간으로만 두고, 벗어나면 방향만 색으로 표시(원인 코멘트는 넣지 않음)
     const achCell = noPlan
       ? `<td class="mono" id="${rid}_ach" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
-      : `<td class="mono" id="${rid}_ach"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`;
+      : (coatPlan!=null
+        ? (()=>{ const inBand=(ach>=70&&ach<=80);
+            const col=inBand?'var(--grn)':(ach>80?'#7fc99a':'#e8918c');   // 초과=연녹 / 미달=연적
+            return `<td class="mono" id="${rid}_ach" style="${inBand?'':'background:'+(ach>80?'#f2faf5':'#fdf3f2')}" title="EP 실적 대비 코터 산출 = 건조수율. 기준 구간 70~80%. 원료 수분율에 따라 정상폭이 달라질 수 있습니다.">
+             <b style="color:${col}">${ach.toFixed(1)}%</b>
+             <div style="font-size:9.5px;color:#98a2b3;font-weight:700;letter-spacing:-.2px">건조수율</div>
+           </td>`; })()
+        : `<td class="mono" id="${rid}_ach"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`);
     return `<tr data-ord="${o.prod_code}" id="${rid}_tr" data-act="${oAct}"${noPlan?' style="background:#fffbfa"':''}>
       <td class="mono">${o.prod_code}</td>
       <td class="l" id="${rid}_nm">${o.prod_name||'-'}${(pedit&&canEditPlan)?' <span class="edit-badge" title="계획 수정됨">✎계획</span>':''}${noPlanBadge}</td>
@@ -4749,7 +4851,7 @@ function buildSection2(){
         (행별 <b>적용</b> 버튼 또는 <b>Enter</b>로 한 건씩 저장도 가능)
        </div>` : '';
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 및 진공코터 계획(KG) 수정 가능 · 나머지 자동</span><span class="sp"></span>
+    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능 · 진공코터 계획 = EP 실적(자동·건조수율 기준 70~80%)</span><span class="sp"></span>
     ${noPlanCnt?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
     <button class="tbtn" onclick="fillSuggestPlan()" title="완제품 계획은 진공코터 실적, 진공코터 계획은 EP 실적을 기준으로 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않으며, 값은 직접 수정할 수 있습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>
     <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
@@ -4807,7 +4909,8 @@ function renderMore2(){
       const lossSign=lossVal<0?'-':lossVal>0?'+':'';
       const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
       const dr=devRate(s);   // 편차율 = |편차| ÷ 계획 × 100
-      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" class="${isSaved?'row-saved':''}">
+      const tiny=isTinyMat(s);
+      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" data-tiny="${tiny?'1':''}" class="${isSaved?'row-saved':''}">
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
@@ -4937,6 +5040,14 @@ function renderMore2(){
   $('#sec2More').style.cssText='text-align:left';
 }
 /* ⑤ [D/E] 비가동 입력·수정 */
+/* 라인명 → [대분류, 소분류] 분해
+   "주식/계량/배합 자동계량" 처럼 소분류에 '/'가 포함된 라인이 있어
+   split('/') 를 쓰면 뒷부분이 잘려 다른 키로 저장됨(저장 실패처럼 보임).
+   반드시 첫 '/' 기준으로만 나눈다.                                        */
+function splitLine(ln){
+  const s=String(ln||''); const i=s.indexOf('/');
+  return i<0 ? [s,''] : [s.slice(0,i), s.slice(i+1)];
+}
 function loadStopProds(){
   const ln=$('#stLine').value; if(!ln)return;
   const sel=$('#stProd');
@@ -4946,7 +5057,7 @@ function loadStopProds(){
 async function saveStop2(){
   const {date,team}=CUR_DAY;
   const ln=$('#stLine').value; if(!ln){toast('라인 선택','err');return;}
-  const [s1,s2]=ln.split('/');
+  const [s1,s2]=splitLine(ln);
   const type=$('#stType').value; if(!type){toast('유형 선택','err');return;}
   const reason=$('#stReason').value.trim(); if(!reason){toast('정지원인 입력','err');return;}
   const st=$('#stStart').value, en=$('#stEnd').value;
@@ -5068,9 +5179,22 @@ async function saveRunTime(){
     }).select();
     if(error)throw error;
     // 로컬 반영 (재조회 없이 → 정렬 고정으로 제자리)
+    const newId=(data&&data[0])?data[0].id:null;
     if(data&&data[0]) CUR_DAY.downtime=[...(CUR_DAY.downtime||[]),data[0]];
-    toast('작업시간 추가완료','ok');
+    // 다음 입력 편의: 시간·비고만 비우고 라인은 유지 (연속 등록)
+    $('#runStart').value=''; $('#runEnd').value=''; $('#runMemo').value='';
     rerenderClosing();
+    // 방금 등록한 행으로 스크롤 + 1.6초 하이라이트 → '어디까지 등록했는지' 즉시 확인
+    setTimeout(()=>{
+      if(typeof filterRunList==='function') filterRunList();
+      const tr=newId?document.querySelector(`#runBody tr[data-down="${newId}"]`):null;
+      if(tr){
+        tr.classList.add('just-added');
+        tr.scrollIntoView({block:'center',behavior:'smooth'});
+        setTimeout(()=>tr.classList.remove('just-added'),1700);
+      }
+    },30);
+    toast(`작업시간 추가완료 · ${code}`,'ok');
   }catch(e){ toast('추가 실패: '+(e.message||e),'err'); }
 }
 let T2_PROC='';
@@ -5088,23 +5212,35 @@ function filterLossLine(ln){
 function applyLossFilters(){
   const m=Number(DEV_MIN)||0;
   let shown=0, hid=0, hidAmt=0;
+  let tinyHid=0;
   document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
     const lnOk=!LOSS_LINE||tr.dataset.ln===LOSS_LINE;
     const dr=tr.dataset.dr===''?null:Number(tr.dataset.dr);
+    const tinyHide=(tr.dataset.tiny==='1' && !SHOW_TINY);   // 1kg 미만 미량 자재
     const devHide=(dr!=null && dr<m);
-    tr.style.display=(lnOk&&!devHide)?'':'none';
-    if(lnOk&&devHide){ hid++;
+    const hide=tinyHide||devHide;
+    tr.style.display=(lnOk&&!hide)?'':'none';
+    if(lnOk&&hide){
+      if(tinyHide) tinyHid++; else hid++;
       const c=tr.querySelector('td:nth-child(9)');
       if(c) hidAmt+=Math.abs(Number(String(c.textContent).replace(/[^0-9.-]/g,''))||0);
     }
-    if(lnOk&&!devHide) shown++;
+    if(lnOk&&!hide) shown++;
   });
+  const tb=$('#tinyBtn');
+  if(tb) tb.innerHTML=SHOW_TINY?`1kg미만 포함 중 (${tinyHid||''}${tinyHid?'건':''})`:`1kg미만 ${tinyHid}건 제외`;
   const st=$('#devStat');
-  if(st) st.innerHTML=m>0
-    ? `<b style="color:#b42318">${hid}건 숨김</b> · 표시 ${shown}건 · 숨긴 로스금액 ${fmtWon(hidAmt)}`
+  const parts=[];
+  if(m>0&&hid) parts.push(`<b style="color:#b42318">편차율 ${hid}건</b>`);
+  if(tinyHid)  parts.push(`<b style="color:#8a94a6">1kg미만 ${tinyHid}건</b>`);
+  if(st) st.innerHTML=parts.length
+    ? `${parts.join(' · ')} 숨김 · 표시 ${shown}건 · 숨긴 로스금액 ${fmtWon(hidAmt)}`
     : `전체 ${shown}건 표시`;
   const em=$('#lossEmptyMsg'); if(em) em.style.display=shown?'none':'block';
 }
+/* 1kg 미만 미량 자재 표시 토글 */
+let SHOW_TINY=false;
+function toggleTiny(){ SHOW_TINY=!SHOW_TINY; applyLossFilters(); }
 async function saveT2MH(){
   const {date,team}=CUR_DAY;
   const rows=[];
@@ -5630,7 +5766,7 @@ function renderClosing(){
     const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
     const lossSign=lossVal<0?'-':lossVal>0?'+':'';
     const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" class="${isSaved?'row-saved':''}">
+    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" class="${isSaved?'row-saved':''}">
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
@@ -6209,7 +6345,7 @@ async function saveManpowerAll(){
   // mp-reg 기준으로 순회 (관리자 행은 mp-plan이 없으므로)
   document.querySelectorAll('.mp-reg').forEach(inp=>{
     const line=inp.dataset.line;
-    const [s1,s2]=line.split('/');
+    const [s1,s2]=splitLine(line);
     const planEl=document.querySelector(`.mp-plan[data-line="${line}"]`);
     const plan=planEl?(Number(planEl.value)||0):0;
     const reg=Number(inp.value)||0;
@@ -6222,10 +6358,18 @@ async function saveManpowerAll(){
   });
   if(rows.length===0){toast('입력된 인원 없음','err');return;}
   try{
-    const {error}=await sb.from('t_cl_manpower').upsert(rows,{onConflict:'work_date,team,proc_sub1,proc_sub2'});
+    const {data,error}=await sb.from('t_cl_manpower')
+      .upsert(rows,{onConflict:'work_date,team,proc_sub1,proc_sub2'}).select();
     if(error)throw error;
-    CUR_DAY.manpower=rows;  // 즉시 반영
-    toast('인원 저장완료','ok');
+    const saved=(data||[]).length;
+    // 저장된 행만 메모리에 병합 (기존 다른 라인 값은 유지)
+    const keep=(CUR_DAY.manpower||[]).filter(m=>
+      !rows.some(r=>r.proc_sub1===m.proc_sub1 && r.proc_sub2===m.proc_sub2));
+    CUR_DAY.manpower=keep.concat(data&&data.length?data:rows);
+    if(saved && saved<rows.length)
+      toast(`인원 ${saved}/${rows.length}건만 저장됨 — 라인명을 확인하세요`,'err');
+    else
+      toast(`인원 ${saved||rows.length}건 저장완료`,'ok');
     rerenderClosing();      // 위치 유지 (팀별 재렌더)
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
@@ -6234,14 +6378,15 @@ function updateManpowerFooter(){
   let tp=0,tr=0,td=0;
   document.querySelectorAll('.mp-plan').forEach(inp=>{
     const line=inp.dataset.line;
-    tp+=Number(inp.value)||0;
-    tr+=Number(document.querySelector(`.mp-reg[data-line="${line}"]`).value)||0;
-    td+=Number(document.querySelector(`.mp-disp[data-line="${line}"]`).value)||0;
+    // querySelector 는 라인명에 따옴표·특수문자가 있으면 null 이 될 수 있어 방어 처리
+    const q=sel=>{ try{ return document.querySelector(`${sel}[data-line="${line}"]`); }catch(_){ return null; } };
+    const regEl=q('.mp-reg'), dispEl=q('.mp-disp');
+    const reg=regEl?(Number(regEl.value)||0):0;
+    const disp=dispEl?(Number(dispEl.value)||0):0;
+    tp+=Number(inp.value)||0; tr+=reg; td+=disp;
     // 각 행 투입계 갱신
     const row=inp.closest('tr');
-    const totCell=row.querySelector('.mp-total');
-    const reg=Number(document.querySelector(`.mp-reg[data-line="${line}"]`).value)||0;
-    const disp=Number(document.querySelector(`.mp-disp[data-line="${line}"]`).value)||0;
+    const totCell=row?row.querySelector('.mp-total'):null;
     if(totCell) totCell.innerHTML='<b>'+((reg+disp)||'–')+'</b>';
   });
   const ft=$('#manFooter');
@@ -6278,6 +6423,14 @@ function toggleTypePanel(kind){
 let DEV_MIN=0;          // 현재 적용된 편차율 하한(%)
 let DEV_MAX=100;        // 해당 일자 최대 편차율(슬라이더 상한)
 
+/* 1kg 미만 미량 자재 판정
+   계량 오차 1g 만으로도 편차율이 수십~수천 %가 되어 관리 지표로 쓸 수 없음.
+   계획·실적이 모두 1kg 미만이면 목록에서 제외한다.                         */
+const TINY_KG=1;
+function isTinyMat(s){
+  const p=Math.abs(Number(s.plan_qty)||0), a=Math.abs(Number(s.actual_qty)||0);
+  return Math.max(p,a) < TINY_KG;
+}
 function devRate(s){
   // 로스관리는 정수 기준으로 판단 (표시·저장 모두 정수)
   const p=Math.abs(Math.round(Number(s.plan_qty))), d=Math.abs(Math.round(Number(s.actual_qty))-Math.round(Number(s.plan_qty)));
@@ -6353,6 +6506,7 @@ function devFilterBar(){
     <span class="dev-mx">슬라이더 0~${mx}% · 최대 ${realMax.toLocaleString()}%${extreme?` (구간 밖 ${extreme}건)`:''}</span>
     <button class="tbtn save" onclick="saveDevMin()">편차율 고정</button>
     <button class="rowbtn" onclick="resetDevMin()">해제</button>
+    <button class="rowbtn" id="tinyBtn" onclick="toggleTiny()" title="계획·실적이 모두 1kg 미만인 미량 자재입니다. 저울 오차 1g 만으로도 편차율이 수십 % 이상 나와 기본적으로 제외합니다.">1kg미만 제외</button>
     <span id="devSavedBadge" class="dev-saved" style="display:${DEV_MIN>0?'':'none'}">고정됨</span>
     <span class="dev-stat" id="devStat"></span>
   </div>`;
