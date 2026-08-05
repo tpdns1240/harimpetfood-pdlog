@@ -4603,6 +4603,41 @@ function buildSection5(){
 }
 /* ⑥ 투입인원 — 1팀·2팀 공용. 2팀 레이아웃(라인 + 공통부문·예비인력 고정행) +
    1팀의 관리자 1/n 배분(실공수 컬럼)까지 병합. 오더 기준 라인 목록 사용 */
+/* 전일(가장 최근 입력일) 인원을 현재 날짜 화면에 채움 — 저장 전까지 DB 무변경 */
+async function loadPrevManpower(){
+  const {date,team}=CUR_DAY;
+  if(!date||!team){ toast('날짜/팀 정보 없음','err'); return; }
+  try{
+    const {data,error}=await sb.from('t_cl_manpower')
+      .select('work_date,proc_sub1,proc_sub2,plan_head,regular_head,dispatch_head,memo')
+      .eq('team',team).lt('work_date',date)
+      .order('work_date',{ascending:false}).limit(200);
+    if(error)throw error;
+    if(!data||!data.length){ toast('이전 입력 이력이 없습니다','err'); return; }
+    const src=data[0].work_date;                       // 가장 최근 입력일
+    const prev=data.filter(r=>r.work_date===src);
+    let filled=0, skipped=0;
+    prev.forEach(r=>{
+      const ln=(r.proc_sub1||'')+'/'+(r.proc_sub2||'');
+      const set=(cls,val)=>{
+        const el=document.querySelector(`.${cls}[data-line="${ln}"]`);
+        if(!el) return false;
+        if(String(el.value).trim()!=='') return false;  // 이미 입력된 칸은 덮어쓰지 않음
+        if(val===null||val===undefined||val===0||val==='') return false;
+        el.value=val; el.style.background='#eef7ee'; return true;
+      };
+      let any=false;
+      any=set('mp-plan',r.plan_head)||any;
+      any=set('mp-reg', r.regular_head)||any;
+      any=set('mp-disp',r.dispatch_head)||any;
+      set('mp-memo',r.memo);
+      if(any) filled++; else skipped++;
+    });
+    if(typeof updateManpowerFooter==='function') updateManpowerFooter();
+    if(!filled){ toast(`${src} 값과 채울 빈칸이 없습니다 (이미 입력됨)`,'err'); return; }
+    toast(`${src} 인원 ${filled}개 라인 불러옴 — 확인 후 [인원 저장]`,'ok');
+  }catch(e){ toast('불러오기 실패: '+(e.message||e),'err'); }
+}
 function buildManpower6(){
   const manpower=CUR_DAY.manpower||[];
   const orders=CUR_DAY.orders||[];
@@ -4672,6 +4707,7 @@ function buildManpower6(){
 
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c6">6</span><h3>투입인원</h3>
     <span class="desc">수기 입력 · 관리자 1/n 배분 · 일별 누적관리</span><span class="sp"></span>
+    <button class="tbtn" onclick="loadPrevManpower()" title="가장 최근에 인원을 입력한 날의 값을 불러옵니다. 저장 전까지는 화면에만 채워지며, 값을 고친 뒤 [인원 저장]을 누르세요." style="margin-right:6px">⤓ 전일 인원 불러오기</button>
     <button class="tbtn save" onclick="saveManpowerAll()">인원 저장</button></div>
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>라인</th><th>계획인원 (명)</th><th>정규직 (명)</th><th>파견/일용 (명)</th><th>투입계</th><th>실공수</th><th>비고</th></tr></thead>
