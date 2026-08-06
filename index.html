@@ -338,6 +338,15 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .tr-load::before{content:'';width:9px;height:9px;border:2px solid #cfe0f7;border-top-color:#2670c9;
   border-radius:50%;animation:trSpin .7s linear infinite}
 @keyframes trSpin{to{transform:rotate(360deg)}}
+.lb-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 16px 8px;padding:8px 12px;background:#f4f1ff;border:1.5px solid #ddd3f7;border-radius:10px}
+.lb-t{font-size:12px;font-weight:800;color:#5b4b9a}
+.lb-btn{padding:5px 13px;border:1.5px solid #ddd3f7;background:#fff;border-radius:16px;font-size:12px;font-weight:700;color:#6d5bb0;cursor:pointer;transition:.14s}
+.lb-btn:hover:not(:disabled){border-color:#b9a6ee}
+.lb-btn.on{background:#6d47c9;border-color:#6d47c9;color:#fff}
+.lb-btn:disabled{opacity:.45;cursor:not-allowed}
+.lb-i{font-size:11.5px;color:#8b7bbd}
+.lb-on{margin-left:auto;font-size:11px;font-weight:800;color:#6d47c9;background:#ede8fb;border:1px solid #ddd3f7;border-radius:5px;padding:2px 8px}
+@media(max-width:820px){.lb-on{margin-left:0;width:100%}}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
 .dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
 .dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
@@ -2736,6 +2745,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='stdtime'?'on':''}" onclick="switchSettingsTab('stdtime')">⏱ 생산기준시간</button>
     <button class="stab ${SETTINGS_TAB==='matx'?'on':''}" onclick="switchSettingsTab('matx')">🚫 로스 제외품목</button>
     <button class="stab ${SETTINGS_TAB==='mailmsg'?'on':''}" onclick="switchSettingsTab('mailmsg')">✉ 결재 알림 문구</button>
+    <button class="stab ${SETTINGS_TAB==='bom'?'on':''}" onclick="switchSettingsTab('bom')">🧬 BOM 관리</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -2750,7 +2760,352 @@ function switchSettingsTab(tab){
   else if(tab==='stdtime'){ btns[4]&&btns[4].classList.add('on'); renderStdTimeMgmt(); }
   else if(tab==='matx'){ btns[5]&&btns[5].classList.add('on'); renderMatExcludeMgmt(); }
   else if(tab==='mailmsg'){ btns[6]&&btns[6].classList.add('on'); renderMailMsgMgmt(); }
+  else if(tab==='bom'){ btns[7]&&btns[7].classList.add('on'); renderBomMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BOM 관리 (설정 탭)
+   ── 로딩 설계
+     · 진입 시 요약 1회만 조회(집계 RPC 아닌 count) → 가볍게 시작
+     · 붙여넣기 검증은 100% 클라이언트 (네트워크 0회)
+     · 업로드는 upsert_bom_bulk RPC 1회 (200~2000행 한 번에)
+     · 제품 트리는 펼칠 때만 조회(lazy) + 캐시
+   ── 파싱 규칙
+     12열 탭 구분 / 소계행(공정명·품목코드·원료코드 모두 빈 행) 제외
+     공정명 "주식_진공코터 공정" → line "주식/진공코터" (첫 '_'만 치환, 끝 ' 공정' 제거)
+   ════════════════════════════════════════════════════════════════════ */
+let BOM_PARSED=null;       // 검증 결과 보관
+let BOM_TREE_CACHE={};     // 제품별 트리 캐시
+
+/* 공정명 → db_plan 라인 표기 */
+function bomLine(proc){
+  let p=String(proc||'').trim();
+  p=p.replace(/\s*공정\s*$/,'');            // 끝의 " 공정" 제거
+  const i=p.indexOf('_');
+  return i<0 ? p : (p.slice(0,i)+'/'+p.slice(i+1));
+}
+/* 붙여넣기 파싱 : 12열 탭 구분 */
+function parseBomPaste(text){
+  const out=[], skipped=[], bad=[];
+  const lines=String(text||'').split(/\r?\n/);
+  lines.forEach((ln,idx)=>{
+    if(!ln.trim())return;
+    const c=ln.split('\t');
+    if(c.length<8){ if(idx>0) bad.push(`${idx+1}행: 열 부족(${c.length})`); return; }
+    const team=(c[0]||'').trim(), proc=(c[2]||'').trim();
+    const item=(c[3]||'').trim(),  mat=(c[5]||'').trim();
+    if(team==='팀구분'||proc==='공정명') return;              // 헤더
+    if(!proc && !item && !mat){ skipped.push(idx+1); return; } // 소계 행
+    if(!item||!mat){ bad.push(`${idx+1}행: 품목/원료코드 누락`); return; }
+    const num=v=>{ const n=Number(String(v||'').replace(/,/g,'').trim()); return isNaN(n)?0:n; };
+    const rate=num(c[7]);
+    if(!(rate>0)){ bad.push(`${idx+1}행: 현장배합률 0`); return; }
+    out.push({
+      team, proc_name:proc, line:bomLine(proc),
+      item_code:item, item_name:(c[4]||'').trim(),
+      mat_code:mat,  mat_name:(c[6]||'').trim(),
+      rate, rate_exact:num(c[8])||rate,
+      unit:(c[9]||'').trim(), rev:(c[10]||'').trim()
+    });
+  });
+  return {rows:out, skipped, bad};
+}
+/* 검증 : 제품 단위 집계 + 코터 합계 1.0 체크 */
+/* 배치 내 중복 제거 : 같은 (품목·원료·버전) 은 rate 큰 행만 남김
+   (Postgres 는 한 INSERT 에서 같은 PK 를 두 번 갱신할 수 없어 업로드가 실패함) */
+function dedupBom(rows){
+  const map=new Map(), dups=[];
+  rows.forEach(r=>{
+    const k=r.item_code+'|'+r.mat_code+'|'+r.rev;
+    const prev=map.get(k);
+    if(prev){
+      dups.push({key:k, item:r.item_code, mat:r.mat_code, mat_name:r.mat_name,
+                 rev:r.rev, a:prev.rate, b:r.rate});
+      if(Number(r.rate)>Number(prev.rate)) map.set(k,r);   // 큰 rate 채택
+    }else map.set(k,r);
+  });
+  return {rows:[...map.values()], dups};
+}
+function validateBom(rows){
+  const coat={};   // item_code(코터) → {sum, name, rev, n}
+  const byItem={}, revByItem={};
+  rows.forEach(r=>{
+    (byItem[r.item_code]=byItem[r.item_code]||[]).push(r);
+    (revByItem[r.item_code]=revByItem[r.item_code]||new Set()).add(r.rev);
+    if(/진공코터/.test(r.line)){
+      const c=(coat[r.item_code]=coat[r.item_code]||{sum:0,name:r.item_name,rev:r.rev,n:0});
+      c.sum+=Number(r.rate)||0; c.n++;
+    }
+  });
+  const coatList=Object.keys(coat).map(k=>({code:k,...coat[k]}));
+  const badSum=coatList.filter(c=>c.sum<0.99||c.sum>1.01);
+  const revMix=Object.keys(revByItem).filter(k=>revByItem[k].size>1);
+  return {
+    rowCnt:rows.length,
+    itemCnt:Object.keys(byItem).length,
+    coatCnt:coatList.length,
+    revCnt:new Set(rows.map(r=>r.rev)).size,
+    lineSet:[...new Set(rows.map(r=>r.line))].sort(procOrderCmp),
+    coatList, badSum, revMix
+  };
+}
+
+/* 계보(base_code) 재전개 — 업로드 후 제품수가 0이거나 미전개가 많을 때 */
+async function rebuildBomBase(){
+  const btn=event&&event.target; if(btn){btn.disabled=true;btn.textContent='정리 중…';}
+  try{
+    const {data,error}=await sb.rpc('rebuild_bom_base');
+    if(error)throw error;
+    toast(Number(data)>0?`계보 전개 완료 · 미전개 ${fmt(data)}행 남음`:'계보 전개 완료','ok');
+    renderBomMgmt();
+  }catch(e){
+    toast('재전개 실패: '+(e.message||e),'err');
+    if(btn){btn.disabled=false;btn.textContent='↻ 계보 재전개';}
+  }
+}
+async function renderBomMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:260px;border-radius:14px"></div>';
+  // 계보 미전개는 대부분 정상(포장 SKU·생산2팀 등 코터 계보 밖).
+  // 실제로 BOM 계획을 쓰는 공정(진공코터·분체배합) 기준으로만 판정한다.
+  let stat={cnt:0,prod:0,coatRow:0,mixRow:0,noBaseUse:0};
+  try{
+    const [a,use]=await Promise.all([
+      sb.from('m_bom').select('*',{count:'exact',head:true}),
+      sb.from('m_bom').select('line,base_code').or('line.like.%진공코터%,line.like.%분체배합%').limit(20000)
+    ]);
+    stat.cnt=a.count||0;
+    const u=use.data||[];
+    stat.coatRow=u.filter(r=>/진공코터/.test(r.line)).length;
+    stat.mixRow =u.filter(r=>/분체배합/.test(r.line)).length;
+    stat.noBaseUse=u.filter(r=>!r.base_code).length;
+    stat.prod=new Set(u.filter(r=>r.base_code).map(r=>r.base_code)).size;
+  }catch(_){}
+  BOM_PARSED=null; BOM_TREE_CACHE={};
+  $('#settingsBody').innerHTML=bomBodyHtml(stat);
+}
+
+function bomBodyHtml(stat){
+  return `
+  <style>
+  .bom-up{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px 15px;margin-bottom:12px}
+  .bom-up h4{margin:0 0 4px;font-size:13.5px;font-weight:800;color:#1f2937}
+  .bom-up .hint{font-size:11.5px;color:var(--mut);line-height:1.6;margin-bottom:9px}
+  .bom-ta{width:100%;min-height:120px;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;
+    font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.5;resize:vertical}
+  .bom-ta:focus{outline:none;border-color:#2670c9;box-shadow:0 0 0 3px rgba(38,112,201,.12)}
+  .bom-btns{display:flex;gap:7px;align-items:center;margin-top:9px;flex-wrap:wrap}
+  .bom-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:12px}
+  @media(max-width:1200px){.bom-kpis{grid-template-columns:repeat(3,1fr)}}
+  .bom-kpi{background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:11px 12px}
+  .bom-kpi .l{font-size:11px;color:var(--mut);font-weight:700}
+  .bom-kpi .v{font-size:22px;font-weight:900;line-height:1.15;margin-top:2px;font-variant-numeric:tabular-nums}
+  .bom-kpi .s{font-size:10px;color:#98a2b3;margin-top:1px}
+  .bom-chk{border-radius:10px;padding:11px 13px;margin-bottom:11px;font-size:12.5px;line-height:1.65}
+  .bom-ok{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#166534}
+  .bom-warn{background:#fff7e6;border:1.5px solid #f0c060;color:#92600a}
+  .bom-err{background:#fef3f2;border:1.5px solid #fda29b;color:#912018}
+  .bom-tree{border:1.5px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+  .bom-thd{display:flex;align-items:center;gap:9px;padding:9px 12px;background:#f4f7fb;border-bottom:1.5px solid var(--line);cursor:pointer}
+  .bom-thd:hover{background:#eaf1fb}
+  .bom-code{font-family:ui-monospace,monospace;font-size:12px;font-weight:800;color:#1c5fb0;background:#e8f1fd;border:1px solid #bcd6f5;border-radius:5px;padding:2px 7px}
+  .bom-sum{margin-left:auto;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  .bom-rev{font-size:10.5px;color:#8a94a6;font-weight:700}
+  </style>
+
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    🧬 BOM(배합비) 마스터입니다. <b>현장배합률(H열)</b>은 <b>진공코터 키블 1kg 기준</b>의 절대량이라
+    공정을 곱해서 전개하지 않고 그대로 사용합니다.<br>
+    · <b>원료 계획 = 코터 키블 실적 × 현장배합률</b> — ③ 원부자재 로스관리의 <b>진공코터·분체배합</b> 공정에 적용됩니다.<br>
+    · 같은 제품 계보의 반제품(EP·분체배합 등)은 로스 대상에서 제외되고, <b>별도 생산 품목</b>(그린파워딜라이트 등)은 포함됩니다.<br>
+    · 배합비버전은 <b>제품별 최신 1개</b>만 사용합니다.
+  </div>
+
+  <div class="bom-kpis">
+    <div class="bom-kpi"><div class="l">등록 행</div><div class="v">${fmt(stat.cnt)}</div>
+      <div class="s" style="${stat.noBaseUse>0?'color:#d97706;font-weight:800':(stat.cnt?'color:#1e874b;font-weight:800':'')}">${
+        !stat.cnt?'m_bom'
+        :(stat.noBaseUse>0?`⚠ 적용대상 미전개 ${fmt(stat.noBaseUse)}`
+        :`✓ 적용 제품 ${fmt(stat.prod)}종`)}</div></div>
+    <div class="bom-kpi"><div class="l">BOM 적용 공정</div><div class="v" style="font-size:17px">${fmt(stat.coatRow)}<span style="font-size:11px">/</span>${fmt(stat.mixRow)}</div>
+      <div class="s">진공코터 / 분체배합 행</div></div>
+    <div class="bom-kpi"><div class="l">검증 대기</div><div class="v" id="bkRow">–</div><div class="s">붙여넣기 행</div></div>
+    <div class="bom-kpi"><div class="l">제품(코터)</div><div class="v" id="bkCoat">–</div><div class="s">기준 품목</div></div>
+    <div class="bom-kpi"><div class="l">배합비버전</div><div class="v" id="bkRev">–</div><div class="s">고유 버전</div></div>
+    <div class="bom-kpi"><div class="l">합계 이상</div><div class="v" id="bkBad">–</div><div class="s">코터 1.0 검증</div></div>
+  </div>
+
+  <div class="bom-up">
+    <h4>붙여넣기 업로드</h4>
+    <div class="hint">
+      엑셀에서 <b>헤더 포함 12열</b>(팀구분 · 선택 · 공정명 · 품목코드 · 품목명 · 원료코드 · 원료명 · 현장배합률 · 배합율 · 단위 · 배합비버전 · 공정순서)을 그대로 복사해 붙여넣으세요.
+      <b>소계 행은 자동으로 제외</b>됩니다. 먼저 [검증]으로 확인한 뒤 [업로드]를 누르면 됩니다.
+    </div>
+    <textarea class="bom-ta" id="bomPaste" placeholder="엑셀에서 복사한 내용을 여기에 붙여넣기 (Ctrl+V)"></textarea>
+    <div class="bom-btns">
+      <button class="tbtn" onclick="checkBomUpload()">검증</button>
+      <button class="tbtn save" id="bomUpBtn" onclick="doBomUpload()" disabled>업로드</button>
+      <button class="rowbtn" onclick="$('#bomPaste').value='';BOM_PARSED=null;renderBomCheck(null)">지우기</button>
+      <button class="rowbtn" onclick="rebuildBomBase()" title="품목 계보(base_code)를 다시 계산합니다. 제품수가 0이거나 미전개가 많을 때 실행하세요.">↻ 계보 재전개</button>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--mut)">검증은 서버 조회 없이 즉시 처리됩니다</span>
+    </div>
+  </div>
+
+  <div id="bomCheck"></div>
+  <div id="bomList">${stat.cnt?'<div style="padding:14px;color:var(--mut);font-size:12.5px">등록된 BOM을 보려면 <b>[등록 현황 보기]</b>를 누르세요.</div><div style="padding:0 0 12px"><button class="tbtn" onclick="loadBomList()">등록 현황 보기</button></div>':'<div style="padding:22px;text-align:center;color:var(--mut);font-size:13px;border:1.5px dashed var(--line);border-radius:12px">등록된 BOM이 없습니다. 위에서 붙여넣기 업로드를 진행하세요.</div>'}</div>
+  `;
+}
+
+function checkBomUpload(){
+  const txt=($('#bomPaste')||{}).value||'';
+  if(!txt.trim()){ toast('붙여넣은 내용이 없습니다','err'); return; }
+  const p=parseBomPaste(txt);
+  if(!p.rows.length){ toast('유효한 행이 없습니다 — 열 구분(탭)을 확인하세요','err'); renderBomCheck(null); return; }
+  const d=dedupBom(p.rows);                       // 중복 키 제거 (업로드 실패 방지)
+  const v=validateBom(d.rows);
+  BOM_PARSED={...p, rows:d.rows, dups:d.dups, v};
+  renderBomCheck(BOM_PARSED);
+  const btn=$('#bomUpBtn'); if(btn) btn.disabled=false;
+  toast(`검증 완료 — 유효 ${d.rows.length}행 · 소계 ${p.skipped.length}행 제외${d.dups.length?` · 중복 ${d.dups.length}행 병합`:''}`,'ok');
+}
+
+function renderBomCheck(P){
+  const box=$('#bomCheck'); if(!box)return;
+  const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
+  if(!P){ box.innerHTML=''; set('#bkRow','–');set('#bkCoat','–');set('#bkRev','–');set('#bkBad','–');
+          const b=$('#bomUpBtn'); if(b)b.disabled=true; return; }
+  const v=P.v;
+  set('#bkRow',fmt(v.rowCnt)); set('#bkCoat',fmt(v.coatCnt));
+  set('#bkRev',fmt(v.revCnt)); set('#bkBad',fmt(v.badSum.length));
+  const badEl=$('#bkBad'); if(badEl) badEl.style.color=v.badSum.length?'#b42318':'var(--grn)';
+
+  const rows=v.coatList.slice().sort((a,b)=>Math.abs(b.sum-1)-Math.abs(a.sum-1)).slice(0,12);
+  box.innerHTML=`
+    ${P.bad.length?`<div class="bom-chk bom-err">⚠ <b>제외된 오류 행 ${P.bad.length}건</b> — 현장배합률이 0이거나 코드가 없는 행입니다.<br>${P.bad.slice(0,5).join('<br>')}${P.bad.length>5?`<br>… 외 ${P.bad.length-5}건`:''}</div>`:''}
+    ${(P.dups&&P.dups.length)?`<div class="bom-chk bom-warn">🔁 <b>중복 키 ${P.dups.length}행 병합</b> — 같은 (품목·원료·버전) 이 여러 번 있어 <b>배합률이 큰 행</b>만 남겼습니다.<br>${P.dups.slice(0,5).map(d=>`${d.item} · ${d.mat} ${d.mat_name||''} <b>${d.a}</b> / <b>${d.b}</b>`).join('<br>')}${P.dups.length>5?`<br>… 외 ${P.dups.length-5}건`:''}</div>`:''}
+    ${v.badSum.length
+      ? `<div class="bom-chk bom-warn">⚠ <b>코터 합계가 1.0을 벗어난 제품 ${v.badSum.length}건</b> — 배합률 누락 가능성이 있습니다.<br>${v.badSum.slice(0,5).map(c=>`${c.code} ${c.name||''} <b>${c.sum.toFixed(6)}</b>`).join('<br>')}</div>`
+      : `<div class="bom-chk bom-ok">✅ <b>코터 합계 검증 통과</b> — ${v.coatCnt}개 제품 모두 1.0 ± 0.01 범위입니다.</div>`}
+    ${v.revMix.length?`<div class="bom-chk bom-warn">⚠ 같은 품목에 배합비버전이 2개 이상인 항목 ${v.revMix.length}건 — 최신 버전만 사용됩니다.</div>`:''}
+    <div class="bom-chk" style="background:#f7f9fc;border:1.5px solid var(--line);color:var(--sub)">
+      소계 행 <b>${P.skipped.length}건</b> 자동 제외 · 공정 <b>${v.lineSet.length}종</b>: ${v.lineSet.join(' · ')}
+    </div>
+    <div class="bom-tree" style="margin-bottom:12px">
+      <div class="bom-thd" style="cursor:default"><b style="font-size:12.5px">코터 합계 미리보기</b>
+        <span class="bom-rev" style="margin-left:auto">1.0 에 가까울수록 정상</span></div>
+      ${rows.map(c=>{
+        const ok=(c.sum>=0.99&&c.sum<=1.01);
+        return `<div style="display:flex;align-items:center;gap:9px;padding:7px 12px;border-bottom:1px solid #f1f4f9">
+          <span class="bom-code">${c.code}</span>
+          <span style="font-size:12px;color:#1f2937">${c.item_name||c.name||''}</span>
+          <span class="bom-rev">v${c.rev||'-'} · 원료 ${c.n}</span>
+          <span class="bom-sum" style="color:${ok?'var(--grn)':'#b42318'}">${c.sum.toFixed(6)}${ok?' ✓':' ⚠'}</span>
+        </div>`;}).join('')}
+    </div>`;
+}
+
+/* 분할 업로드 : 대량(수천 행)을 한 번에 보내면 요청 크기 한계로 일부만 저장됨
+   500행씩 나눠 순차 전송하고 진행률을 표시한다. 실패한 묶음은 즉시 중단·보고. */
+const BOM_CHUNK=500;
+async function doBomUpload(){
+  if(!BOM_PARSED||!BOM_PARSED.rows.length){ toast('먼저 검증을 실행하세요','err'); return; }
+  const rows=BOM_PARSED.rows, n=rows.length;
+  const chunks=Math.ceil(n/BOM_CHUNK);
+  if(!confirm(`BOM ${fmt(n)}행을 등록합니다.\n${chunks}회로 나눠 전송하며 같은 품목·원료·버전은 덮어쓰기됩니다.\n계속할까요?`)) return;
+  const btn=$('#bomUpBtn'); const by=(S.user&&S.user.name)||'-';
+  let done=0, saved=0;
+  const setP=()=>{ if(btn) btn.textContent=`업로드 중… ${done}/${chunks} (${fmt(saved)}행)`; };
+  if(btn){ btn.disabled=true; setP(); }
+  try{
+    for(let i=0;i<n;i+=BOM_CHUNK){
+      const part=rows.slice(i,i+BOM_CHUNK);
+      const {data,error}=await sb.rpc('upsert_bom_bulk',{p_rows:part,p_by:by});
+      if(error) throw new Error(`${done+1}번째 묶음(${i+1}~${i+part.length}행): ${error.message||error}`);
+      saved+=Number(data)||part.length; done++; setP();
+    }
+    // 전 묶음 저장이 끝난 뒤 base_code(제품 계보) 일괄 전개 — 중간에 하면 불완전
+    if(btn) btn.textContent='제품 계보 정리 중…';
+    let baseMsg='';
+    try{
+      const {data:left,error:be}=await sb.rpc('rebuild_bom_base');
+      if(be) throw be;
+      baseMsg=(left>0)?` · 계보 미전개 ${fmt(left)}행`:' · 계보 전개 완료';
+    }catch(e){
+      // 전개 실패는 조용히 넘기지 않는다 (제품수 0 이 되어 BOM 계획 산출이 불가)
+      toast(`행 저장은 됐지만 계보 전개 실패 — SQL 편집기에서 SELECT rebuild_bom_base(); 실행 필요 (${e.message||e})`,'err');
+      baseMsg=' · ⚠ 계보 전개 실패';
+    }
+    toast(`BOM ${fmt(saved)}행 등록 완료 (${chunks}회 전송)${baseMsg}`,'ok');
+    BOM_PARSED=null; BOM_TREE_CACHE={};
+    const ta=$('#bomPaste'); if(ta) ta.value='';
+    renderBomMgmt();
+  }catch(e){
+    toast(`업로드 중단 — ${fmt(saved)}행 저장 후 실패: ${e.message||e}`,'err');
+    if(btn){ btn.disabled=false; btn.textContent='업로드 (이어서)'; }
+  }
+}
+
+/* 등록 현황 : 코터 품목 기준 목록 (누를 때만 조회) */
+async function loadBomList(){
+  const box=$('#bomList'); if(!box)return;
+  box.innerHTML='<div class="skel" style="height:200px;border-radius:12px"></div>';
+  try{
+    const {data,error}=await sb.from('m_bom')
+      .select('item_code,item_name,rev,line,mat_code,rate,base_code')
+      .like('line','%진공코터%').order('item_code');
+    if(error)throw error;
+    const g={};
+    (data||[]).forEach(r=>{
+      const k=r.item_code;
+      const o=(g[k]=g[k]||{code:k,name:r.item_name,rev:r.rev,sum:0,n:0});
+      o.sum+=Number(r.rate)||0; o.n++;
+    });
+    const list=Object.values(g).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+    if(!list.length){ box.innerHTML='<div style="padding:18px;color:var(--mut)">등록된 코터 BOM이 없습니다.</div>'; return; }
+    box.innerHTML=`<div class="bom-tree">
+      <div class="bom-thd" style="cursor:default"><b style="font-size:12.5px">등록 현황 · 제품(코터) ${list.length}건</b>
+        <span class="bom-rev" style="margin-left:auto">클릭하면 공정별 상세</span></div>
+      ${list.map(c=>{
+        const ok=(c.sum>=0.99&&c.sum<=1.01);
+        return `<div class="bom-thd" onclick="toggleBomTree('${c.code}')" style="background:#fff">
+            <span class="bom-code">${c.code}</span>
+            <span style="font-size:12px;color:#1f2937">${c.name||''}</span>
+            <span class="bom-rev">v${c.rev||'-'} · 원료 ${c.n}</span>
+            <span class="bom-sum" style="color:${ok?'var(--grn)':'#b42318'}">${c.sum.toFixed(6)}${ok?' ✓':' ⚠'}</span>
+          </div>
+          <div id="bt_${c.code}" style="display:none"></div>`;}).join('')}
+    </div>`;
+  }catch(e){ box.innerHTML='<div style="padding:18px;color:#b42318">조회 실패: '+(e.message||e)+'</div>'; }
+}
+
+async function toggleBomTree(code){
+  const el=document.getElementById('bt_'+code); if(!el)return;
+  if(el.style.display!=='none'){ el.style.display='none'; return; }
+  el.style.display='';
+  if(BOM_TREE_CACHE[code]){ el.innerHTML=BOM_TREE_CACHE[code]; return; }
+  el.innerHTML='<div style="padding:10px 14px;color:var(--mut);font-size:12px">불러오는 중…</div>';
+  try{
+    const {data,error}=await sb.from('m_bom')
+      .select('line,item_code,item_name,mat_code,mat_name,rate,unit,rev')
+      .eq('base_code',code).order('line');
+    if(error)throw error;
+    const g={};
+    (data||[]).forEach(r=>{ (g[r.line]=g[r.line]||[]).push(r); });
+    const keys=Object.keys(g).sort(procOrderCmp);
+    const html=keys.map(ln=>{
+      const rs=g[ln].slice().sort((a,b)=>Number(b.rate)-Number(a.rate));
+      const sum=rs.reduce((a,b)=>a+Number(b.rate||0),0);
+      return `<div style="padding:6px 14px;background:#fafbfd;border-bottom:1px solid #eef1f6;font-size:11.5px;font-weight:800;color:#4a5568">
+          ${ln} <span style="color:#98a2b3;font-weight:700">· ${rs.length}건 · 소계 ${sum.toFixed(6)}</span></div>
+        ${rs.map(r=>`<div style="display:flex;gap:9px;padding:5px 14px 5px 26px;border-bottom:1px solid #f5f7fa;font-size:11.5px">
+          <span class="mono" style="color:${String(r.mat_code).charAt(0)==='6'?'#8a94a6':'#1f2937'};min-width:64px">${r.mat_code}</span>
+          <span style="color:#4a5568;flex:1">${r.mat_name||''}</span>
+          <span class="mono" style="font-weight:700">${Number(r.rate).toFixed(6)}</span>
+          <span style="color:#98a2b3;min-width:26px">${r.unit||''}</span>
+        </div>`).join('')}`;
+    }).join('');
+    BOM_TREE_CACHE[code]=html; el.innerHTML=html;
+  }catch(e){ el.innerHTML='<div style="padding:10px 14px;color:#b42318;font-size:12px">조회 실패: '+(e.message||e)+'</div>'; }
 }
 
 /* --- 사용자 관리 탭 --- */
@@ -4167,7 +4522,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,rsRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4178,14 +4533,18 @@ async function openDay(date, team){
       sb.rpc('get_line_downtime',{p_date:date,p_team:team}),
       sb.rpc('get_capa_list',{p_team:team}),
       sb.rpc('suggest_plan',{p_date:date,p_team:team}),
-      sb.rpc('report_summary',{p_team:team,p_from:date,p_to:date})   // 당일 수율(병렬 → 지연 없음)
+      sb.rpc('get_bom_plan',{p_date:date,p_team:team})     // BOM 계획(병렬 → 지연 없음)
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
     CUR_DAY.orders=orderRes.data||[];
     CUR_DAY.losses=lossRes.data||[];
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
-    CUR_DAY.daySum=(rsRes&&!rsRes.error&&rsRes.data)?rsRes.data:null;   // 당일 수율·SKU
+    // BOM 계획 : (오더|자재) → 계획량. ③ 로스관리 BOM 모드에서 사용
+    CUR_DAY.bom={};
+    ((bomRes&&!bomRes.error&&bomRes.data)||[]).forEach(r=>{
+      CUR_DAY.bom[r.prod_code+'|'+r.mat_code]=r;
+    });
     CUR_DAY.suggest={};
     ((sugRes&&!sugRes.error&&sugRes.data)||[]).forEach(r=>{
       CUR_DAY.suggest[r.prod_code+'|'+(r.proc_sub1||'')+'/'+(r.proc_sub2||'')]=r;
@@ -4357,13 +4716,14 @@ function renderClosing2(){
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
     ${(()=>{
-      const ds=CUR_DAY.daySum||{};
-      const y=(ds.yield_rate!=null&&isFinite(Number(ds.yield_rate)))?Number(ds.yield_rate):null;
-      // 당일 수율은 반제품 이월(WIP) 영향으로 변동이 큼 → 색 판정 없이 참고 표기
-      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${y>=70&&y<=110?'var(--grn)':'#8a94a6'}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (평균수율)</span></div>
-      <div class="v mono" title="${y==null?'수율 산출 불가 (원자재 투입 데이터 없음)':'당일 종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 타팀 반제품). 반제품 이월 때문에 하루 단위로는 변동이 큽니다 — 기간 누계는 팀별 현황에서 확인하세요.'}">${finCnt}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?' · 당일 참고':''}</div></div>`;
+      const cy=coaterYield();               // 코터 평균수율 = 코터 산출 ÷ EP 실적
+      const y=cy?cy.pct:null;
+      // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
+      const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
+      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (코터 평균수율)</span></div>
+      <div class="v mono" title="${y==null?'코터 수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 코팅 등)':coaterYieldTip(cy)}">${finCnt}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?` · 코터 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div>
@@ -4938,6 +5298,37 @@ async function fillSuggestPlan(){
   const coatCnt=Object.values(byCode).filter(r=>r.src==='EP 실적').length;
   toast(`계획 제안값 ${filled}건 입력됨 — 확인 후 [투입공수 · 계획 저장]${coatCnt?' · 진공코터 제안은 EP 물량 기준이라 검토 필요':''}`,'ok');
 }
+/* 코터 평균수율 = Σ(진공코터 산출) ÷ Σ(EP 실적)
+   진공코터 산출이 최종 출고 형태(키블)이므로 이 값이 그날의 대표 수율.
+   suggest_plan 이 이미 로드돼 있어 추가 조회 없이 계산(0ms).            */
+function coaterYield(){
+  const orders=CUR_DAY.orders||[], sg=CUR_DAY.suggest||{};
+  const items=[];
+  let out=0, inp=0;
+  orders.forEach(o=>{
+    if(!/진공코터/.test(String(o.proc_sub2||''))) return;
+    const r=sg[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]||sg[o.prod_code];
+    if(!r||r.src!=='EP 실적') return;
+    const ep=Number(r.suggest)||0, a=Number(o.actual_sum??o.actual_qty??0);
+    if(ep>0){ inp+=ep; out+=a;
+      items.push({code:o.prod_code, name:o.prod_name||'', ep, act:a, pct:a/ep*100}); }
+  });
+  if(!items.length) return null;
+  // 평균수율 = 제품별 수율의 단순평균
+  //  (물량가중이 아니라 제품 단위 평균 → 특정 제품의 이상치가 그대로 드러나
+  //   "어느 제품 때문인지" 바로 설명할 수 있음)
+  const avg=items.reduce((a,b)=>a+b.pct,0)/items.length;
+  items.sort((a,b)=>a.pct-b.pct);          // 낮은 순
+  return {pct:avg, items, n:items.length, out, inp, wPct:(inp>0?out/inp*100:0)};
+}
+/* 스코어카드 툴팁 : 평균을 끌어내린 제품을 바로 보여줌 */
+function coaterYieldTip(cy){
+  if(!cy) return '';
+  const low=cy.items.filter(x=>x.pct<70).slice(0,4);
+  const list=cy.items.slice(0,5).map(x=>`${x.name||x.code} ${x.pct.toFixed(1)}%`).join('\n');
+  return `제품별 수율의 평균 (${cy.n}개 제품)\n물량가중 평균은 ${cy.wPct.toFixed(1)}%\n기준 구간 70~80%\n\n[낮은 순]\n${list}`
+       + (low.length?`\n\n70% 미만 ${low.length}건 — 평균을 끌어내린 제품입니다.`:'');
+}
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -5083,17 +5474,20 @@ function renderMore2(){
       const lossSign=lossVal<0?'-':lossVal>0?'+':'';
       const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
       const dr=devRate(s);   // 편차율 = |편차| ÷ 계획 × 100
+      const _bp=planOf(s), _bo=bomOf(s), _isBom=(LOSS_BASIS==='bom'&&_bo&&Number(_bo.bom_plan)>0);
+      const _diff=Math.round(Number(s.actual_qty))-Math.round(_bp);
+      const _loss=_diff*Number(s.unit_price||0);
       const tiny=isTinyMat(s);
       return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" data-tiny="${tiny?'1':''}" class="${isSaved?'row-saved':''}">
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" inputmode="numeric" data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
       <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
-      <td class="mono ${dcls}">${diffSign}${fmt0(s.diff)}</td>
+      <td class="mono ${_diff>0?'neg':_diff<0?'pos':''}">${_diff===0?'0':(_diff>0?'+':'')+fmt0(_diff)}</td>
       <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
       <td class="mono">${fmt(s.unit_price)}</td>
-      <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt0(Math.abs(lossVal))}</td>
+      <td class="mono ${_loss>0?'neg':_loss<0?'pos':''}" style="font-weight:800">${_diff===0?'0':(_diff>0?'-':'+')+fmt0(Math.abs(_loss))}</td>
       <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
       <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
       <td class="row-actions">
@@ -5136,6 +5530,7 @@ function renderMore2(){
           <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
           ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
         </div>`;})()}
+      ${lossBasisBar()}
       ${devFilterBar()}
       <div class="fold-bar open" id="foldBar_loss2" onclick="toggleFold('loss2')">
         <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
@@ -5935,6 +6330,9 @@ function renderClosing(){
     const reasonVal=saved?(saved.reason||''):'';
     const typeSelOpts=lossTypeOpts.replace(`value="${typeVal}"`,`value="${typeVal}" selected`);
     const dr=devRate(s);   // 편차율 = |편차| ÷ 계획 × 100
+    const _bp=planOf(s), _bo=bomOf(s), _isBom=(LOSS_BASIS==='bom'&&_bo&&Number(_bo.bom_plan)>0);
+    const _diff=Math.round(Number(s.actual_qty))-Math.round(_bp);
+    const _loss=_diff*Number(s.unit_price||0);
     const diffSign=Number(s.diff)>0?'+':''; // 편차 그대로
     // 로스금액: 편차+(초과사용)=손실=-금액(빨강), 편차-(절감)=+금액(초록)
     const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
@@ -5944,12 +6342,12 @@ function renderClosing(){
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(s.plan_qty)}" inputmode="numeric" data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
     <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
-    <td class="mono ${dcls}">${diffSign}${fmt0(s.diff)}</td>
+    <td class="mono ${_diff>0?'neg':_diff<0?'pos':''}">${_diff===0?'0':(_diff>0?'+':'')+fmt0(_diff)}</td>
     <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
     <td class="mono">${fmt(s.unit_price)}</td>
-    <td class="mono ${lossCls}" style="font-weight:800">${lossSign}${fmt0(Math.abs(lossVal))}</td>
+    <td class="mono ${_loss>0?'neg':_loss<0?'pos':''}" style="font-weight:800">${_diff===0?'0':(_diff>0?'-':'+')+fmt0(Math.abs(_loss))}</td>
     <td><select class="inp-cell loss-type" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left"><option value="">유형선택</option>${typeSelOpts}</select></td>
     <td><input class="inp-cell loss-reason" data-i="${i}" ${isSaved?'disabled':''} style="text-align:left" placeholder="사유를 입력하세요" title="사유 입력 (클릭 후 타이핑)" value="${reasonVal}"></td>
     <td class="row-actions">
@@ -6005,13 +6403,14 @@ function renderClosing(){
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
     ${(()=>{
-      const ds=CUR_DAY.daySum||{};
-      const y=(ds.yield_rate!=null&&isFinite(Number(ds.yield_rate)))?Number(ds.yield_rate):null;
-      // 당일 수율은 반제품 이월(WIP) 영향으로 변동이 큼 → 색 판정 없이 참고 표기
-      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${y>=70&&y<=110?'var(--grn)':'#8a94a6'}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (평균수율)</span></div>
-      <div class="v mono" title="${y==null?'수율 산출 불가 (원자재 투입 데이터 없음)':'당일 종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 타팀 반제품). 반제품 이월 때문에 하루 단위로는 변동이 큽니다 — 기간 누계는 팀별 현황에서 확인하세요.'}">${finCount}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCount}종${y!=null?' · 당일 참고':''}</div></div>`;
+      const cy=coaterYield();               // 코터 평균수율 = 코터 산출 ÷ EP 실적
+      const y=cy?cy.pct:null;
+      // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
+      const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
+      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (코터 평균수율)</span></div>
+      <div class="v mono" title="${y==null?'코터 수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 코팅 등)':coaterYieldTip(cy)}">${finCount}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCount}종${y!=null?` · 코터 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div>
@@ -6074,7 +6473,8 @@ function renderClosing(){
         <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(CUR_DAY.losses||[]).length}</b></button>
         ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
       </div>`;})()}
-    ${devFilterBar()}
+    ${lossBasisBar()}
+      ${devFilterBar()}
     <div class="fold-bar open" id="foldBar_loss" onclick="toggleFold('loss')">
       <span class="fold-arrow">▶</span><span class="fold-title">자재별 상세 · 로스유형 입력</span>
       <span class="fold-cnt">${(CUR_DAY.losses||[]).length}</span>
@@ -6609,13 +7009,44 @@ let DEV_MAX=100;        // 해당 일자 최대 편차율(슬라이더 상한)
    계획·실적이 모두 1kg 미만이면 목록에서 제외한다.                         */
 const TINY_KG=1;
 function isTinyMat(s){
-  const p=Math.abs(Number(s.plan_qty)||0), a=Math.abs(Number(s.actual_qty)||0);
+  const p=Math.abs(planOf(s)||0), a=Math.abs(Number(s.actual_qty)||0);
   return Math.max(p,a) < TINY_KG;
 }
+/* ── ③ 로스관리 계획 기준 : MES / BOM 토글 ─────────────────────────
+   BOM 모드에서는 진공코터·분체배합 공정의 원료 계획을
+   "코터 키블 실적 × 현장배합률" 로 대체하고 편차·편차율·로스금액을 재계산한다.
+   대상 밖(포장·부자재 등)은 MES 계획 그대로 사용.                       */
+let LOSS_BASIS='mes';
+function bomOf(s){ return (CUR_DAY.bom||{})[s.prod_code+'|'+s.mat_code]||null; }
+/* 화면에 쓸 계획값 (기준에 따라 분기) */
+function planOf(s){
+  if(LOSS_BASIS==='bom'){ const b=bomOf(s); if(b&&Number(b.bom_plan)>0) return Number(b.bom_plan); }
+  return Number(s.plan_qty)||0;
+}
+function switchLossBasis(b){
+  if(LOSS_BASIS===b)return;
+  LOSS_BASIS=b;
+  rerenderClosing();
+  setTimeout(()=>{ if(typeof applyLossFilters==='function') applyLossFilters(); },0);
+  toast(b==='bom'?'BOM 기준 — 진공코터·분체배합 원료 계획을 배합률로 산출':'MES 기준 — 원본 계획 사용','ok');
+}
+/* 기준 전환 바 (③ 섹션) */
+function lossBasisBar(){
+  const n=Object.keys(CUR_DAY.bom||{}).length;
+  const hit=(CUR_DAY.losses||[]).filter(l=>bomOf(l)).length;
+  return `<div class="lb-bar">
+    <span class="lb-t">계획 기준</span>
+    <button class="lb-btn ${LOSS_BASIS==='mes'?'on':''}" onclick="switchLossBasis('mes')">MES 원본</button>
+    <button class="lb-btn ${LOSS_BASIS==='bom'?'on':''}" onclick="switchLossBasis('bom')" ${n?'':'disabled title="등록된 BOM 계획이 없습니다"'}>BOM 배합률</button>
+    <span class="lb-i">${n?`진공코터·분체배합 원료 <b>${hit}</b>건 적용 가능`:'BOM 미등록'}</span>
+    ${LOSS_BASIS==='bom'?'<span class="lb-on">BOM 계획 = 코터 키블 실적 × 현장배합률</span>':''}
+  </div>`;
+}
 function devRate(s){
-  // 로스관리는 정수 기준으로 판단 (표시·저장 모두 정수)
-  const p=Math.abs(Math.round(Number(s.plan_qty))), d=Math.abs(Math.round(Number(s.actual_qty))-Math.round(Number(s.plan_qty)));
-  if(!(p>0)) return null;              // 계획 0 → 산출 불가
+  // 로스관리는 정수 기준으로 판단 (표시·저장 모두 정수) · 계획은 현재 기준(MES/BOM) 적용
+  const pl=planOf(s);
+  const p=Math.abs(Math.round(pl)), d=Math.abs(Math.round(Number(s.actual_qty))-Math.round(pl));
+  if(!(p>0)) return null;
   return d/p*100;
 }
 function drCls(v){
