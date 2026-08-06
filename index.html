@@ -345,6 +345,7 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .lb-btn.on{background:#6d47c9;border-color:#6d47c9;color:#fff}
 .lb-btn:disabled{opacity:.45;cursor:not-allowed}
 .lb-i{font-size:11.5px;color:#8b7bbd}
+.lb-warn{margin-left:auto;font-size:11px;font-weight:700;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:5px;padding:2px 8px}
 .lb-on{margin-left:auto;font-size:11px;font-weight:800;color:#6d47c9;background:#ede8fb;border:1px solid #ddd3f7;border-radius:5px;padding:2px 8px}
 @media(max-width:820px){.lb-on{margin-left:0;width:100%}}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
@@ -7016,7 +7017,7 @@ function isTinyMat(s){
    BOM 모드에서는 진공코터·분체배합 공정의 원료 계획을
    "코터 키블 실적 × 현장배합률" 로 대체하고 편차·편차율·로스금액을 재계산한다.
    대상 밖(포장·부자재 등)은 MES 계획 그대로 사용.                       */
-let LOSS_BASIS='mes';
+let LOSS_BASIS='bom';   // 코터·분체배합은 BOM 배합률을 기본 기준으로 사용
 function bomOf(s){ return (CUR_DAY.bom||{})[s.prod_code+'|'+s.mat_code]||null; }
 /* 화면에 쓸 계획값 (기준에 따라 분기) */
 function planOf(s){
@@ -7034,13 +7035,34 @@ function switchLossBasis(b){
 function lossBasisBar(){
   const n=Object.keys(CUR_DAY.bom||{}).length;
   const hit=(CUR_DAY.losses||[]).filter(l=>bomOf(l)).length;
+  if(!n) return '';
+  // 화면 기준(BOM)과 DB 저장값(MES)이 다르면 대시보드·월현황에는 반영되지 않으므로 안내
+  const applied=(CUR_DAY.losses||[]).filter(l=>{
+    const b=bomOf(l); return b && Math.abs(Number(l.plan_qty)-Number(b.bom_plan))<0.5; }).length;
+  const need=hit-applied;
   return `<div class="lb-bar">
     <span class="lb-t">계획 기준</span>
+    <button class="lb-btn ${LOSS_BASIS==='bom'?'on':''}" onclick="switchLossBasis('bom')">BOM 배합률</button>
     <button class="lb-btn ${LOSS_BASIS==='mes'?'on':''}" onclick="switchLossBasis('mes')">MES 원본</button>
-    <button class="lb-btn ${LOSS_BASIS==='bom'?'on':''}" onclick="switchLossBasis('bom')" ${n?'':'disabled title="등록된 BOM 계획이 없습니다"'}>BOM 배합률</button>
-    <span class="lb-i">${n?`진공코터·분체배합 원료 <b>${hit}</b>건 적용 가능`:'BOM 미등록'}</span>
-    ${LOSS_BASIS==='bom'?'<span class="lb-on">BOM 계획 = 코터 키블 실적 × 현장배합률</span>':''}
+    <span class="lb-i">진공코터·분체배합 원료 <b>${hit}</b>건</span>
+    ${LOSS_BASIS==='bom'
+      ? (need>0
+        ? `<span class="lb-warn">⚠ 화면만 BOM 기준 — 대시보드·월현황에 반영하려면 저장이 필요합니다 (<b>${need}</b>건)</span>
+           <button class="tbtn save" onclick="applyBomPlan()">BOM 계획 저장</button>`
+        : `<span class="lb-on">✓ BOM 계획이 DB에 반영됨 — 대시보드·월현황 동일</span>`)
+      : '<span class="lb-i">DB 저장값 기준으로 표시됩니다</span>'}
   </div>`;
+}
+/* BOM 계획을 t_plan_override 에 일괄 저장 → 대시보드·월현황·라인상세까지 전파 */
+async function applyBomPlan(){
+  const {date,team}=CUR_DAY;
+  if(!confirm(`${date} ${team}\n진공코터·분체배합 원료의 계획을 BOM 배합률 기준으로 저장합니다.\n\n· 로스금액이 대시보드·월현황에도 반영됩니다\n· 각 행의 ↺ 버튼으로 언제든 MES 원본 복원 가능\n\n계속할까요?`)) return;
+  try{
+    const {data,error}=await sb.rpc('apply_bom_plan',{p_date:date,p_team:team,p_by:(S.user&&S.user.name)||'-'});
+    if(error)throw error;
+    toast(`BOM 계획 ${fmt(data||0)}건 저장 — 대시보드에도 반영됩니다`,'ok');
+    const _sy=window.scrollY; await openDay(date,team); window.scrollTo(0,_sy);
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
 }
 function devRate(s){
   // 로스관리는 정수 기준으로 판단 (표시·저장 모두 정수) · 계획은 현재 기준(MES/BOM) 적용
