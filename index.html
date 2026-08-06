@@ -151,7 +151,23 @@ input,select,textarea{font-family:inherit;font-size:14px}
 /* PO 상세 */
 .sec{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);margin-bottom:16px;overflow:hidden}
 .sec-hd{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fbfcfe,#fff)}
-.sec-hd .no{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;box-shadow:0 2px 6px rgba(26,58,92,.25)}
+/* 섹션 번호 : 각이 둥근 사각 배지 (보고서 느낌) */
+.sec-hd .no{min-width:26px;height:26px;padding:0 8px;border-radius:8px;
+  background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;
+  display:inline-grid;place-items:center;font-weight:800;font-size:12.5px;letter-spacing:-.3px;
+  box-shadow:0 2px 7px rgba(26,58,92,.24),inset 0 1px 0 rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.14)}
+/* 대시보드 섹션 타이틀 : [1. 달성률 추이] 각이 둥근 사각 라벨 */
+.sec-hd .sec-tag{display:inline-flex;align-items:center;height:28px;padding:0 13px;border-radius:9px;
+  background:linear-gradient(135deg,var(--navy),var(--navy3));color:#fff;
+  font-size:13.5px;font-weight:800;letter-spacing:-.3px;white-space:nowrap;
+  box-shadow:0 2px 8px rgba(26,58,92,.22),inset 0 1px 0 rgba(255,255,255,.20);
+  border:1px solid rgba(255,255,255,.14)}
+.sec-tag.c1{background:linear-gradient(135deg,#2670c9,#4a90d9)}
+.sec-tag.c2{background:linear-gradient(135deg,#0e8a8a,#16b3b3)}
+.sec-tag.c3{background:linear-gradient(135deg,#c2410c,#e8813a)}
+.sec-tag.c4{background:linear-gradient(135deg,#c0392b,#e0483a)}
+.sec-tag.c5{background:linear-gradient(135deg,#6d28d9,#8b5cf6)}
 /* 섹션별 색조 (스크롤 시 인지) */
 .no.c1{background:linear-gradient(135deg,#2670c9,#4a90d9)!important}
 .no.c2{background:linear-gradient(135deg,#0e8a8a,#16b3b3)!important}
@@ -2543,12 +2559,12 @@ async function loadDashboard(){
     </div>
 
     <!-- 1·2순위: 달성률 / 로스금액 추이 (기간 토글 공유) -->
-    <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>달성률 추이</h3>
+    <div class="sec"><div class="sec-hd"><span class="sec-tag c1">1. 달성률 추이</span>
       <span class="desc" id="achDesc">계획 대비 실적 (월별)</span><span class="sp"></span>${trendTabBar()}</div>
       <div class="sec-bd"><div style="height:280px"><canvas id="chartAchieve"></canvas></div></div>
     </div>
 
-    <div class="sec"><div class="sec-hd"><span class="no c3">2</span><h3>로스금액 추이</h3>
+    <div class="sec"><div class="sec-hd"><span class="sec-tag c3">2. 로스금액 추이</span>
       <span class="desc" id="lossDesc">월별 손실·절감 (원가 절감 포인트)</span></div>
       <div class="sec-bd"><div style="height:280px"><canvas id="chartLoss"></canvas></div></div>
     </div>
@@ -5528,8 +5544,8 @@ function renderMore2(){
         if(!keys.length)return '';
         return `<div class="dt-filter" id="lossFilterBar">
           <span class="dtf-label">라인 선택</span>
-          <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(losses||[]).length}</b></button>
-          ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
+          <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b class="dtf-n">${(losses||[]).length}</b></button>
+          ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b class="dtf-n">${cnt[k]}</b></button>`).join('')}
         </div>`;})()}
       ${lossBasisBar()}
       ${devFilterBar()}
@@ -5799,6 +5815,21 @@ function applyLossFilters(){
   });
   const tb=$('#tinyBtn');
   if(tb) tb.innerHTML=SHOW_TINY?`1kg미만 포함 중 (${tinyHid||''}${tinyHid?'건':''})`:`1kg미만 ${tinyHid}건 제외`;
+  // 라인 칩 숫자를 현재 필터(편차율·1kg미만) 기준으로 갱신 — 목록과 숫자가 어긋나지 않게
+  (function(){
+    const per={}; let all=0;
+    document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
+      const dr=tr.dataset.dr===''?null:Number(tr.dataset.dr);
+      const hide=(tr.dataset.tiny==='1'&&!SHOW_TINY)||(dr!=null&&dr<m);
+      if(hide)return;
+      const ln=tr.dataset.ln||''; per[ln]=(per[ln]||0)+1; all++;
+    });
+    document.querySelectorAll('#lossFilterBar .dtf-chip, #lossFilterBar1 .dtf-chip').forEach(b=>{
+      const ln=b.dataset.ln||'', n=(ln===''?all:(per[ln]||0));
+      const nb=b.querySelector('.dtf-n'); if(nb) nb.textContent=n;
+      b.style.display=(ln!==''&&n===0)?'none':'';   // 남은 건이 없는 라인은 칩도 숨김
+    });
+  })();
   const st=$('#devStat');
   const parts=[];
   if(m>0&&hid) parts.push(`<b style="color:#b42318">편차율 ${hid}건</b>`);
