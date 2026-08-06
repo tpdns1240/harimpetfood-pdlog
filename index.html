@@ -309,6 +309,35 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .rf-stat{font-size:11.5px;color:var(--mut);margin-left:auto;white-space:nowrap}
 #runBody tr.just-added{animation:runFlash 1.6s ease-out}
 @keyframes runFlash{0%{background:#fff3cd}60%{background:#fff8e8}100%{background:transparent}}
+/* ── 경영 대시보드 헤더 : 부드러운 마름모 엠블럼 + 그라데이션 ── */
+.dash-hd{background:linear-gradient(118deg,#16294d 0%,#1e3a68 46%,#2b5aa0 100%);
+  position:relative;overflow:hidden}
+.dash-hd::after{content:'';position:absolute;right:-60px;top:-70px;width:230px;height:230px;
+  background:radial-gradient(circle,rgba(120,180,255,.20) 0%,rgba(120,180,255,0) 68%);pointer-events:none}
+.dash-hd .dh-left{display:flex;align-items:center;gap:15px}
+.dh-dia{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;
+  border-radius:13px;transform:rotate(45deg);flex:none;
+  background:linear-gradient(135deg,#4f86d6 0%,#2f5fa8 52%,#20406f 100%);
+  box-shadow:0 6px 18px rgba(10,25,55,.34),inset 0 1px 0 rgba(255,255,255,.30);
+  border:1px solid rgba(255,255,255,.22)}
+.dh-dia i{transform:rotate(-45deg);font-style:normal;font-size:11.5px;font-weight:900;
+  color:#fff;letter-spacing:.4px;text-shadow:0 1px 2px rgba(0,0,0,.28)}
+.dash-hd h2{position:relative;z-index:1}
+.dash-hd .en{position:relative;z-index:1}
+.dash-hd .meta{position:relative;z-index:1}
+@media(max-width:720px){.dh-dia{width:38px;height:38px}.dh-dia i{font-size:10px}}
+
+/* ── 추이 기간 토글 ── */
+.tr-tabs{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.tr-tab{padding:4px 11px;border:1.5px solid var(--line);background:#fff;border-radius:15px;
+  font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;transition:.14s;white-space:nowrap}
+.tr-tab:hover{border-color:#93b4e0;background:#f4f8ff}
+.tr-tab.on{background:var(--navy,#1b2f55);border-color:var(--navy,#1b2f55);color:#fff}
+.tr-hint{font-size:11px;color:var(--mut);margin-left:5px}
+.tr-load{display:inline-flex;align-items:center;gap:5px;color:#2670c9;font-weight:700}
+.tr-load::before{content:'';width:9px;height:9px;border:2px solid #cfe0f7;border-top-color:#2670c9;
+  border-radius:50%;animation:trSpin .7s linear infinite}
+@keyframes trSpin{to{transform:rotate(360deg)}}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
 .dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
 .dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
@@ -1690,7 +1719,7 @@ async function loadTeamReport(){
       const c=new Chart(ctx,{type:'bar',
         data:{labels:dd.map(d=>d.bucket),datasets:[
           {type:'bar',label:'달성률(%)',data:dd.map(d=>d.achieve),backgroundColor:'#4a6784',yAxisID:'y',order:2},
-          {type:'line',label:'로스금액(원)',data:dd.map(d=>Math.round(d.net_loss)),borderColor:'#d15a4e',backgroundColor:'#d15a4e',yAxisID:'y1',tension:.3,order:1,pointRadius:4}
+          {type:'line',label:'로스금액(원)',data:dd.map(d=>Math.round(d.net_loss)),borderColor:'#d15a4e',backgroundColor:'#d15a4e',yAxisID:'y1',tension:.3,order:1,pointRadius:(TREND_KEY==='day'?2:4)}
         ]},
         options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
           scales:{y:{title:{display:true,text:'달성률 %'},min:0},y1:{position:'right',title:{display:true,text:'로스금액 원'},grid:{drawOnChartArea:false}}},
@@ -2414,9 +2443,12 @@ function renderDashboard(){
   }
   const [yy,mm]=DASH.month.split('-');
   $('#wrap').innerHTML=`
-  <div class="day-hd"><div><h2>경영 대시보드</h2>
-    <div class="en">MANAGEMENT DASHBOARD · 생산·원가 종합</div></div>
-    <div class="meta">월별 KPI 집계</div></div>
+  <div class="day-hd dash-hd"><div class="dh-left">
+      <span class="dh-dia" aria-hidden="true"><i>KPI</i></span>
+      <div><h2>경영 대시보드</h2>
+        <div class="en">MANAGEMENT DASHBOARD · 생산·원가 종합</div></div>
+    </div>
+    <div class="meta">${yy}년 ${Number(mm)}월 · KPI 집계</div></div>
   <div class="dash-filter" style="align-items:center;flex-wrap:wrap;gap:8px">
     <div class="month-nav" style="display:flex;align-items:center;gap:6px">
       <button class="tbtn" onclick="dashMonthMove(-1)">‹ 전월</button>
@@ -2459,6 +2491,7 @@ async function loadDashboard(){
   DASH.team=$('#dashTeam')?.value||null;
   DASH.kind=$('#dashKind')?.value||null;
   DASH.charts.forEach(c=>{try{c.destroy()}catch(e){}}); DASH.charts=[];
+  TREND_CACHE={}; TREND_KEY='now';        // 팀·구분·월 변경 시 추이 캐시 무효화
   $('#dashBody').innerHTML='<div class="skel" style="height:400px;border-radius:14px"></div>';
   const p={p_from:DASH.from,p_to:DASH.to,p_team:DASH.team,p_kind:DASH.kind};
   const pNoKind={p_from:DASH.from,p_to:DASH.to,p_team:DASH.team};
@@ -2499,15 +2532,14 @@ async function loadDashboard(){
       })()}
     </div>
 
-    <!-- 1순위: 달성률 추이 -->
+    <!-- 1·2순위: 달성률 / 로스금액 추이 (기간 토글 공유) -->
     <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>달성률 추이</h3>
-      <span class="desc">계획 대비 실적 (월별)</span></div>
+      <span class="desc" id="achDesc">계획 대비 실적 (월별)</span><span class="sp"></span>${trendTabBar()}</div>
       <div class="sec-bd"><div style="height:280px"><canvas id="chartAchieve"></canvas></div></div>
     </div>
 
-    <!-- 2순위: 로스금액 추이 -->
     <div class="sec"><div class="sec-hd"><span class="no c3">2</span><h3>로스금액 추이</h3>
-      <span class="desc">월별 손실·절감 (원가 절감 포인트)</span></div>
+      <span class="desc" id="lossDesc">월별 손실·절감 (원가 절감 포인트)</span></div>
       <div class="sec-bd"><div style="height:280px"><canvas id="chartLoss"></canvas></div></div>
     </div>
 
@@ -2549,6 +2581,7 @@ async function loadDashboard(){
       </div>
     </div>`;
 
+    TREND_CACHE['now']={ach:achData,loss:lossData};   // 첫 화면 데이터를 캐시에 등록(재조회 방지)
     drawAchieveChart(achData);
     drawLossChart(lossData);
   }catch(e){ toast('대시보드 조회 실패: '+(e.message||e),'err'); $('#dashBody').innerHTML='<div style="padding:40px;text-align:center;color:var(--mut)">조회 실패</div>'; }
@@ -2565,24 +2598,118 @@ function renderParetoRows(data){
   }).join('')||'<tr><td colspan="4" style="color:var(--mut);padding:16px">로스유형 저장 데이터 없음</td></tr>';
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   대시보드 추이 기간 토글 (당월 / 당월 일자별 / 3·6·12개월)
+   ── 로딩 최적화 설계
+     · 화면 진입 시에는 추가 호출 0회 — 기존 dash_achieve_trend / dash_loss_trend
+       결과를 'now' 키로 캐시에 넣고 그대로 그린다.
+     · 다른 기간은 사용자가 누를 때만 조회(lazy). 한 번 받은 구간은
+       TREND_CACHE 에 보관해 재클릭 시 네트워크 0회·0ms 로 전환.
+     · 달성률·로스금액을 한 번의 Promise.all 로 동시 조회(왕복 1회).
+     · 팀·구분·월을 바꾸면 캐시 무효화(loadDashboard 에서 초기화).
+   ════════════════════════════════════════════════════════════════════ */
+let TREND_KEY='now';
+let TREND_CACHE={};      // {key: {ach:[], loss:[]}}
+let TREND_BUSY=false;
+
+const TREND_TABS=[
+  ['now',  '당월'],
+  ['day',  '당월 일자별'],
+  ['3m',   '3개월'],
+  ['6m',   '6개월'],
+  ['12m',  '12개월']
+];
+
+/* 기간 계산 — 기준일은 대시보드 조회 종료일(DASH.to) */
+function trendRange(key){
+  const base=DASH.to||kstToday();
+  const [y,m]=base.split('-').map(Number);
+  if(key==='now'||key==='day') return {from:DASH.from,to:DASH.to};
+  const n={'3m':3,'6m':6,'12m':12}[key]||3;
+  let ty=y, tm=m-(n-1);
+  while(tm<1){ tm+=12; ty--; }
+  const from=`${ty}-${String(tm).padStart(2,'0')}-01`;
+  return {from,to:DASH.to};
+}
+
+function trendTabBar(){
+  return `<div class="tr-tabs">${TREND_TABS.map(([k,lb])=>
+    `<button class="tr-tab ${TREND_KEY===k?'on':''}" data-tr="${k}" onclick="switchTrend('${k}')">${lb}</button>`
+  ).join('')}<span class="tr-hint" id="trHint"></span></div>`;
+}
+
+async function switchTrend(key){
+  if(TREND_BUSY||key===TREND_KEY) return;
+  const prev=TREND_KEY; TREND_KEY=key;
+  document.querySelectorAll('.tr-tab').forEach(b=>b.classList.toggle('on',(b.dataset.tr||'')===key));
+  const hint=$('#trHint');
+  // 캐시 적중 → 네트워크 없이 즉시 전환
+  if(TREND_CACHE[key]){
+    redrawTrends(TREND_CACHE[key]);
+    if(hint) hint.textContent='';
+    return;
+  }
+  TREND_BUSY=true;
+  if(hint) hint.innerHTML='<span class="tr-load">불러오는 중…</span>';
+  const r=trendRange(key);
+  const unit=(key==='day')?'day':'month';
+  const p={p_from:r.from,p_to:r.to,p_team:DASH.team,p_kind:DASH.kind,p_unit:unit};
+  const pNo={p_from:r.from,p_to:r.to,p_team:DASH.team,p_unit:unit};
+  try{
+    const [a,l]=await Promise.all([
+      sb.rpc('dash_achieve_trend',p),
+      sb.rpc('dash_loss_trend',pNo)
+    ]);
+    if(a.error||l.error) throw (a.error||l.error);
+    const pack={ach:a.data||[], loss:l.data||[]};
+    TREND_CACHE[key]=pack;
+    redrawTrends(pack);
+    if(hint) hint.textContent='';
+  }catch(e){
+    TREND_KEY=prev;
+    document.querySelectorAll('.tr-tab').forEach(b=>b.classList.toggle('on',(b.dataset.tr||'')===prev));
+    if(hint) hint.innerHTML='<span style="color:#b42318">조회 실패 · p_unit 인자 확인</span>';
+    toast('추이 조회 실패: '+(e.message||e),'err');
+  }finally{ TREND_BUSY=false; }
+}
+
+/* 차트 2개만 교체 (전체 재렌더 없음 → 스크롤·다른 표 유지) */
+function redrawTrends(pack){
+  ['chartAchieve','chartLoss'].forEach(id=>{
+    const idx=DASH.charts.findIndex(c=>c&&c.canvas&&c.canvas.id===id);
+    if(idx>=0){ try{DASH.charts[idx].destroy()}catch(_){} DASH.charts.splice(idx,1); }
+  });
+  drawAchieveChart(pack.ach);
+  drawLossChart(pack.loss);
+  const u=(TREND_KEY==='day')?'일자별':'월별';
+  const d1=$('#achDesc'), d2=$('#lossDesc');
+  if(d1) d1.textContent=`계획 대비 실적 (${u} · ${pack.ach.length}구간)`;
+  if(d2) d2.textContent=`${u} 손실·절감 (원가 절감 포인트)`;
+}
+/* 추이 라벨 : month 단위는 YYYY-MM, day 단위는 MM-DD 로 축약 표기 */
+function trendLabel(d){
+  const v=String(d.ym??d.bucket??d.ymd??d.work_date??d.d??'');
+  if(TREND_KEY==='day'&&/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.slice(5);
+  return v;
+}
 function drawAchieveChart(data){
   const ctx=$('#chartAchieve'); if(!ctx)return;
   const c=new Chart(ctx,{type:'bar',
-    data:{labels:data.map(d=>d.ym),
+    data:{labels:data.map(trendLabel),
       datasets:[
         {type:'bar',label:'계획',data:data.map(d=>Math.round(d.plan_sum)),backgroundColor:'#c7dbff',order:2},
         {type:'bar',label:'실적',data:data.map(d=>Math.round(d.actual_sum)),backgroundColor:'#2670c9',order:2},
-        {type:'line',label:'달성률(%)',data:data.map(d=>(d.achieve*100).toFixed(1)),borderColor:'#e0483a',backgroundColor:'#e0483a',yAxisID:'y1',tension:.3,order:1,pointRadius:4}
+        {type:'line',label:'달성률(%)',data:data.map(d=>(d.achieve*100).toFixed(1)),borderColor:'#e0483a',backgroundColor:'#e0483a',yAxisID:'y1',tension:.3,order:1,pointRadius:(TREND_KEY==='day'?2:4)}
       ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      scales:{y:{title:{display:true,text:'KG'}},y1:{position:'right',title:{display:true,text:'달성률 %'},grid:{drawOnChartArea:false},min:80,max:140}},
+      scales:{y:{title:{display:true,text:'KG'}},y1:{position:'right',title:{display:true,text:'달성률 %'},grid:{drawOnChartArea:false},suggestedMin:60,suggestedMax:140}},
       plugins:{legend:{position:'top'}}}});
   DASH.charts.push(c);
 }
 function drawLossChart(data){
   const ctx=$('#chartLoss'); if(!ctx)return;
   const c=new Chart(ctx,{type:'bar',
-    data:{labels:data.map(d=>d.ym),
+    data:{labels:data.map(trendLabel),
       datasets:[
         {label:'손실(초과사용)',data:data.map(d=>Math.round(d.over_loss)),backgroundColor:'#e0483a'},
         {label:'절감',data:data.map(d=>Math.round(d.save_amt)),backgroundColor:'#1a9d5c'}
@@ -4040,7 +4167,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,rsRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4050,13 +4177,15 @@ async function openDay(date, team){
       sb.rpc('get_defect_types',{p_team:team}),
       sb.rpc('get_line_downtime',{p_date:date,p_team:team}),
       sb.rpc('get_capa_list',{p_team:team}),
-      sb.rpc('suggest_plan',{p_date:date,p_team:team})
+      sb.rpc('suggest_plan',{p_date:date,p_team:team}),
+      sb.rpc('report_summary',{p_team:team,p_from:date,p_to:date})   // 당일 수율(병렬 → 지연 없음)
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
     CUR_DAY.orders=orderRes.data||[];
     CUR_DAY.losses=lossRes.data||[];
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
+    CUR_DAY.daySum=(rsRes&&!rsRes.error&&rsRes.data)?rsRes.data:null;   // 당일 수율·SKU
     CUR_DAY.suggest={};
     ((sugRes&&!sugRes.error&&sugRes.data)||[]).forEach(r=>{
       CUR_DAY.suggest[r.prod_code+'|'+(r.proc_sub1||'')+'/'+(r.proc_sub2||'')]=r;
@@ -4227,8 +4356,15 @@ function renderClosing2(){
       <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
-    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCnt}</div>
-      <div class="sc-sub">반제품 ${semiCnt}종</div></div>
+    ${(()=>{
+      const ds=CUR_DAY.daySum||{};
+      const y=(ds.yield_rate!=null&&isFinite(Number(ds.yield_rate)))?Number(ds.yield_rate):null;
+      // 당일 수율은 반제품 이월(WIP) 영향으로 변동이 큼 → 색 판정 없이 참고 표기
+      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${y>=70&&y<=110?'var(--grn)':'#8a94a6'}">(${y.toFixed(1)}%)</span>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (평균수율)</span></div>
+      <div class="v mono" title="${y==null?'수율 산출 불가 (원자재 투입 데이터 없음)':'당일 종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 타팀 반제품). 반제품 이월 때문에 하루 단위로는 변동이 큽니다 — 기간 누계는 팀별 현황에서 확인하세요.'}">${finCnt}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?' · 당일 참고':''}</div></div>`;
+    })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div>
       <div class="sc-sub">로스 등록 건수</div></div>
@@ -5868,8 +6004,15 @@ function renderClosing(){
       <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
-    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCount}</div>
-      <div class="sc-sub">반제품 ${semiCount}종</div></div>
+    ${(()=>{
+      const ds=CUR_DAY.daySum||{};
+      const y=(ds.yield_rate!=null&&isFinite(Number(ds.yield_rate)))?Number(ds.yield_rate):null;
+      // 당일 수율은 반제품 이월(WIP) 영향으로 변동이 큼 → 색 판정 없이 참고 표기
+      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${y>=70&&y<=110?'var(--grn)':'#8a94a6'}">(${y.toFixed(1)}%)</span>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (평균수율)</span></div>
+      <div class="v mono" title="${y==null?'수율 산출 불가 (원자재 투입 데이터 없음)':'당일 종합수율 = 완제품 산출 ÷ 총 투입(원자재 + 타팀 반제품). 반제품 이월 때문에 하루 단위로는 변동이 큽니다 — 기간 누계는 팀별 현황에서 확인하세요.'}">${finCount}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCount}종${y!=null?' · 당일 참고':''}</div></div>`;
+    })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div>
       <div class="sc-sub">로스 등록 건수</div></div>
