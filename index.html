@@ -106,7 +106,7 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .cal-tag{display:block;width:100%;text-align:left;margin-top:5px;font-size:11px;font-weight:700;padding:4px 7px;border-radius:6px;border:1px solid;background:#fff7ed;color:#c2410c;border-color:#fed7aa;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;transform-origin:left center}
 .cal-tag:hover{transform:scale(1.05);box-shadow:0 3px 10px rgba(26,58,92,.18);filter:brightness(1.03);position:relative;z-index:3}
 .cal-tag:active{transform:scale(.97)}
-/* 결재 단계별 색 : 미작성(주황) → 작성중(회색) → 팀장(하늘) → 본부장(파랑) → 대표(보라) → 완료(초록) / 반려(빨강)
+/* 결재 단계별 색 : 미작성(주황) → 작성중(회색) → 팀장(하늘) → 본부장(파랑) → CEO(보라) → 완료(초록) / 반려(빨강)
    왼쪽 굵은 테두리로 단계가 진행될수록 색이 짙어지도록 배치해 순서를 직관적으로 인지 */
 .cal-tag{padding-left:9px;border-left-width:3.5px}
 .cal-tag .ct-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:1px;background:currentColor;opacity:.85}
@@ -1165,11 +1165,11 @@ async function renderCalendar(){
   });
 
   // 배지(좁음) : 짧게 / 범례·툴팁(넓음) : 승인대기 전체 표기
-  const statusKo=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인',lead_ok:'본부장 승인',div_ok:'대표 승인',done:'최종승인',rejected:'반려'}[s]||'미작성');
+  const statusKo=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인',lead_ok:'본부장 승인',div_ok:'CEO 승인',done:'최종승인',rejected:'반려'}[s]||'미작성');
   // 결재 단계별로 색을 분리 (기존에는 submitted/lead_ok/div_ok 가 같은 색이라 구분 불가)
   const statusCls=s=>({planned:'planned',draft:'draft',submitted:'st-lead',lead_ok:'st-div',div_ok:'st-ceo',done:'done',rejected:'rejected'}[s]||'planned');
   // 배지에 표시할 "다음 결재자" 라벨 — 누가 들고 있는지 한눈에
-  const statusKo2=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인대기',lead_ok:'본부장 승인대기',div_ok:'대표 승인대기',done:'최종승인 완료',rejected:'반려 · 재작성 필요'}[s]||'미작성');
+  const statusKo2=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인대기',lead_ok:'본부장 승인대기',div_ok:'CEO 승인대기',done:'최종승인 완료',rejected:'반려 · 재작성 필요'}[s]||'미작성');
 
   let html=`
   <div class="cal-head">
@@ -1178,7 +1178,7 @@ async function renderCalendar(){
       <div class="cal-stat s-plan"><div class="n mono">${cntPlan}</div><div class="l">미작성</div></div>
       <div class="cal-stat s-lead"><div class="n mono">${cntLead}</div><div class="l">팀장 승인대기</div></div>
       <div class="cal-stat s-div"><div class="n mono">${cntDiv}</div><div class="l">본부장 승인대기</div></div>
-      <div class="cal-stat s-ceo"><div class="n mono">${cntCeo}</div><div class="l">대표 승인대기</div></div>
+      <div class="cal-stat s-ceo"><div class="n mono">${cntCeo}</div><div class="l">CEO 승인대기</div></div>
       <div class="cal-stat s-done"><div class="n mono">${cntDone}</div><div class="l">최종승인</div></div>
       ${cntRej?`<div class="cal-stat s-rej"><div class="n mono">${cntRej}</div><div class="l">반려</div></div>`:''}
     </div>
@@ -1189,7 +1189,7 @@ async function renderCalendar(){
       <span class="chip draft"><i></i>작성중</span>
       <span class="chip st-lead"><i></i>팀장 승인대기</span>
       <span class="chip st-div"><i></i>본부장 승인대기</span>
-      <span class="chip st-ceo"><i></i>대표 승인대기</span>
+      <span class="chip st-ceo"><i></i>CEO 승인대기</span>
       <span class="chip done"><i></i>최종승인</span>
       <span class="chip rejected"><i></i>반려</span>
     </div>
@@ -3174,7 +3174,7 @@ async function renderUserMgmt(){
   try{ const {data}=await sb.rpc('get_users',{p_team:null}); users=data||[]; }
   catch(e){ toast('사용자 조회 실패','err'); }
   USERS_CACHE=users;
-  const roleKo={admin:'관리자',ceo:'대표',division:'본부장',lead:'팀장',writer:'작성자'};
+  const roleKo={admin:'관리자',ceo:'CEO',division:'본부장',lead:'팀장',writer:'작성자'};
   const rows=users.map(u=>`<tr>
     <td class="l"><b>${u.name}</b></td>
     <td>${u.team||'-'}</td>
@@ -3191,7 +3191,7 @@ async function renderUserMgmt(){
   </tr>`).join('');
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-    ℹ 사용자를 등록하고 <b>권한(역할)</b>을 지정하세요. 권한: 작성자→팀장→본부장→대표 순으로 결재.<br>
+    ℹ 사용자를 등록하고 <b>권한(역할)</b>을 지정하세요. 권한: 작성자→팀장→본부장→CEO 순으로 결재.<br>
     · <b>상태 클릭</b>: 활성 ↔ 비활성 전환 (비활성은 로그인 목록에서 숨김, 데이터는 보존)<br>
     · <b>삭제</b>: DB에서 완전히 제거 (되돌릴 수 없음). 잠시 막을 거면 비활성을 쓰세요.
   </div>
@@ -3205,7 +3205,7 @@ async function renderUserMgmt(){
         <option value="공통">공통</option><option value="ALL">전체(ALL)</option></select></div>
       <div class="work-field"><label>권한 *</label><select id="uRole">
         <option value="writer">작성자</option><option value="lead">팀장</option>
-        <option value="division">본부장</option><option value="ceo">대표</option>
+        <option value="division">본부장</option><option value="ceo">CEO</option>
         <option value="admin">관리자</option></select></div>
     </div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveUser()">저장</button>
@@ -3223,7 +3223,7 @@ async function renderUserMgmt(){
 function editUser(userId){
   const u=USERS_CACHE.find(x=>x.user_id===userId);
   if(!u){ toast('사용자를 찾을 수 없습니다','err'); return; }
-  const roleOpts=[['writer','작성자'],['lead','팀장'],['division','본부장'],['ceo','대표'],['admin','관리자']]
+  const roleOpts=[['writer','작성자'],['lead','팀장'],['division','본부장'],['ceo','CEO'],['admin','관리자']]
     .map(([v,k])=>`<option value="${v}" ${u.role===v?'selected':''}>${k}</option>`).join('');
   const teamOpts=['생산1팀','생산2팀','공통','ALL']
     .map(t=>`<option value="${t}" ${u.team===t?'selected':''}>${t==='ALL'?'전체(ALL)':t}</option>`).join('');
@@ -4207,7 +4207,7 @@ async function renderApprLine(){
   $('#settingsBody').innerHTML=`
   <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
     ℹ 각 팀의 팀장·본부장·CEO를 지정하면, 그 사람이 로그인 시 자기 차례의 문서를 결재할 수 있습니다.
-    결재자는 먼저 <b>사용자 관리</b> 탭에서 권한(팀장/본부장/대표)이 설정되어야 합니다.
+    결재자는 먼저 <b>사용자 관리</b> 탭에서 권한(팀장/본부장/CEO)이 설정되어야 합니다.
   </div>
   ${teamBlocks}`;
 }
@@ -6044,7 +6044,7 @@ function renderApprovalBar(){
     (status==='div_ok'&&['ceo','admin'].includes(role)&&isLineMember('ceo'))
   );
   // ── 작성/제출(상신) 권한 ────────────────────────────────────────
-  // 전 팀 상신: 본부장·대표·관리자 (팀 소속 무관 — 어느 팀 마감이든 대리 상신 가능)
+  // 전 팀 상신: 본부장·CEO·관리자 (팀 소속 무관 — 어느 팀 마감이든 대리 상신 가능)
   // 관련 팀 상신: 팀원·팀장 → 결재라인 등록 팀 / 본인 소속팀 / 공통
   const inTeamLine = isAdmin || [AL.writer,AL.lead,AL.division,AL.ceo].filter(Boolean).includes(me)
     || (c.writer && c.writer===me);
@@ -6052,15 +6052,15 @@ function renderApprovalBar(){
   const isMyTeam = !!myTeam && (myTeam===(CUR_DAY.team||'') || (CUR_DAY.team||'')==='공통');
   const canSubmitAnyTeam = ['division','ceo','admin'].includes(role);
   const isWriter = canSubmitAnyTeam || (['writer','lead'].includes(role) && (inTeamLine || isMyTeam));
-  // 대리 상신 안내(팀장·본부장·대표가 작성자 대신 올리는 경우)
-  const roleKo={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표',admin:'관리자'}[role]||role;
+  // 대리 상신 안내(팀장·본부장·CEO가 작성자 대신 올리는 경우)
+  const roleKo={writer:'작성자',lead:'팀장',division:'본부장',ceo:'CEO',admin:'관리자'}[role]||role;
   const proxyNote = (isWriter && role!=='writer' && ['none','draft','rejected'].includes(status))
     ? `<span style="font-size:11.5px;color:#7b8595;margin-right:8px">대리 상신 가능 · ${roleKo}</span>` : '';
   // 권한 없음 안내
   const noPermNote = (!isWriter && ['none','draft','rejected'].includes(status))
     ? `<div class="lock-banner" style="background:#f8f9fb;border-color:#e2e8f2;color:#7b8595;margin-top:10px">
         🔒 <b>${CUR_DAY.team||''} 마감을 작성·제출할 권한이 없습니다.</b>
-        팀원·팀장은 본인 소속팀 또는 결재라인 등록 팀만, 본부장·대표·관리자는 전 팀 상신이 가능합니다.
+        팀원·팀장은 본인 소속팀 또는 결재라인 등록 팀만, 본부장·CEO·관리자는 전 팀 상신이 가능합니다.
         관리자에게 소속팀 또는 결재라인 등록을 요청하세요.
        </div>` : '';
   // 본인이 상신한 건을 본인이 결재하는 경우 주의 표시
@@ -6105,10 +6105,10 @@ function printClosing(){
     {t:'작성',  nm:c.writer||AL.writer||(S.user&&S.user.name)||'', ok:!!c.writer},
     {t:'팀장',  nm:c.lead_by||AL.lead||'',      ok:!!c.lead_by},
     {t:'본부장',nm:c.div_by ||AL.division||'',  ok:!!c.div_by},
-    {t:'대표',  nm:c.ceo_by ||AL.ceo||'',       ok:!!c.ceo_by}
+    {t:'CEO',   nm:c.ceo_by ||AL.ceo||'',       ok:!!c.ceo_by}
   ];
   const statusLabel={none:'미작성',draft:'임시저장',submitted:'결재 진행(팀장)',
-    lead_ok:'결재 진행(본부장)',div_ok:'결재 진행(대표)',done:'결재 완료',rejected:'반려'}[c.status||'none']||'';
+    lead_ok:'결재 진행(본부장)',div_ok:'결재 진행(CEO)',done:'결재 완료',rejected:'반려'}[c.status||'none']||'';
   const printedAt=(()=>{const d=new Date();
     const p=n=>String(n).padStart(2,'0');
     return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;})();
@@ -6161,12 +6161,12 @@ function printClosing(){
    ── 통보 매트릭스
       제출        → 팀장                          (행위자: 작성자)
       팀장 승인    → 본부장                        (행위자: 팀장)
-      본부장 승인  → 대표                          (행위자: 본부장)
-      대표 승인    → 작성자+팀장+본부장 (완료통보)   (행위자: 대표)
+      본부장 승인  → CEO                           (행위자: 본부장)
+      CEO 승인     → 작성자+팀장+본부장 (완료통보)   (행위자: CEO)
       반려        → 작성자 + 반려자보다 하위 결재자  (행위자: 반려자, 사유 포함)
    ════════════════════════════════════════════════════════════════════ */
-const APPR_ROLE_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표',admin:'관리자'};
-const APPR_STEP_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'대표'};
+const APPR_ROLE_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'CEO',admin:'관리자'};
+const APPR_STEP_KO={writer:'작성자',lead:'팀장',division:'본부장',ceo:'CEO'};
 
 /* 공통 JSONP 발송 (응답 대기 안 함 — 결재 흐름을 막지 않음) */
 function apprMail(action, params){
@@ -6242,7 +6242,7 @@ async function notifyReject(date,team,reason,actorRole,actorName){
   }catch(e){ }
 }
 
-/* ③ 최종 완료 알림 — 작성자 + 팀장 + 본부장 (대표 본인 제외) */
+/* ③ 최종 완료 알림 — 작성자 + 팀장 + 본부장 (CEO 본인 제외) */
 async function notifyDone(date,team,actorName){
   try{
     const c=await apprLineContacts(team);
@@ -6251,7 +6251,7 @@ async function notifyDone(date,team,actorName){
     if(!to.length) return;
     const actorEmail=await getEmailByName(actorName);
     apprMail('appr_done',{ to:to.join(','), team, date,
-      actor:actorName||'', actor_role:'대표', actor_email:actorEmail||'',
+      actor:actorName||'', actor_role:'CEO', actor_email:actorEmail||'',
       ceo_name:(c.ceo&&c.ceo.name)||actorName||'' });
   }catch(e){ }
 }
