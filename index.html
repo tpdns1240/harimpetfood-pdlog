@@ -62,10 +62,26 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .cal-head{background:var(--navy);color:#fff;border-radius:var(--r) var(--r) 0 0;padding:20px 24px;display:flex;align-items:center}
 .cal-head h2{font-size:18px;font-weight:800}
 .cal-head .sub{font-size:12px;color:#8ea0c8;margin-top:3px}
-.cal-stats{margin-left:auto;display:flex;gap:10px}
-.cal-stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:10px 18px;text-align:center;min-width:92px}
-.cal-stat .n{font-size:24px;font-weight:800;line-height:1}
-.cal-stat .l{font-size:10.5px;color:#a9b7d6;margin-top:5px}
+.cal-stats{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.cal-stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:11px;
+  padding:9px 13px;text-align:center;min-width:74px;position:relative;overflow:hidden}
+.cal-stat .n{font-size:21px;font-weight:800;line-height:1}
+.cal-stat .l{font-size:10px;color:#a9b7d6;margin-top:5px;white-space:nowrap}
+/* 결재 단계별 색 — 캘린더 배지와 동일 체계 (위쪽 띠로 표시) */
+.cal-stat::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:transparent}
+.cal-stat.s-plan::before{background:#f59e0b}
+.cal-stat.s-lead::before{background:#38bdf8}
+.cal-stat.s-div::before {background:#2563eb}
+.cal-stat.s-ceo::before {background:#7c3aed}
+.cal-stat.s-done::before{background:#22c55e}
+.cal-stat.s-rej::before {background:#ef4444}
+.cal-stat.s-plan .n{color:#fcd34d}
+.cal-stat.s-lead .n{color:#7dd3fc}
+.cal-stat.s-div  .n{color:#93c5fd}
+.cal-stat.s-ceo  .n{color:#c4b5fd}
+.cal-stat.s-done .n{color:#86efac}
+.cal-stat.s-rej  .n{color:#fca5a5}
+@media(max-width:1100px){.cal-stat{min-width:64px;padding:8px 10px}.cal-stat .n{font-size:18px}.cal-stat .l{font-size:9.5px}}
 .cal-tool{background:#fff;padding:12px 22px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-top:none}
 .cal-nav{margin-left:auto;display:flex;align-items:center;gap:8px}
 .cal-nav button{padding:8px 14px;border:1px solid var(--line);border-radius:9px;font-weight:700;color:var(--sub);background:#fff}
@@ -1136,38 +1152,45 @@ async function renderCalendar(){
     const d=String(x.work_date).slice(0,10);
     (byDate[d]=byDate[d]||[]).push(x);
   });
-  // 상태별 카운트 (planned=미작성, submitted/lead_ok/div_ok=결재중, done=완료)
-  let cntPlan=0,cntProg=0,cntDone=0;
+  // 결재 단계별 카운트 — 어느 단계에서 지연되는지 바로 보이도록 세분화
+  let cntPlan=0,cntLead=0,cntDiv=0,cntCeo=0,cntDone=0,cntRej=0;
   list.forEach(x=>{
     const st=x.status||'planned';
     if(st==='planned'||st==='draft') cntPlan++;
-    else if(st==='done') cntDone++;
-    else cntProg++;
+    else if(st==='submitted') cntLead++;
+    else if(st==='lead_ok')   cntDiv++;
+    else if(st==='div_ok')    cntCeo++;
+    else if(st==='done')      cntDone++;
+    else if(st==='rejected')  cntRej++;
   });
 
-  const statusKo=s=>({planned:'계획',draft:'작성',submitted:'결재중',lead_ok:'팀장✓',div_ok:'본부장✓',done:'완료',rejected:'반려'}[s]||'계획');
+  // 배지(좁음) : 짧게 / 범례·툴팁(넓음) : 승인대기 전체 표기
+  const statusKo=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인',lead_ok:'본부장 승인',div_ok:'대표 승인',done:'최종승인',rejected:'반려'}[s]||'미작성');
   // 결재 단계별로 색을 분리 (기존에는 submitted/lead_ok/div_ok 가 같은 색이라 구분 불가)
   const statusCls=s=>({planned:'planned',draft:'draft',submitted:'st-lead',lead_ok:'st-div',div_ok:'st-ceo',done:'done',rejected:'rejected'}[s]||'planned');
   // 배지에 표시할 "다음 결재자" 라벨 — 누가 들고 있는지 한눈에
-  const statusKo2=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 대기',lead_ok:'본부장 대기',div_ok:'대표 대기',done:'완료',rejected:'반려'}[s]||'미작성');
+  const statusKo2=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 승인대기',lead_ok:'본부장 승인대기',div_ok:'대표 승인대기',done:'최종승인 완료',rejected:'반려 · 재작성 필요'}[s]||'미작성');
 
   let html=`
   <div class="cal-head">
     <div><h2>마감 진행 캘린더</h2><div class="sub">${y}년 ${m}월 · 생산계획 있는 팀 표시</div></div>
     <div class="cal-stats">
-      <div class="cal-stat"><div class="n mono">${cntPlan}</div><div class="l">작성 대기</div></div>
-      <div class="cal-stat"><div class="n mono">${cntProg}</div><div class="l">결재 진행</div></div>
-      <div class="cal-stat"><div class="n mono">${cntDone}</div><div class="l">최종 완료</div></div>
+      <div class="cal-stat s-plan"><div class="n mono">${cntPlan}</div><div class="l">미작성</div></div>
+      <div class="cal-stat s-lead"><div class="n mono">${cntLead}</div><div class="l">팀장 승인대기</div></div>
+      <div class="cal-stat s-div"><div class="n mono">${cntDiv}</div><div class="l">본부장 승인대기</div></div>
+      <div class="cal-stat s-ceo"><div class="n mono">${cntCeo}</div><div class="l">대표 승인대기</div></div>
+      <div class="cal-stat s-done"><div class="n mono">${cntDone}</div><div class="l">최종승인</div></div>
+      ${cntRej?`<div class="cal-stat s-rej"><div class="n mono">${cntRej}</div><div class="l">반려</div></div>`:''}
     </div>
   </div>
   <div class="cal-tool">
     <div class="legend">
       <span class="chip planned"><i></i>미작성</span>
       <span class="chip draft"><i></i>작성중</span>
-      <span class="chip st-lead"><i></i>팀장 대기</span>
-      <span class="chip st-div"><i></i>본부장 대기</span>
-      <span class="chip st-ceo"><i></i>대표 대기</span>
-      <span class="chip done"><i></i>완료</span>
+      <span class="chip st-lead"><i></i>팀장 승인대기</span>
+      <span class="chip st-div"><i></i>본부장 승인대기</span>
+      <span class="chip st-ceo"><i></i>대표 승인대기</span>
+      <span class="chip done"><i></i>최종승인</span>
       <span class="chip rejected"><i></i>반려</span>
     </div>
     ${S.user.role==='admin'?`<button class="refresh-btn" onclick="go('upload')">＋ 계획 업로드</button>`:''}
