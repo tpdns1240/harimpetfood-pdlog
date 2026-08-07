@@ -90,12 +90,24 @@ input,select,textarea{font-family:inherit;font-size:14px}
 .cal-tag{display:block;width:100%;text-align:left;margin-top:5px;font-size:11px;font-weight:700;padding:4px 7px;border-radius:6px;border:1px solid;background:#fff7ed;color:#c2410c;border-color:#fed7aa;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;transform-origin:left center}
 .cal-tag:hover{transform:scale(1.05);box-shadow:0 3px 10px rgba(26,58,92,.18);filter:brightness(1.03);position:relative;z-index:3}
 .cal-tag:active{transform:scale(.97)}
-.cal-tag.planned{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
-.cal-tag.submitted{background:#eff6ff;color:#2563eb;border-color:#c7dbff}
-.cal-tag.done{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0}
-.cal-tag.rejected{background:#fef2f2;color:#ef4444;border-color:#fecaca}
-.cal-tag.draft{background:#f8fafc;color:#6b7690;border-color:#e4e8f0}
-.legend{display:flex;gap:6px;flex-wrap:wrap}
+/* 결재 단계별 색 : 미작성(주황) → 작성중(회색) → 팀장(하늘) → 본부장(파랑) → 대표(보라) → 완료(초록) / 반려(빨강)
+   왼쪽 굵은 테두리로 단계가 진행될수록 색이 짙어지도록 배치해 순서를 직관적으로 인지 */
+.cal-tag{padding-left:9px;border-left-width:3.5px}
+.cal-tag .ct-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:1px;background:currentColor;opacity:.85}
+.cal-tag.planned{background:#fff7ed;color:#c2410c;border-color:#fed7aa;border-left-color:#f59e0b}
+.cal-tag.draft  {background:#f8fafc;color:#6b7690;border-color:#e4e8f0;border-left-color:#94a3b8}
+.cal-tag.st-lead{background:#f0f9ff;color:#0369a1;border-color:#bae6fd;border-left-color:#38bdf8}
+.cal-tag.st-div {background:#eff6ff;color:#1d4ed8;border-color:#c7dbff;border-left-color:#2563eb}
+.cal-tag.st-ceo {background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe;border-left-color:#7c3aed}
+.cal-tag.submitted{background:#f0f9ff;color:#0369a1;border-color:#bae6fd;border-left-color:#38bdf8}
+.cal-tag.done   {background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;border-left-color:#22c55e}
+.cal-tag.rejected{background:#fef2f2;color:#ef4444;border-color:#fecaca;border-left-color:#ef4444}
+.legend{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.legend .chip i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:0;background:currentColor}
+.chip.draft  {background:#f8fafc;color:#6b7690;border-color:#e4e8f0}
+.chip.st-lead{background:#f0f9ff;color:#0369a1;border-color:#bae6fd}
+.chip.st-div {background:#eff6ff;color:#1d4ed8;border-color:#c7dbff}
+.chip.st-ceo {background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe}
 .chip{font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid}
 .chip.planned{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
 .chip.submitted{background:#eff6ff;color:#2563eb;border-color:#c7dbff}
@@ -1134,7 +1146,10 @@ async function renderCalendar(){
   });
 
   const statusKo=s=>({planned:'계획',draft:'작성',submitted:'결재중',lead_ok:'팀장✓',div_ok:'본부장✓',done:'완료',rejected:'반려'}[s]||'계획');
-  const statusCls=s=>({planned:'planned',draft:'draft',submitted:'submitted',lead_ok:'submitted',div_ok:'submitted',done:'done',rejected:'rejected'}[s]||'planned');
+  // 결재 단계별로 색을 분리 (기존에는 submitted/lead_ok/div_ok 가 같은 색이라 구분 불가)
+  const statusCls=s=>({planned:'planned',draft:'draft',submitted:'st-lead',lead_ok:'st-div',div_ok:'st-ceo',done:'done',rejected:'rejected'}[s]||'planned');
+  // 배지에 표시할 "다음 결재자" 라벨 — 누가 들고 있는지 한눈에
+  const statusKo2=s=>({planned:'미작성',draft:'작성중',submitted:'팀장 대기',lead_ok:'본부장 대기',div_ok:'대표 대기',done:'완료',rejected:'반려'}[s]||'미작성');
 
   let html=`
   <div class="cal-head">
@@ -1147,10 +1162,13 @@ async function renderCalendar(){
   </div>
   <div class="cal-tool">
     <div class="legend">
-      <span class="chip planned">계획(미작성)</span>
-      <span class="chip submitted">결재진행</span>
-      <span class="chip done">완료</span>
-      <span class="chip rejected">반려</span>
+      <span class="chip planned"><i></i>미작성</span>
+      <span class="chip draft"><i></i>작성중</span>
+      <span class="chip st-lead"><i></i>팀장 대기</span>
+      <span class="chip st-div"><i></i>본부장 대기</span>
+      <span class="chip st-ceo"><i></i>대표 대기</span>
+      <span class="chip done"><i></i>완료</span>
+      <span class="chip rejected"><i></i>반려</span>
     </div>
     ${S.user.role==='admin'?`<button class="refresh-btn" onclick="go('upload')">＋ 계획 업로드</button>`:''}
     <div class="cal-nav">
@@ -1170,7 +1188,7 @@ async function renderCalendar(){
     const ds=`${S.ym}-${String(d).padStart(2,'0')}`;
     const isToday=ds===todayStr;
     const tags=(byDate[ds]||[]).map(x=>
-      `<div class="cal-tag ${statusCls(x.status)}" onclick="openDay('${ds}','${x.team}')">${x.team} ${statusKo(x.status)} ·${x.order_count}</div>`).join('');
+      `<div class="cal-tag ${statusCls(x.status)}" title="${x.team} · ${statusKo2(x.status)} · 오더 ${x.order_count}건" onclick="openDay('${ds}','${x.team}')"><i class="ct-dot"></i>${x.team} ${statusKo(x.status)} ·${x.order_count}</div>`).join('');
     html+=`<div class="cal-cell ${isToday?'today':''}"><div class="dn">${d}${isToday?'<span class="today-badge">Today</span>':''}</div>${tags}</div>`;
   }
   html+='</div></div>';
