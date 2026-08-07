@@ -5518,21 +5518,21 @@ function renderMore2(){
     }).join('');
     return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
       <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
-      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(CUR_DAY._totLoss||0)}원</span></span>
+      <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt((CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0))}원</span></span>
       <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
       <div class="type-panel" id="typePanel_loss" style="display:none"></div>
       ${lossOverBanner()}
       ${(()=>{
-        const byLine={},byType={}; let cnt=0; const tot=CUR_DAY._totLoss||0;
+        const byLine={},byType={}; let cnt=0; let tot=0;
         (losses||[]).forEach(l=>{
-          const amt=Math.round((l.diff||0)*(l.unit_price||0));
-          if(!amt&&!l.diff)return; cnt++;
+          const amt=lossOf(l), df=diffOf(l);          // 기준(MES/BOM) 반영
+          if(!amt&&!df)return; cnt++; tot+=amt;
           const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||''); byLine[k]=(byLine[k]||0)+amt;
           const t=l.scrap_type||'(미분류)'; byType[t]=(byType[t]||0)+amt;
         });
         const top=(o,n)=>Object.entries(o).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,n);
         const cell=(k,v)=>`<div class="sum-item ${v>0?'neg':(v<0?'pos':'')}"><div class="k">${k}</div><div class="v">${v>0?'-':'+'}${fmt(Math.abs(v))}</div></div>`;
-        return `<div class="sum-strip sm">
+        return `<div class="sum-strip sm" id="lossSumStrip">
           <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 로스금액</div><div class="v">${tot>0?'-':'+'}${fmt(Math.abs(tot))}</div></div>
           <div class="sum-item"><div class="k">발생 건수</div><div class="v">${cnt}</div></div>
           ${top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')}
@@ -5815,7 +5815,9 @@ function applyLossFilters(){
   });
   const tb=$('#tinyBtn');
   if(tb) tb.innerHTML=SHOW_TINY?`1kg미만 포함 중 (${tinyHid||''}${tinyHid?'건':''})`:`1kg미만 ${tinyHid}건 제외`;
-  // 라인 칩 숫자를 현재 필터(편차율·1kg미만) 기준으로 갱신 — 목록과 숫자가 어긋나지 않게
+  // 라인 칩 숫자 갱신 : 편차율·1kg미만 필터를 반영한 "실제 남는 건수"를 표시
+  //  · 라인 필터(LOSS_LINE)와는 무관하게 계산 → 다른 라인을 눌러도 숫자가 흔들리지 않음
+  //  · 남는 건이 0인 라인은 칩 자체를 숨김
   (function(){
     const per={}; let all=0;
     document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
@@ -5826,9 +5828,40 @@ function applyLossFilters(){
     });
     document.querySelectorAll('#lossFilterBar .dtf-chip, #lossFilterBar1 .dtf-chip').forEach(b=>{
       const ln=b.dataset.ln||'', n=(ln===''?all:(per[ln]||0));
-      const nb=b.querySelector('.dtf-n'); if(nb) nb.textContent=n;
-      b.style.display=(ln!==''&&n===0)?'none':'';   // 남은 건이 없는 라인은 칩도 숨김
+      const nb=b.querySelector('.dtf-n');
+      if(nb) nb.textContent=n;
+      else{ // 구버전 마크업(.dtf-n 없음) 대비 — 마지막 <b> 를 숫자로 간주
+        const bs=b.querySelectorAll('b'); if(bs.length) bs[bs.length-1].textContent=n;
+      }
+      b.style.display=(ln!==''&&n===0)?'none':'';
     });
+  })();
+  // 요약 카드(총 로스금액·건수·공정·유형)를 "화면에 표시 중인 행" 기준으로 다시 계산
+  (function(){
+    const strip=$('#lossSumStrip'); if(!strip)return;
+    const vis=[];
+    document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
+      if(tr.style.display==='none')return;
+      const i=Number(tr.dataset.loss); const l=(CUR_DAY.losses||[])[i];
+      if(l) vis.push(l);
+    });
+    const byLine={},byType={}; let tot=0,cnt=0;
+    vis.forEach(l=>{ const amt=lossOf(l), df=diffOf(l);
+      if(!amt&&!df)return; cnt++; tot+=amt;
+      const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||''); byLine[k]=(byLine[k]||0)+amt;
+      const t=l.scrap_type||'(미분류)'; byType[t]=(byType[t]||0)+amt; });
+    const all=(CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0);
+    const top=(o,n)=>Object.entries(o).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,n);
+    const cell=(k,v)=>`<div class="sum-item ${v>0?'neg':(v<0?'pos':'')}"><div class="k">${k}</div><div class="v">${v>0?'-':'+'}${fmt(Math.abs(v))}</div></div>`;
+    const filtered=(vis.length!==(CUR_DAY.losses||[]).length);
+    strip.innerHTML=
+      `<div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 로스금액${filtered?' <span style="font-size:9.5px;color:#98a2b3;font-weight:700">표시분</span>':''}</div>`
+      +`<div class="v">${tot>0?'-':'+'}${fmt(Math.abs(tot))}</div>`
+      +(filtered?`<div style="font-size:10px;color:#98a2b3;margin-top:1px">전체 ${all>0?'-':'+'}${fmt(Math.abs(all))}</div>`:'')+`</div>`
+      +`<div class="sum-item"><div class="k">발생 건수</div><div class="v">${cnt}</div>${filtered?`<div style="font-size:10px;color:#98a2b3;margin-top:1px">전체 ${(CUR_DAY.losses||[]).length}</div>`:''}</div>`
+      +top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')
+      +top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('');
+    document.querySelectorAll('.loss-total-amt').forEach(el=>{ el.textContent=fmt(tot)+'원'; });
   })();
   const st=$('#devStat');
   const parts=[];
@@ -6473,15 +6506,15 @@ function renderClosing(){
   <!-- ③ 로스관리 -->
   <div class="sec"><div class="sec-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
     <span class="desc">편차 발생 자재 · 행별 저장/수정</span><span class="sp"></span>
-    <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt(totLoss)}원</span></span>
+    <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt((CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0))}원</span></span>
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
     ${lossOverBanner()}
     ${(()=>{
-      const byLine={},byType={}; let over=0,save=0,cnt=0;
+      const byLine={},byType={}; let over=0,save=0,cnt=0,totLoss2=0;
       (CUR_DAY.losses||[]).forEach(l=>{
-        const amt=Math.round((l.diff||0)*(l.unit_price||0));
-        if(!amt&&!l.diff)return; cnt++;
+        const amt=lossOf(l), df=diffOf(l);            // 기준(MES/BOM) 반영
+        if(!amt&&!df)return; cnt++; totLoss2+=amt;
         const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||''); byLine[k]=(byLine[k]||0)+amt;
         const t=l.scrap_type||'(미분류)'; byType[t]=(byType[t]||0)+amt;
         if(amt>0)over+=amt; else save+=amt;
@@ -6489,9 +6522,9 @@ function renderClosing(){
       const top=(o,n)=>Object.entries(o).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,n);
       const cell=(k,v)=>`<div class="sum-item ${v>0?'neg':(v<0?'pos':'')}">
         <div class="k">${k}</div><div class="v">${v>0?'-':'+'}${fmt(Math.abs(v))}</div></div>`;
-      return `<div class="sum-strip">
+      return `<div class="sum-strip" id="lossSumStrip">
         <div class="sum-item neg" style="border-color:#fecaca"><div class="k">총 로스금액</div>
-          <div class="v">${totLoss>0?'-':'+'}${fmt(Math.abs(totLoss))}</div></div>
+          <div class="v">${totLoss2>0?'-':'+'}${fmt(Math.abs(totLoss2))}</div></div>
         <div class="sum-item"><div class="k">발생 건수</div><div class="v">${cnt}</div></div>
         ${top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')}
         ${top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('')}
@@ -6502,8 +6535,8 @@ function renderClosing(){
       if(!keys.length)return '';
       return `<div class="dt-filter" id="lossFilterBar1">
         <span class="dtf-label">라인 선택</span>
-        <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b>${(CUR_DAY.losses||[]).length}</b></button>
-        ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b>${cnt[k]}</b></button>`).join('')}
+        <button class="dtf-chip on" data-ln="" onclick="filterLossLine('')">전체 <b class="dtf-n">${(CUR_DAY.losses||[]).length}</b></button>
+        ${keys.map(k=>`<button class="dtf-chip" data-ln="${k}" onclick="filterLossLine('${k.replace(/'/g,"\\'")}')">${k} <b class="dtf-n">${cnt[k]}</b></button>`).join('')}
       </div>`;})()}
     ${lossBasisBar()}
       ${devFilterBar()}
@@ -7050,6 +7083,9 @@ function isTinyMat(s){
    대상 밖(포장·부자재 등)은 MES 계획 그대로 사용.                       */
 let LOSS_BASIS='bom';   // 코터·분체배합은 BOM 배합률을 기본 기준으로 사용
 function bomOf(s){ return (CUR_DAY.bom||{})[s.prod_code+'|'+s.mat_code]||null; }
+/* 현재 기준(MES/BOM)에 따른 편차·로스금액 — 행·합계·카드가 모두 이 함수를 쓴다 */
+function diffOf(s){ return Math.round(Number(s.actual_qty)||0)-Math.round(planOf(s)); }
+function lossOf(s){ return Math.round(diffOf(s)*(Number(s.unit_price)||0)); }
 /* 화면에 쓸 계획값 (기준에 따라 분기) */
 function planOf(s){
   if(LOSS_BASIS==='bom'){ const b=bomOf(s); if(b&&Number(b.bom_plan)>0) return Number(b.bom_plan); }
@@ -7059,6 +7095,7 @@ function switchLossBasis(b){
   if(LOSS_BASIS===b)return;
   LOSS_BASIS=b;
   rerenderClosing();
+  if(typeof recalcLossTotals==='function') recalcLossTotals();
   setTimeout(()=>{ if(typeof applyLossFilters==='function') applyLossFilters(); },0);
   toast(b==='bom'?'BOM 기준 — 진공코터·분체배합 원료 계획을 배합률로 산출':'MES 기준 — 원본 계획 사용','ok');
 }
@@ -7080,8 +7117,8 @@ function lossBasisBar(){
       ? (need>0
         ? `<span class="lb-warn">⚠ 화면만 BOM 기준 — 대시보드·월현황에 반영하려면 저장이 필요합니다 (<b>${need}</b>건)</span>
            <button class="tbtn save" onclick="applyBomPlan()">BOM 계획 저장</button>`
-        : `<span class="lb-on">✓ BOM 계획이 DB에 반영됨 — 대시보드·월현황 동일</span>`)
-      : '<span class="lb-i">DB 저장값 기준으로 표시됩니다</span>'}
+        : `<span class="lb-on" title="저장이 끝났으므로 MES 원본 탭도 같은 값(저장된 BOM 계획)을 보여줍니다. 되돌리려면 각 행의 ↺ 버튼을 사용하세요.">✓ DB 반영 완료 — 두 탭 값이 같습니다</span>`)
+      : `<span class="lb-i">${need>0?'DB 저장값(MES 원본) 기준':'DB에 BOM 계획이 저장돼 있어 BOM 기준과 동일합니다'}</span>`}
   </div>`;
 }
 /* BOM 계획을 t_plan_override 에 일괄 저장 → 대시보드·월현황·라인상세까지 전파 */
@@ -7385,7 +7422,7 @@ async function savePlanOverride(i){
 }
 /* 로스 총액/스코어카드만 조용히 갱신 (목록 재정렬 없음) */
 function recalcLossTotals(){
-  const tot=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
+  const tot=(CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0);   // 기준(MES/BOM) 반영
   CUR_DAY._totLoss=tot;
   document.querySelectorAll('.loss-total-amt').forEach(el=>{ el.textContent=fmt(tot)+'원'; });
 }
