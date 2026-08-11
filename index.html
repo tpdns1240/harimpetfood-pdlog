@@ -392,6 +392,25 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .lb-warn{margin-left:auto;font-size:11px;font-weight:700;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:5px;padding:2px 8px}
 .lb-on{margin-left:auto;font-size:11px;font-weight:800;color:#6d47c9;background:#ede8fb;border:1px solid #ddd3f7;border-radius:5px;padding:2px 8px}
 @media(max-width:820px){.lb-on{margin-left:0;width:100%}}
+/* ── ② 포장 실적 (계획번호 묶음) ── */
+.pk-table td,.pk-table th{vertical-align:middle}
+.pk-table th{font-size:11.5px;line-height:1.3}
+.pk-row td{border-bottom:1px solid #f1f4f9}
+.pk-row.pk-first td{border-top:2px solid #d9e2f0}
+.pk-grp{background:#f7f9fc;border-right:1.5px solid #e3e8f2;min-width:132px;vertical-align:top!important;padding-top:9px!important}
+.pk-no{font-family:ui-monospace,monospace;font-size:12px;font-weight:800;color:#1f2937;letter-spacing:-.3px}
+.pk-type{display:inline-block;margin-top:3px;font-size:10px;font-weight:800;border-radius:5px;padding:1px 7px}
+.pk-type.pk-coat{background:#ede8fb;color:#6d47c9;border:1px solid #ddd3f7}
+.pk-type.pk-oven{background:#fff1e6;color:#c2410c;border:1px solid #fed7aa}
+.pk-type.pk-etc {background:#f1f3f7;color:#7b8595;border:1px dashed #c9d1de}
+.pk-carry{margin-top:3px;font-size:9.5px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
+.pk-base{margin-top:3px;font-size:10px;color:#98a2b3;font-family:ui-monospace,monospace}
+.pk-plan{background:#f7f5ff;font-weight:800;font-size:14px;color:#5b4b9a;vertical-align:middle!important;border-right:1.5px solid #e3e8f2}
+.pk-sum{background:#f2f7fb;font-weight:800;font-size:14px;color:#1c5fb0;vertical-align:middle!important;border-left:1.5px solid #e3e8f2}
+.pk-ach{background:#f8fafc;vertical-align:middle!important;text-align:center}
+.pk-ach b{font-size:15px}
+.pk-warn{font-size:11px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:5px;padding:2px 8px;margin-right:7px}
+.pk-note{margin:0 16px 10px;padding:9px 12px;background:#fff7e6;border:1px solid #f0c060;border-radius:9px;font-size:11.5px;color:#92600a;line-height:1.6}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
 .dev-t{font-size:12px;font-weight:800;color:var(--sub);white-space:nowrap}
 .dev-range{flex:1;min-width:150px;max-width:320px;accent-color:#2670c9;cursor:pointer}
@@ -541,16 +560,21 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .tb-status.wait{background:#fff7ed;color:#c2410c}
 .tb-status.done{background:var(--grn-soft);color:var(--grn)}
 .tb-status.rej{background:#fef2f2;color:var(--red)}
+/* 결재 이력 — 결재바 바로 아래 */
+.appr-hist{border:2px solid var(--navy);margin-bottom:16px;animation:histIn .22s ease-out}
+@keyframes histIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.appr-hist table td{font-size:12.5px}
+.appr-hist table td.l{white-space:normal;line-height:1.45;color:#1f2937}
 /* 결재 진행바 */
-.appr-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;margin-bottom:16px;box-shadow:var(--sh)}
+.appr-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px 20px 18px;margin-bottom:16px;box-shadow:var(--sh)}
 .appr-flow{display:flex;align-items:flex-start;justify-content:center;gap:0}
-.appr-step{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:112px}
+.appr-step{display:flex;flex-direction:column;align-items:center;gap:9px;min-width:150px}
 /* 이름이 들어가는 큰 둥근 네모 카드 */
-.as-card{width:118px;padding:11px 8px 9px;border-radius:14px;background:#f4f6fa;border:2px solid #e2e8f2;
+.as-card{width:158px;padding:15px 11px 13px;border-radius:16px;background:#f4f6fa;border:2px solid #e2e8f2;
   text-align:center;transition:all .24s cubic-bezier(.2,.8,.3,1)}
-.as-role{font-size:11px;font-weight:700;color:#9aa5b5;letter-spacing:.03em;margin-bottom:3px}
-.as-name{font-size:15px;font-weight:800;color:#b3bccb;line-height:1.25;word-break:keep-all}
-.as-en{font-size:9.5px;font-weight:600;color:#c2cad6;letter-spacing:.04em;margin-top:3px;text-transform:uppercase}
+.as-role{font-size:12px;font-weight:700;color:#9aa5b5;letter-spacing:.03em;margin-bottom:5px}
+.as-name{font-size:18px;font-weight:800;color:#b3bccb;line-height:1.25;word-break:keep-all}
+.as-en{font-size:10.5px;font-weight:600;color:#c2cad6;letter-spacing:.04em;margin-top:5px;text-transform:uppercase}
 /* 완료: 아주 연한 세이지 */
 .appr-step.done .as-card{background:#f2f8f4;border-color:#bcd9c6}
 .appr-step.done .as-role{color:#7ba58c}
@@ -558,9 +582,9 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .appr-step.done .as-en{color:#a6c8b4}
 /* 진행 중(현재 차례): 차분한 세이지 그린 + 확대 */
 .appr-step.now .as-card{background:linear-gradient(135deg,#5faa7d,#4d9670);border-color:#41855f;
-  transform:scale(1.13);box-shadow:0 8px 20px rgba(77,150,112,.26);animation:nowPulse 2.4s infinite}
+  transform:scale(1.09);box-shadow:0 8px 22px rgba(77,150,112,.28);animation:nowPulse 2.4s infinite}
 .appr-step.now .as-role{color:rgba(255,255,255,.82)}
-.appr-step.now .as-name{color:#fff;font-size:16px}
+.appr-step.now .as-name{color:#fff;font-size:19px}
 .appr-step.now .as-en{color:rgba(255,255,255,.6)}
 @keyframes nowPulse{0%,100%{box-shadow:0 8px 20px rgba(77,150,112,.26)}50%{box-shadow:0 8px 28px rgba(77,150,112,.42)}}
 /* 다음 차례(결재예정): 부드러운 앰버 */
@@ -569,12 +593,12 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .appr-step.next .as-name{color:#a9752f}
 .appr-step.next .as-en{color:#d0b189}
 /* 예정: 회색 (기본) */
-.as-badge{padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:800;letter-spacing:.02em}
+.as-badge{padding:3px 13px;border-radius:20px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
 .as-badge.done{background:#eaf3ee;color:#4a8c66}
 .as-badge.now{background:#4d9670;color:#fff;box-shadow:0 2px 6px rgba(77,150,112,.26)}
 .as-badge.next{background:#fdf8f0;color:#a9752f;border:1px solid #e8c89a}
 .as-badge.idle{background:#f1f3f6;color:#aab3c0}
-.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 6px;margin-top:36px;min-width:18px;transition:background .3s}
+.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 8px;margin-top:46px;min-width:20px;transition:background .3s}
 .appr-line.fill{background:linear-gradient(90deg,#9ac7ac,#7ab894)}
 @media(max-width:760px){
   .appr-flow{flex-wrap:wrap;gap:10px}
@@ -4262,12 +4286,14 @@ function renderUpload(){
       <div class="en">기간 붙여넣기 · 일자+팀+공정 단위 부분 교체</div></div>
     <div class="panel-bd">
       <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
-        ℹ <b>15개 컬럼 전부</b>(작업일자 포함) 붙여넣으세요. 여러 날짜·팀을 한번에 처리할 수 있습니다.<br>
+        ℹ <b>14개 컬럼 전부</b>(작업일자·생산계획번호 포함) 붙여넣으세요. 여러 날짜·팀을 한번에 처리할 수 있습니다.<br>
         붙여넣은 데이터의 <b>일자+팀+공정 조합만</b> 교체됩니다(나머지는 보존). 결재·사유가 있으면 경고합니다.
       </div>
-      <div class="pick"><label>붙여넣기 (구글시트에서 15개 컬럼 복사 → 붙여넣기)</label>
-        <textarea id="upPaste" class="paste-area" placeholder="작업일자 → 팀구분 → 공정명 → 제품코드 → 제품명 → 호기 → 원료코드 → 원료명 → 원료타입 → 계획량 → 원료사용량 → 편차 → 원료단위 → 공정세부1 → 공정세부2&#10;(구글시트에서 이 15개 열 전체를 복사해서 붙여넣으세요. 작업일자 포함)"></textarea>
-        <div class="hint">※ 컬럼 순서: 작업일자·팀·공정·제품코드·제품명·호기·원료코드·원료명·타입·계획량·실적량·편차·단위·공정세부1·공정세부2<br>
+      <div class="pick"><label>붙여넣기 (엑셀·구글시트에서 14개 컬럼 복사 → 붙여넣기)</label>
+        <textarea id="upPaste" class="paste-area" placeholder="작업일자 → 생산계획번호 → 팀구분 → 공정명 → 제품코드 → 제품명 → 호기 → 원료코드 → 원료명 → 원료타입 → 계획량 → 원료사용량 → 편차 → 원료단위&#10;(엑셀에서 이 14개 열 전체를 복사해서 붙여넣으세요. 헤더 포함 가능)"></textarea>
+        <div class="hint">※ 컬럼 순서: 작업일자·<b>생산계획번호</b>·팀구분·공정명·제품코드·제품명·호기·원료코드·원료명·원료타입·계획량·원료사용량·편차·원료단위<br>
+        ※ 공정세부(대/소분류)는 <b>공정명에서 자동 분리</b>됩니다. 예: 주식_진공코터 공정 → 주식/진공코터<br>
+        ※ 구양식(15열, 생산계획번호 없음)도 그대로 인식하지만 계획번호 묶음 기능은 쓸 수 없습니다.<br>
         ※ 붙여넣은 <b>일자+팀+공정 조합만</b> 지워지고 교체됩니다. 다른 공정·다른 팀 데이터는 그대로 보존됩니다.</div>
       </div>
       <button class="btn-lg" onclick="checkUpload()">데이터 확인 후 업로드</button>
@@ -4383,13 +4409,21 @@ async function checkUpload(){
   const paste=$('#upPaste').value;
   const res=$('#upResult');
   const rows=parsePaste(paste);
-  if(rows.length===0){res.className='upload-result err';res.style.display='block';res.textContent='붙여넣은 데이터가 없거나 형식이 맞지 않습니다. (15개 컬럼 확인)';return;}
+  if(rows.length===0){res.className='upload-result err';res.style.display='block';res.textContent='붙여넣은 데이터가 없거나 형식이 맞지 않습니다. (14개 컬럼 · 탭 구분 확인)';return;}
   res.className='upload-result';res.style.display='block';res.style.background='#eff6ff';res.style.color='#2563eb';
   res.textContent='데이터 확인 중…';
   try{
     const {data,error}=await sb.rpc('check_plan_impact',{p_rows:rows});
     if(error)throw error;
+    // 신양식(생산계획번호) 여부·건수 안내
+    const pn=rows.filter(r=>r.plan_no).length;
     let warn='';
+    if(pn>0){
+      const nos=new Set(rows.filter(r=>r.plan_no).map(r=>r.plan_no));
+      warn+=`🆕 신양식(14열) — 생산계획번호 ${nos.size}개 · ${pn}행 인식됨\n\n`;
+    }else if(rows.length){
+      warn+=`ℹ 구양식(15열)으로 인식했습니다. 생산계획번호가 없어 SKU 묶음 기능은 사용할 수 없습니다.\n\n`;
+    }
     // ── 공정(proc_sub1/proc_sub2) 이상 경고 : "/주식" 유형 쓰레기 라인 사전 차단 ──
     const IS=LAST_PARSE_ISSUES||{fixed:[],blank:[]};
     if(IS.fixed.length>0){
@@ -4452,14 +4486,32 @@ function parsePaste(text){
   text.trim().split('\n').forEach(line=>{
     if(!line.trim())return;
     const c=line.split('\t');
-    if(c.length<15)return;  // 15컬럼 필요
-    const r={
-      work_date:normDate(c[0]), team:cleanTeam(c[1]), process:c[2].trim(),
-      prod_code:c[3].trim(), prod_name:c[4].trim(), hoki:c[5].trim(),
-      mat_code:c[6].trim(), mat_name:c[7].trim(), mat_type:c[8].trim(),
-      plan_qty:num(c[9]), actual_qty:num(c[10]), diff:num(c[11]), mat_unit:c[12].trim(),
-      proc_sub1:c[13].trim(), proc_sub2:c[14].trim()
-    };
+    // ── 양식 자동 판별 ──────────────────────────────────────────────
+    //  신양식(14열) : 작업일자 · 생산계획번호 · 팀구분 · 공정명 · 제품코드 · 제품명 · 호기
+    //                · 원료코드 · 원료명 · 원료타입 · 계획량 · 원료사용량 · 편차 · 원료단위
+    //  구양식(15열) : … proc_sub1 · proc_sub2 가 마지막에 별도 컬럼으로 존재
+    //  두 번째 칸이 숫자로만 된 10자리 이상이면 생산계획번호로 보고 신양식으로 처리
+    const isNew = /^\d{9,}$/.test(String(c[1]||'').trim());
+    let r;
+    if(isNew){
+      if(c.length<14)return;
+      r={
+        work_date:normDate(c[0]), plan_no:String(c[1]||'').trim(), team:cleanTeam(c[2]),
+        process:c[3].trim(), prod_code:c[4].trim(), prod_name:c[5].trim(), hoki:c[6].trim(),
+        mat_code:c[7].trim(), mat_name:c[8].trim(), mat_type:c[9].trim(),
+        plan_qty:num(c[10]), actual_qty:num(c[11]), diff:num(c[12]), mat_unit:(c[13]||'').trim(),
+        proc_sub1:'', proc_sub2:''      // 공정명에서 아래 정규화 블록이 채움
+      };
+    }else{
+      if(c.length<15)return;
+      r={
+        work_date:normDate(c[0]), plan_no:'', team:cleanTeam(c[1]), process:c[2].trim(),
+        prod_code:c[3].trim(), prod_name:c[4].trim(), hoki:c[5].trim(),
+        mat_code:c[6].trim(), mat_name:c[7].trim(), mat_type:c[8].trim(),
+        plan_qty:num(c[9]), actual_qty:num(c[10]), diff:num(c[11]), mat_unit:c[12].trim(),
+        proc_sub1:c[13].trim(), proc_sub2:c[14].trim()
+      };
+    }
     // ── 공정 정규화 : MES가 proc_sub1을 비운 채 내보내는 행 자동 보정 ──
     // 예: 공정="주식_포장 공정", proc_sub1="", proc_sub2="주식"  →  proc_sub1="주식", proc_sub2="포장"
     // "/주식" 같은 쓰레기 라인이 m_capa·대시보드에 등록되는 것을 업로드 시점에 차단
@@ -4580,7 +4632,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes,packRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4591,13 +4643,18 @@ async function openDay(date, team){
       sb.rpc('get_line_downtime',{p_date:date,p_team:team}),
       sb.rpc('get_capa_list',{p_team:team}),
       sb.rpc('suggest_plan',{p_date:date,p_team:team}),
-      sb.rpc('get_bom_plan',{p_date:date,p_team:team})     // BOM 계획(병렬 → 지연 없음)
+      sb.rpc('get_bom_plan',{p_date:date,p_team:team}),    // BOM 계획(병렬 → 지연 없음)
+      sb.rpc('get_pack_summary',{p_date:date,p_team:team}) // 계획번호별 포장 묶음
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
     CUR_DAY.orders=orderRes.data||[];
-    CUR_DAY.losses=lossRes.data||[];
+    // ③ 로스관리는 원료·부자재만 대상. 반제품(6번대)은 ② 오더별 생산실적에서 관리
+    CUR_DAY.losses=(lossRes.data||[]).filter(l=>String(l.mat_code||'').charAt(0)!=='6');
+    CUR_DAY.lossSemiCnt=(lossRes.data||[]).length-CUR_DAY.losses.length;
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
+    // 계획번호별 포장 묶음 (코터/오븐 산출 = 계획, SKU 실적 합 = 실적)
+    CUR_DAY.pack=(packRes&&!packRes.error&&packRes.data)?packRes.data:[];
     // BOM 계획 : (오더|자재) → 계획량. ③ 로스관리 BOM 모드에서 사용
     CUR_DAY.bom={};
     ((bomRes&&!bomRes.error&&bomRes.data)||[]).forEach(r=>{
@@ -4762,6 +4819,7 @@ function renderClosing2(){
 
   $('#wrap').innerHTML=`
   ${renderApprovalBar()}
+  <div id="apprHistBox"></div>
   ${renderClosingHeader2()}
   <div class="closing-body ${CUR_DAY.locked?'locked':''}">
 
@@ -5321,7 +5379,7 @@ function lossOverBanner(){
   if(!rows.length) return '';
   const top=rows.slice(0,4).map(l=>`${l.mat_name||l.mat_code} <b>${fmt0(l.plan_qty)}</b>&lt;<b>${fmt0(l.actual_qty)}</b>`).join(' · ');
   return `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
-    ⚠ <b>계획이 실적보다 적은 자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량) 이상이어야 합니다.
+    ⚠ <b>계획이 실적보다 적은 원료·부자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량) 이상이어야 합니다.
     해당 행의 계획을 실적 이상으로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
   </div>`;
 }
@@ -5387,6 +5445,84 @@ function coaterYieldTip(cy){
   return `제품별 수율의 평균 (${cy.n}개 제품)\n물량가중 평균은 ${cy.wPct.toFixed(1)}%\n기준 구간 70~80%\n\n[낮은 순]\n${list}`
        + (low.length?`\n\n70% 미만 ${low.length}건 — 평균을 끌어내린 제품입니다.`:'');
 }
+/* ════════════════════════════════════════════════════════════════════
+   ② 포장 실적 — 생산계획번호 묶음 뷰
+   ── 구조
+     계획(셀 병합) = 코터/오븐 산출 실적   ·  실적 = SKU별 MES 실적
+     합계(셀 병합) = SKU 실적 합            ·  달성률 = 합계 ÷ 계획 = 포장수율
+   ── 계획 수정 불가(자동 산출), 투입공수·특이사항만 입력
+   ── 전날 코터분을 당일 포장한 이월 건은 생산일자 배지로 표시
+   ════════════════════════════════════════════════════════════════════ */
+function packGroups(){
+  const rows=CUR_DAY.pack||[];
+  const g=new Map();
+  rows.forEach(r=>{
+    const k=(r.plan_no||'-')+'|'+r.base_code;
+    if(!g.has(k)) g.set(k,{key:k, plan_no:r.plan_no||'', base_code:r.base_code,
+      base_name:r.base_name, base_type:r.base_type, base_actual:Number(r.base_actual)||0,
+      base_date:r.base_date, base_team:r.base_team,
+      grp_actual:Number(r.grp_actual)||0, achieve:(r.achieve==null?null:Number(r.achieve)), skus:[]});
+    g.get(k).skus.push(r);
+  });
+  const arr=[...g.values()];
+  arr.forEach(x=>x.skus.sort((a,b)=>Number(b.sku_actual)-Number(a.sku_actual)));
+  // 이월(전일 생산분) 먼저 → 눈에 띄게
+  arr.sort((a,b)=>String(a.plan_no).localeCompare(String(b.plan_no)));
+  return arr;
+}
+function buildPackSection(){
+  const G=packGroups();
+  if(!G.length) return '';
+  const {date}=CUR_DAY;
+  const mhMap=CUR_DAY.mhMap||{};
+  const t=v=>fmt1(Number(v)||0);
+  const carry=G.filter(x=>x.base_date&&x.base_date!==date).length;
+  const noBase=G.filter(x=>!(x.base_actual>0)).length;
+
+  const rows=G.map(g=>{
+    const n=g.skus.length;
+    const isCarry=(g.base_date&&g.base_date!==date);
+    const ach=g.achieve;
+    const achCol=(ach==null)?'var(--mut)':(ach>=95&&ach<=105?'var(--grn)':(ach>105?'#7fc99a':'#e8918c'));
+    const typeCls=g.base_type==='오븐'?'pk-oven':(g.base_type==='코터'?'pk-coat':'pk-etc');
+    return g.skus.map((s,i)=>{
+      const mh=mhMap[s.sku_code]||{mh:'',note:''};
+      const act=Number(s.sku_actual)||0;
+      const prod=(mh.mh&&act)?(act/Number(mh.mh)):0;
+      const first=(i===0);
+      return `<tr class="pk-row ${first?'pk-first':''}">
+        ${first?`<td rowspan="${n}" class="pk-grp">
+            <div class="pk-no">${g.plan_no||'-'}</div>
+            <span class="pk-type ${typeCls}">${g.base_type}</span>
+            ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
+            <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
+          </td>
+          <td rowspan="${n}" class="mono pk-plan">${g.base_actual>0?t(g.base_actual):'<span style="color:#b42318;font-size:11px">산출 없음</span>'}</td>`:''}
+        <td class="mono">${s.sku_code}</td>
+        <td class="l">${s.sku_name||'-'}</td>
+        <td class="mono">${t(act)}</td>
+        ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}</td>
+          <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${ach==null?'–':ach.toFixed(1)+'%'}</b>
+            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">포장수율</div></td>`:''}
+        <td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
+        <td class="mono">${prod?prod.toFixed(1):'–'}</td>
+        <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>
+      </tr>`;
+    }).join('');
+  }).join('');
+
+  return `
+    ${carry?`<div class="pk-note">⚠ <b>이월 ${carry}건</b> — 전일 생산한 코터·오븐 반제품을 오늘 포장한 건입니다.
+      계획(산출량)은 생산일 기준이라 <b>달성률이 낮게 보일 수 있습니다.</b> 계획번호 칸의 날짜 배지를 확인하세요.</div>`:''}
+    ${noBase?`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018">⚠ <b>산출 없음 ${noBase}건</b> — 코터·오븐 생산 기록을 찾지 못했습니다(10일 이전 생산분 등). 달성률을 낼 수 없습니다.</div>`:''}
+    <div class="sec-bd" style="overflow-x:auto"><table class="t2-table pk-table">
+      <thead><tr><th>생산계획번호</th><th>계획(KG)<br><span style="font-weight:600;font-size:9.5px">코터·오븐 산출</span></th>
+        <th>제품코드</th><th>제품명</th><th>SKU 실적</th><th>합계 실적</th><th>달성률</th>
+        <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -5475,21 +5611,27 @@ function buildSection2(){
         해당 행의 <b>계획(KG)</b> 칸에 값을 입력하고 아래 <b>[투입공수 · 계획 저장]</b>을 한 번 누르면 <b>여러 건이 한꺼번에</b> 저장됩니다.
         (행별 <b>적용</b> 버튼 또는 <b>Enter</b>로 한 건씩 저장도 가능)
        </div>` : '';
+  // 완제품 탭 : 생산계획번호 묶음(포장 실적) — 계획은 코터/오븐 산출로 자동, 수정 불가
+  const usePack = (T2_ORD==='fin') && (CUR_DAY.pack||[]).length>0;
+  const packBody = usePack ? buildPackSection() : '';
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
-    <span class="desc">투입공수(MH)·특이사항 수기 입력 · 완제품 계획(KG) 수정 가능${hasCoat?' · 진공코터 계획 = EP 실적(자동·건조수율 기준 70~80%)':''}</span><span class="sp"></span>
-    ${noPlanCnt?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
-    <button class="tbtn" onclick="fillSuggestPlan()" title="${hasCoat?'완제품 계획은 진공코터 실적, 진공코터 계획은 EP 실적을 기준으로 입력칸을 채웁니다.':'앞 공정 실적을 기준으로 계획 입력칸을 채웁니다.'} 저장 전까지 DB는 바뀌지 않으며, 값은 직접 수정할 수 있습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>
-    <button class="tbtn save" onclick="saveT2MH()">투입공수 · 계획 저장</button></div>
+    <span class="desc">${usePack
+      ? '생산계획번호 묶음 · 계획 = 코터/오븐 산출(자동) · 달성률 = 포장수율'
+      : `투입공수(MH)·특이사항 수기 입력 · 계획(KG) 수정 가능${hasCoat?' · 진공코터 계획 = EP 실적(자동)':''}`}</span><span class="sp"></span>
+    ${(!usePack&&noPlanCnt)?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
+    ${usePack?'':`<button class="tbtn" onclick="fillSuggestPlan()" title="앞 공정 실적을 기준으로 계획 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>`}
+    <button class="tbtn save" onclick="saveT2MH()">${usePack?'투입공수 저장':'투입공수 · 계획 저장'}</button></div>
     <div class="tabbar">
-      <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${(orders||[]).filter(o=>isFin(o)).length}</button>
+      <button class="tab ${T2_ORD==='fin'?'on':''}" onclick="switchT2Ord('fin')">완제품 ${usePack?packGroups().reduce((a,g)=>a+g.skus.length,0):(orders||[]).filter(o=>isFin(o)).length}</button>
       <button class="tab ${T2_ORD==='semi'?'on':''}" onclick="switchT2Ord('semi')">반제품 ${(orders||[]).filter(o=>isSemi(o)).length}</button>
     </div>
+    ${usePack?packBody:`
     ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
     ${noPlanBar}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
-    </table></div>
+    </table></div>`}
   </div>`;
 }
 function renderMore2(){
@@ -5560,7 +5702,7 @@ function renderMore2(){
       </td></tr>`;
     }).join('');
     return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
-      <span class="desc">편차 발생 자재 · 행별 저장/수정 · 생산1팀과 동일</span><span class="sp"></span>
+      <span class="desc">원료·부자재만 · 행별 저장/수정${CUR_DAY.lossSemiCnt?` · 반제품 ${CUR_DAY.lossSemiCnt}건은 ②에서 관리`:''}</span><span class="sp"></span>
       <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt((CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0))}원</span></span>
       <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
       <div class="type-panel" id="typePanel_loss" style="display:none"></div>
@@ -6306,18 +6448,26 @@ async function showApprovalLog(){
       <td><b>${actionKo[l.action]||l.action}</b></td>
       <td>${l.actor}</td><td>${l.actor_role}</td>
       <td class="l">${l.memo||'–'}</td></tr>`).join('');
-    $('#inputForm').innerHTML=`
-    <div class="sec" style="border:2px solid var(--navy)"><div class="sec-hd"><h3>결재 이력</h3>
-      <span class="sp"></span><button class="tbtn" onclick="$('#inputForm').innerHTML=''">닫기</button></div>
+    // 결재바 바로 아래에 표시 (페이지 하단으로 내려가지 않도록)
+    const box=$('#apprHistBox')||$('#inputForm');
+    box.innerHTML=`
+    <div class="sec appr-hist"><div class="sec-hd"><span class="no c1">✓</span><h3>결재 이력</h3>
+      <span class="desc">처리 순서 · 의견</span>
+      <span class="sp"></span><button class="tbtn" onclick="closeApprHist()">닫기</button></div>
       <div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>일시</th><th>단계</th><th>처리자</th><th>권한</th><th>메모</th></tr></thead>
+        <thead><tr><th style="width:150px">일시</th><th style="width:96px">단계</th><th style="width:96px">처리자</th><th style="width:86px">권한</th><th>결재 의견</th></tr></thead>
         <tbody>${rows||'<tr><td colspan="5" style="color:var(--mut);padding:16px">이력 없음</td></tr>'}</tbody>
       </table></div>
     </div>`;
-    $('#inputForm').scrollIntoView({behavior:'smooth',block:'center'});
+    box.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(e){ toast('이력 조회 실패','err'); }
 }
 
+/* 결재 이력 닫기 */
+function closeApprHist(){
+  const b=$('#apprHistBox'); if(b) b.innerHTML='';
+  const f=$('#inputForm');   if(f && f.querySelector('.appr-hist')) f.innerHTML='';
+}
 // 관리자: 기한마감된 (일자+팀) 임시 잠금해제/재잠금 토글
 function toggleAdminUnlock(){
   if(S.user.role!=='admin'){ toast('관리자만 가능합니다','err'); return; }
@@ -6476,6 +6626,7 @@ function renderClosing(){
 
   $('#wrap').innerHTML=`
   ${renderApprovalBar()}
+  <div id="apprHistBox"></div>
   <div class="closing-hd2">
     <button class="tbtn" onclick="go('cal')">← 캘린더로</button>
     <div class="ch2-title"><h1>일일 생산마감 · <span style="color:var(--blue)">생산1팀</span></h1>
@@ -6553,7 +6704,7 @@ function renderClosing(){
 
   <!-- ③ 로스관리 -->
   <div class="sec"><div class="sec-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
-    <span class="desc">편차 발생 자재 · 행별 저장/수정</span><span class="sp"></span>
+    <span class="desc">원료·부자재만 · 행별 저장/수정${CUR_DAY.lossSemiCnt?` · 반제품 ${CUR_DAY.lossSemiCnt}건은 ②에서 관리`:''}</span><span class="sp"></span>
     <span style="font-weight:800;color:var(--red);margin-right:10px">로스금액 <span class="loss-total-amt">${fmt((CUR_DAY.losses||[]).reduce((a,l)=>a+lossOf(l),0))}원</span></span>
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
