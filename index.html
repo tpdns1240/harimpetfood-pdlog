@@ -598,11 +598,35 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 .as-badge.now{background:#4d9670;color:#fff;box-shadow:0 2px 6px rgba(77,150,112,.26)}
 .as-badge.next{background:#fdf8f0;color:#a9752f;border:1px solid #e8c89a}
 .as-badge.idle{background:#f1f3f6;color:#aab3c0}
-.appr-line{flex:1;height:3px;border-radius:2px;background:#e2e8f2;margin:0 8px;margin-top:46px;min-width:20px;transition:background .3s}
-.appr-line.fill{background:linear-gradient(90deg,#9ac7ac,#7ab894)}
+/* 단계 연결부 : 굵은 선 + 큰 화살표 (다음 결재자로 흐르는 느낌) */
+.appr-conn{flex:1;display:flex;align-items:center;gap:0;margin:0 2px;margin-top:42px;min-width:52px;position:relative}
+.appr-conn .ac-line{flex:1;height:5px;background:#e4e9f2;transition:background .35s}
+.appr-conn .ac-line:first-child{border-radius:3px 0 0 3px}
+.appr-conn .ac-line:last-child{border-radius:0 3px 3px 0}
+.appr-conn .ac-arw{flex:none;width:0;height:0;margin:0 -1px;
+  border-top:11px solid transparent;border-bottom:11px solid transparent;
+  border-left:14px solid #e4e9f2;transition:border-left-color .35s;font-size:0;line-height:0}
+/* 완료 구간 : 진한 초록 + 화살표 강조 */
+.appr-conn.fill .ac-line{background:linear-gradient(90deg,#7ab894,#4d9670)}
+.appr-conn.fill .ac-arw{border-left-color:#4d9670;filter:drop-shadow(0 2px 4px rgba(77,150,112,.35))}
+/* 지금 넘어가는 구간 : 흐르는 애니메이션 */
+.appr-conn.flow .ac-line{background:linear-gradient(90deg,#4d9670 0%,#8fd0ab 50%,#4d9670 100%);
+  background-size:200% 100%;animation:connFlow 1.6s linear infinite}
+.appr-conn.flow .ac-arw{border-left-color:#4d9670;animation:arwPush 1.6s ease-in-out infinite;
+  filter:drop-shadow(0 2px 6px rgba(77,150,112,.45))}
+@keyframes connFlow{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@keyframes arwPush{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+/* 결재 의견 : 카드 바로 아래 */
+.as-memo{margin-top:7px;max-width:158px;background:#f7f9fc;border:1px solid #e2e8f2;border-radius:9px;
+  padding:6px 9px;font-size:11px;line-height:1.45;color:#4a5568;text-align:left;
+  display:flex;gap:5px;align-items:flex-start;cursor:help}
+.as-memo .am-i{flex:none;font-size:10px;opacity:.8}
+.as-memo .am-t{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.as-memo.rej{background:#fef3f2;border-color:#fda29b;color:#912018}
+@media(max-width:900px){.as-memo{max-width:none;width:100%}}
 @media(max-width:760px){
   .appr-flow{flex-wrap:wrap;gap:10px}
-  .appr-line{display:none}
+  .appr-conn{display:none}
   .appr-step{min-width:calc(50% - 8px)}
   .as-card{width:100%}
 }
@@ -4438,8 +4462,8 @@ function renderUpload(){
         붙여넣은 데이터의 <b>일자+팀+공정 조합만</b> 교체됩니다(나머지는 보존). 결재·사유가 있으면 경고합니다.
       </div>
       <div class="pick"><label>붙여넣기 (엑셀·구글시트에서 14개 컬럼 복사 → 붙여넣기)</label>
-        <textarea id="upPaste" class="paste-area" placeholder="작업일자 → 생산계획번호 → 팀구분 → 공정명 → 제품코드 → 제품명 → 호기 → 원료코드 → 원료명 → 원료타입 → 계획량 → 원료사용량 → 편차 → 원료단위&#10;(엑셀에서 이 14개 열 전체를 복사해서 붙여넣으세요. 헤더 포함 가능)"></textarea>
-        <div class="hint">※ 컬럼 순서: 작업일자·<b>생산계획번호</b>·팀구분·공정명·제품코드·제품명·호기·원료코드·원료명·원료타입·계획량·원료사용량·편차·원료단위<br>
+        <textarea id="upPaste" class="paste-area" placeholder="작업일자 → 팀구분 → 공정명 → 생산계획번호 → 제품코드 → 제품명 → 호기 → 원료코드 → 원료명 → 원료타입 → 계획량 → 원료사용량 → 편차 → 원료단위&#10;(엑셀에서 이 14개 열 전체를 복사해서 붙여넣으세요. 헤더 포함 가능)"></textarea>
+        <div class="hint">※ 컬럼 순서: 작업일자·팀구분·공정명·<b>생산계획번호</b>·제품코드·제품명·호기·원료코드·원료명·원료타입·계획량·원료사용량·편차·원료단위<br>
         ※ 공정세부(대/소분류)는 <b>공정명에서 자동 분리</b>됩니다. 예: 주식_진공코터 공정 → 주식/진공코터<br>
         ※ 구양식(15열, 생산계획번호 없음)도 그대로 인식하지만 계획번호 묶음 기능은 쓸 수 없습니다.<br>
         ※ 붙여넣은 <b>일자+팀+공정 조합만</b> 지워지고 교체됩니다. 다른 공정·다른 팀 데이터는 그대로 보존됩니다.</div>
@@ -4639,13 +4663,16 @@ function parsePaste(text){
     //                · 원료코드 · 원료명 · 원료타입 · 계획량 · 원료사용량 · 편차 · 원료단위
     //  구양식(15열) : … proc_sub1 · proc_sub2 가 마지막에 별도 컬럼으로 존재
     //  두 번째 칸이 숫자로만 된 10자리 이상이면 생산계획번호로 보고 신양식으로 처리
-    const isNew = /^\d{9,}$/.test(String(c[1]||'').trim());
+    // 신양식(14열) : 작업일자 · 팀구분 · 공정명 · 생산계획번호 · 제품코드 · 제품명 · 호기
+    //               · 원료코드 · 원료명 · 원료타입 · 계획량 · 원료사용량 · 편차 · 원료단위
+    //  → 4번째 칸(D)이 9자리 이상 숫자면 생산계획번호로 판정
+    const isNew = /^\d{9,}$/.test(String(c[3]||'').trim());
     let r;
     if(isNew){
       if(c.length<14)return;
       r={
-        work_date:normDate(c[0]), plan_no:String(c[1]||'').trim(), team:cleanTeam(c[2]),
-        process:c[3].trim(), prod_code:c[4].trim(), prod_name:c[5].trim(), hoki:c[6].trim(),
+        work_date:normDate(c[0]), team:cleanTeam(c[1]), process:c[2].trim(),
+        plan_no:String(c[3]||'').trim(), prod_code:c[4].trim(), prod_name:c[5].trim(), hoki:c[6].trim(),
         mat_code:c[7].trim(), mat_name:c[8].trim(), mat_type:c[9].trim(),
         plan_qty:num(c[10]), actual_qty:num(c[11]), diff:num(c[12]), mat_unit:(c[13]||'').trim(),
         proc_sub1:'', proc_sub2:''      // 공정명에서 아래 정규화 블록이 채움
@@ -4780,7 +4807,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes,packRes,dyRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes,packRes,dyRes,logRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4793,7 +4820,9 @@ async function openDay(date, team){
       sb.rpc('suggest_plan',{p_date:date,p_team:team}),
       sb.rpc('get_bom_plan',{p_date:date,p_team:team}),    // BOM 계획(병렬 → 지연 없음)
       sb.rpc('get_pack_summary',{p_date:date,p_team:team}), // 계획번호별 포장 묶음
-      sb.rpc('get_design_yield')                            // 설계수율 마스터
+      sb.rpc('get_design_yield'),                           // 설계수율 마스터
+      sb.from('t_approval_log').select('action,actor,role,memo,created_at')
+        .eq('work_date',date).eq('team',team).order('created_at')
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
@@ -4802,6 +4831,13 @@ async function openDay(date, team){
     CUR_DAY.losses=(lossRes.data||[]).filter(l=>String(l.mat_code||'').charAt(0)!=='6');
     CUR_DAY.lossSemiCnt=(lossRes.data||[]).length-CUR_DAY.losses.length;
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
+    // 결재 의견 : 단계별 최신 메모 (카드 아래 표시용)
+    CUR_DAY.apprMemo={};
+    ((logRes&&!logRes.error&&logRes.data)||[]).forEach(r=>{
+      if(!r.memo||!String(r.memo).trim())return;
+      const k={submit:'draft',lead_ok:'lead_ok',div_ok:'div_ok',done:'done',reject:'reject'}[r.action];
+      if(k) CUR_DAY.apprMemo[k]={memo:r.memo, actor:r.actor, at:r.created_at, action:r.action};
+    });
     // 설계수율(기준 건조수율) : 품번 → %
     CUR_DAY.dy={};
     ((dyRes&&!dyRes.error&&dyRes.data)||[]).forEach(r=>{ if(r.design_yield!=null) CUR_DAY.dy[r.item_code]=Number(r.design_yield); });
@@ -5686,9 +5722,9 @@ function buildSection2(){
   const hasCoat=(orders||[]).some(o=>/진공코터|오븐/.test(String(o.proc_sub2||'')));
   const procs=Object.keys(byProc)
     .filter(k=>{
-      // 비활성 라인(호기 전부 OFF) 숨김. 단 해당 공정에 데이터가 있으면 유지(누락 방지)
-      const line=k.replace('/','|').replace('|','/');
-      return !(CUR_DAY.lineOff && CUR_DAY.lineOff.has(k) && (byProc[k]||[]).every(o=>!Number(o.actual_sum??o.actual_qty??0)));
+      // 비활성 라인은 숨기되, 오더 자체가 있으면 유지 (탭이 사라져 클릭 불가해지는 문제 방지)
+      if(!(CUR_DAY.lineOff && CUR_DAY.lineOff.has(k))) return true;
+      return (byProc[k]||[]).length>0;
     })
     .sort(procOrderCmp);
   if(!T2_PROC||!procs.includes(T2_PROC)) T2_PROC=procs[0]||'';
@@ -5708,11 +5744,12 @@ function buildSection2(){
     const sg=(CUR_DAY.suggest||{})[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]
            ||(CUR_DAY.suggest||{})[o.prod_code];
     const coatPlan=(isCoat && sg && sg.src==='EP 실적' && Number(sg.suggest)>0)?Number(sg.suggest):null;
-    const dyStd=isCoat?(CUR_DAY.dy||{})[o.prod_code]:null;                     // 설계 기준수율(%)
-    const dyRate=(dyStd&&oPlan>0&&ach>0)?(ach/dyStd*100):null;                 // 기준대비 달성률
-    // 진공코터는 EP 실적 자동값을 계획으로 사용(달성률도 이 값 기준)
+    // 건조공정(코터·오븐)은 EP 실적 자동값을 계획으로 사용 (달성률도 이 값 기준)
     const oPlan = (coatPlan!=null) ? coatPlan : oPlanRaw;
     const ach   = oPlan>0 ? (oAct/oPlan*100) : 0;
+    // ※ 아래 두 줄은 반드시 oPlan·ach 선언 뒤에 와야 함 (const TDZ)
+    const dyStd=isCoat?(CUR_DAY.dy||{})[o.prod_code]:null;                     // 설계 기준수율(%)
+    const dyRate=(dyStd&&oPlan>0&&ach>0)?(ach/dyStd*100):null;                 // 기준대비 달성률
     const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
       ? `<td style="white-space:nowrap">
@@ -5739,7 +5776,6 @@ function buildSection2(){
             const col=inBand?'var(--grn)':(ach>80?'#7fc99a':'#e8918c');   // 초과=연녹 / 미달=연적
             return `<td class="mono" id="${rid}_ach" style="${inBand?'':'background:'+(ach>80?'#f2faf5':'#fdf3f2')}" title="EP 실적 대비 코터 산출 = 건조수율. 기준 구간 70~80%. 원료 수분율에 따라 정상폭이 달라질 수 있습니다.">
              <b style="color:${col}">${ach.toFixed(1)}%</b>
-             <div style="font-size:9.5px;color:#98a2b3;font-weight:700;letter-spacing:-.2px">건조수율</div>
            </td>`; })()
         : `<td class="mono" id="${rid}_ach"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`);
     return `<tr data-ord="${o.prod_code}" id="${rid}_tr" data-act="${oAct}"${noPlan?' style="background:#fffbfa"':''}>
@@ -6328,7 +6364,18 @@ function renderApprovalBar(){
     const who = done ? (s.by||s.plan||'') : (s.plan||s.by||'');
     const cls = done?'done':(now?'now':(next?'next':'idle'));
     const badge = done?'완료':(now?'진행 중':(next?'결재예정':''));
-    if(i>0) parts.push(`<div class="appr-line ${stepDone(steps[i-1].key)?'fill':''}"></div>`);
+    // 단계 사이 연결부 : 진행 방향 화살표(▶) — 4단계 간격을 시각적으로 메움
+    if(i>0){
+      const prevDone=stepDone(steps[i-1].key);
+      // 직전 단계가 끝나고 이 단계가 지금 차례 → 흐르는 애니메이션으로 이동 표현
+      const flowing=prevDone&&now;
+      parts.push(`<div class="appr-conn ${flowing?'fill flow':(prevDone?'fill':'')}">
+        <span class="ac-line"></span><span class="ac-arw"></span><span class="ac-line"></span></div>`);
+    }
+    // 결재 의견 : 그 단계에서 남긴 메모를 카드 바로 아래 표시
+    const mm=(CUR_DAY.apprMemo||{})[s.key];
+    const rj=(status==='rejected'&&s.key==='draft')?(CUR_DAY.apprMemo||{}).reject:null;
+    const note=rj||mm;
     parts.push(`<div class="appr-step ${cls}">
       <div class="as-card">
         <div class="as-role">${s.label}</div>
@@ -6336,6 +6383,8 @@ function renderApprovalBar(){
         <div class="as-en">${s.en}</div>
       </div>
       ${badge?`<div class="as-badge ${cls}">${done?'✓ ':''}${badge}</div>`:'<div class="as-badge idle">예정</div>'}
+      ${note?`<div class="as-memo ${rj?'rej':''}" title="${String(note.memo).replace(/"/g,'&quot;')}">
+        <span class="am-i">${rj?'⊘':'💬'}</span><span class="am-t">${note.memo}</span></div>`:''}
     </div>`);
   });
   const stepFlow=parts.join('');
