@@ -879,7 +879,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -916,7 +916,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4605,7 +4605,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12c';
+const APP_VERSION='v2026.08.12d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5944,12 +5944,17 @@ function buildSection2(){
         <b>계획 입력 대상이 아니며</b>, 달성률·기준대비 집계에서도 제외됩니다.
        </div>` : '';
   // 완제품 탭 : 생산계획번호 묶음(포장 실적) — 계획은 코터/오븐 산출로 자동, 수정 불가
-  const usePack = (T2_ORD==='fin') && (CUR_DAY.pack||[]).length>0;
+  // [수정] 생산2팀처럼 코터·오븐 공정이 없는 팀은 산출 근거가 없어 계획이 0 으로 뜬다.
+  //   → 산출 근거(base_actual)가 하나라도 있을 때만 묶음 뷰를 쓰고,
+  //     없으면 일반 오더별 뷰로 떨어뜨려 MES 계획을 그대로 계획값으로 사용한다.
+  //   ※ 전일 코터분을 당일 포장한 이월 건은 base_actual 이 잡히므로 1팀 동작에는 영향 없음
+  const packHasBase = (CUR_DAY.pack||[]).some(r=>Number(r.base_actual)>0);
+  const usePack = (T2_ORD==='fin') && packHasBase;
   const packBody = usePack ? buildPackSection() : '';
   return `<div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c2">2</span><h3>오더별 생산 실적 · 투입공수 입력</h3>
     <span class="desc">${usePack
       ? '생산계획번호 묶음 · 계획 = 코터/오븐 산출(자동) · 달성률 = 포장수율'
-      : `투입공수(MH)·특이사항 수기 입력 · 계획(KG) 수정 가능${hasCoat?' · 진공코터 계획 = EP 실적(자동)':''}`}</span><span class="sp"></span>
+      : `투입공수(MH)·특이사항 수기 입력 · 계획(KG) 수정 가능${hasCoat?' · 진공코터·오븐 계획 = EP 실적(자동)':' · 계획 = MES 원본'}`}</span><span class="sp"></span>
     ${(!usePack&&noPlanCnt)?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
     ${usePack?'':`<button class="tbtn" onclick="fillSuggestPlan()" title="앞 공정 실적을 기준으로 계획 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>`}
     <button class="tbtn save" onclick="saveT2MH()">${usePack?'투입공수 저장':'투입공수 · 계획 저장'}</button></div>
@@ -5971,7 +5976,9 @@ function buildSection2(){
     </div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>생산오더</th><th>제품명</th>
-        <th>${curIsDry?'EP실적(KG)':'BOM계획(KG)'}</th><th>실적(KG)</th>
+        <th>${curIsDry?'EP실적(KG)'
+              :(T2_ORD==='fin'?'계획(KG)<br><span style="font-weight:600;font-size:9.5px">MES</span>'
+                              :'BOM계획(KG)')}</th><th>실적(KG)</th>
         <th>${curIsDry?'드라이수율(%)':'달성률'}</th>
         ${curIsDry?'<th>기준수율<br><span style="font-weight:600;font-size:9.5px">설계</span></th><th>기준대비</th>':''}
         <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
