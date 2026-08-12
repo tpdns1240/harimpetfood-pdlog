@@ -879,7 +879,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.06</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -916,7 +916,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.06</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1185,16 +1185,55 @@ function go(view){
 }
 
 /* ================= 캘린더 ================= */
-async function renderCalendar(){
-  $('#wrap').innerHTML='<div class="skel" style="height:70px;border-radius:14px 14px 0 0"></div><div class="skel" style="height:420px;margin-top:2px;border-radius:0 0 14px 14px"></div>';
-  let list=[];
-  try{
-    const {data,error}=await sb.rpc('get_calendar_v2',{p_ym:S.ym});
-    if(error)throw error;
-    list=data||[];
-  }catch(e){ toast('캘린더 로드 실패: '+(e.message||e),'err'); }
-
-  const [y,m]=S.ym.split('-').map(Number);
+/* ═══════════════════════════════════════════════════════════════
+   캘린더 : 월 단위 캐시 + 경쟁조건 차단 + 인접월 프리페치
+   ── 기존 : 진입/이전/다음 매번 get_calendar_v2 왕복 → 스켈레톤 노출
+   ── 개선 : ①캐시 히트 시 즉시 그림(0ms) ②TTL 경과분만 백그라운드 갱신
+             ③요청 시퀀스 토큰으로 늦게 온 응답 무시(월 뒤바뀜 방지)
+             ④유휴시간에 ±1개월 미리 받아 이전/다음 클릭이 즉시 반응
+   ═══════════════════════════════════════════════════════════════ */
+const CAL_CACHE=new Map();          // ym -> {list, ts}
+const CAL_TTL=90*1000;              // 90초. 과거월은 사실상 안 바뀌므로 더 길게
+let CAL_SEQ=0;                      // 렌더 요청 일련번호
+let CAL_INFLIGHT=new Map();         // ym -> Promise (중복 요청 합치기)
+function calTtl(ym){ return ym<kstMonth() ? 30*60*1000 : CAL_TTL; }
+/* 무효화 : 브라우저 캐시 + 서버 캐시(t_cal_meta.dirty) 동시 처리
+   ── 내 화면만 갱신하면 다른 4명은 옛 상태를 계속 보게 되므로 서버까지 전파한다
+   ── fire-and-forget : 실패해도 서버 TTL(현재월 60초)이 안전망 역할 */
+function calInvalidate(ym){
+  if(ym) CAL_CACHE.delete(ym); else CAL_CACHE.clear();
+  try{ sb.rpc('cal_invalidate',{p_ym:ym||null}).then(()=>{},()=>{}); }catch(_){}
+}
+/* 워밍업 : 재구축 비용을 첫 사용자가 물지 않도록 미리 서버 캐시를 채운다 */
+function calWarm(ym){
+  try{ return sb.rpc('cal_warm',{p_ym:ym}).then(()=>{},()=>{}); }catch(_){ return null; }
+}
+function calFetch(ym,force){
+  const c=CAL_CACHE.get(ym);
+  if(!force && c && (Date.now()-c.ts)<calTtl(ym)) return Promise.resolve(c.list);
+  if(CAL_INFLIGHT.has(ym)) return CAL_INFLIGHT.get(ym);
+  const pr=sb.rpc('get_calendar_v2',{p_ym:ym}).then(({data,error})=>{
+    CAL_INFLIGHT.delete(ym);
+    if(error) throw error;
+    const list=data||[];
+    CAL_CACHE.set(ym,{list,ts:Date.now()});
+    return list;
+  }).catch(e=>{ CAL_INFLIGHT.delete(ym); throw e; });
+  CAL_INFLIGHT.set(ym,pr);
+  return pr;
+}
+function calPrefetch(ym){
+  const idle=window.requestIdleCallback||(f=>setTimeout(f,300));
+  idle(()=>{ [-1,1].forEach(d=>{
+    let [y,m]=ym.split('-').map(Number); m+=d;
+    while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+    const k=`${y}-${String(m).padStart(2,'0')}`;
+    if(!CAL_CACHE.has(k)) calFetch(k,false).catch(()=>{});
+  }); });
+}
+/* 순수 렌더 — 네트워크 호출 없음. 캐시 히트 시 이 함수만 돌아 즉시 표시 */
+function calHtml(list,ym){
+  const [y,m]=ym.split('-').map(Number);
   const byDate={};
   list.forEach(x=>{
     const d=String(x.work_date).slice(0,10);
@@ -1244,8 +1283,9 @@ async function renderCalendar(){
     ${S.user.role==='admin'?`<button class="refresh-btn" onclick="go('upload')">＋ 계획 업로드</button>`:''}
     <div class="cal-nav">
       <button onclick="shiftMonth(-1)">이전</button>
-      <span class="ym mono">${S.ym}</span>
+      <span class="ym mono">${ym}</span>
       <button onclick="shiftMonth(1)">다음</button>
+      <button onclick="renderCalendar(true)" title="서버에서 다시 불러오기 (캐시 무시)">↻</button>
     </div>
   </div>
   <div class="cal-grid">
@@ -1256,7 +1296,7 @@ async function renderCalendar(){
   const todayStr=kstToday();
   for(let i=0;i<first;i++) html+='<div class="cal-cell pad"></div>';
   for(let d=1;d<=days;d++){
-    const ds=`${S.ym}-${String(d).padStart(2,'0')}`;
+    const ds=`${ym}-${String(d).padStart(2,'0')}`;
     const isToday=ds===todayStr;
     const tags=(byDate[ds]||[]).map(x=>
       `<div class="cal-tag ${statusCls(x.status)}" title="${x.team} · ${statusKo2(x.status)} · 오더 ${x.order_count}건" onclick="openDay('${ds}','${x.team}')"><i class="ct-dot"></i>${x.team} ${statusKo(x.status)} ·${x.order_count}</div>`).join('');
@@ -1298,7 +1338,31 @@ async function renderCalendar(){
     <div class="sec-bd"><div class="team-stat-grid">${cards||'<div style="color:var(--mut);padding:16px">데이터 없음</div>'}</div></div>
   </div>`;
 
-  $('#wrap').innerHTML=html;
+  return html;
+}
+async function renderCalendar(force){
+  const ym=S.ym, seq=++CAL_SEQ;
+  const c=CAL_CACHE.get(ym);
+  // ① 캐시가 있으면 스켈레톤 없이 즉시 그린다
+  if(c && !force){
+    $('#wrap').innerHTML=calHtml(c.list,ym);
+    calPrefetch(ym);
+    // ② TTL 지난 캐시면 조용히 갱신 (stale-while-revalidate)
+    if((Date.now()-c.ts)>=calTtl(ym)){
+      calFetch(ym,true).then(list=>{
+        if(seq!==CAL_SEQ||S.ym!==ym||S.view!=='cal') return;   // 늦게 온 응답 무시
+        $('#wrap').innerHTML=calHtml(list,ym);
+      }).catch(()=>{});
+    }
+    return;
+  }
+  $('#wrap').innerHTML='<div class="skel" style="height:70px;border-radius:14px 14px 0 0"></div><div class="skel" style="height:420px;margin-top:2px;border-radius:0 0 14px 14px"></div>';
+  let list=[];
+  try{ list=await calFetch(ym,!!force); }
+  catch(e){ toast('캘린더 로드 실패: '+(e.message||e),'err'); }
+  if(seq!==CAL_SEQ||S.ym!==ym) return;    // 빠르게 이전/다음을 누른 경우 최신 요청만 반영
+  $('#wrap').innerHTML=calHtml(list,ym);
+  calPrefetch(ym);
 }
 function shiftMonth(delta){
   let [y,m]=S.ym.split('-').map(Number);
@@ -4540,7 +4604,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.06';
+const APP_VERSION='v2026.08.12b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -4629,6 +4693,14 @@ async function doUpload(rows){
     res.textContent=`✓ 교체 완료 · 기존 ${data.deleted}행 삭제 → 새 ${data.inserted}행 삽입`
       + (data.scrap_cleaned>0?` · 편차 사라진 로스사유 ${data.scrap_cleaned}건 자동정리`:'');
     toast('업로드 완료','ok');
+    calInvalidate();                 // 계획 교체 → 브라우저·서버 전 월 캐시 폐기
+    // 업로드 직후 첫 조회자가 재구축(1초)을 물지 않도록 당월·전월을 미리 데운다
+    (function(){
+      const now=kstMonth(); let [wy,wm]=now.split('-').map(Number);
+      wm-=1; if(wm<1){wm=12;wy--;}
+      const prev=`${wy}-${String(wm).padStart(2,'0')}`;
+      calWarm(now); calWarm(prev);
+    })();
     $('#upPaste').value='';
     // 새 팀/라인/호기가 들어왔으면 CAPA 마스터에 자동 반영 (중복은 unique로 차단)
     try{
@@ -4900,6 +4972,9 @@ async function openDay(date, team){
   // 팀별 분기: 생산2팀은 전용 렌더
   if(CUR_DAY.team==='생산2팀') renderClosing2();
   else renderClosing();
+  // 캘린더 복귀 대비 : 이 달의 서버 캐시를 유휴시간에 미리 확인/구축
+  (function(){ const idle=window.requestIdleCallback||(f=>setTimeout(f,800));
+    idle(()=>{ const ym=String(date).slice(0,7); if(!CAL_CACHE.has(ym)) calFetch(ym,false).catch(()=>{}); }); })();
   // 렌더 직후 편차율 필터 재적용 (고정값이 있으면 즉시 숨김)
   setTimeout(()=>{ if(typeof applyDevFilter==='function') applyDevFilter(DEV_MIN, DEV_MIN>0);
                    if(typeof filterRunList==='function') filterRunList(); },0);
@@ -5020,14 +5095,14 @@ function renderClosing2(){
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
     ${(()=>{
-      const cy=coaterYield();               // 코터 평균수율 = 코터 산출 ÷ EP 실적
+      const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
       const y=cy?cy.pct:null;
       // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
       const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
       const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (코터 평균수율)</span></div>
-      <div class="v mono" title="${y==null?'코터 수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 코팅 등)':coaterYieldTip(cy)}">${finCnt}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?` · 코터 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (건조 평균수율)</span></div>
+      <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCnt}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div>
@@ -5606,31 +5681,36 @@ async function fillSuggestPlan(){
    진공코터 산출이 최종 출고 형태(키블)이므로 이 값이 그날의 대표 수율.
    suggest_plan 이 이미 로드돼 있어 추가 조회 없이 계산(0ms).            */
 function coaterYield(){
-  const orders=CUR_DAY.orders||[], sg=CUR_DAY.suggest||{};
+  const orders=CUR_DAY.orders||[];
   const items=[];
-  let out=0, inp=0;
+  let out=0, inp=0, nCoat=0, nOven=0;
   orders.forEach(o=>{
-    if(!/진공코터/.test(String(o.proc_sub2||''))) return;
-    const r=sg[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]||sg[o.prod_code];
-    if(!r||r.src!=='EP 실적') return;
-    const ep=Number(r.suggest)||0, a=Number(o.actual_sum??o.actual_qty??0);
-    if(ep>0){ inp+=ep; out+=a;
-      items.push({code:o.prod_code, name:o.prod_name||'', ep, act:a, pct:a/ep*100}); }
+    // [검증 반영] 오븐 통과품이 빠져 있었음 → 건조공정(코터+오븐) 전체로 확장
+    if(!/진공코터|오븐/.test(String(o.proc_sub2||''))) return;
+    const ep=dryEpBasis(o);                       // 교차 오배정 차단 조회
+    if(ep==null) return;
+    const a=Number(o.actual_sum??o.actual_qty??0);
+    const isOven=/오븐/.test(String(o.proc_sub2||''));
+    isOven?nOven++:nCoat++;
+    inp+=ep; out+=a;
+    items.push({code:o.prod_code, name:o.prod_name||'', ep, act:a, pct:a/ep*100, proc:isOven?'오븐':'코터'});
   });
   if(!items.length) return null;
+  var _split={coat:nCoat, oven:nOven};
   // 평균수율 = 제품별 수율의 단순평균
   //  (물량가중이 아니라 제품 단위 평균 → 특정 제품의 이상치가 그대로 드러나
   //   "어느 제품 때문인지" 바로 설명할 수 있음)
   const avg=items.reduce((a,b)=>a+b.pct,0)/items.length;
   items.sort((a,b)=>a.pct-b.pct);          // 낮은 순
-  return {pct:avg, items, n:items.length, out, inp, wPct:(inp>0?out/inp*100:0)};
+  return {pct:avg, items, n:items.length, out, inp, wPct:(inp>0?out/inp*100:0), split:_split};
 }
 /* 스코어카드 툴팁 : 평균을 끌어내린 제품을 바로 보여줌 */
 function coaterYieldTip(cy){
   if(!cy) return '';
   const low=cy.items.filter(x=>x.pct<70).slice(0,4);
-  const list=cy.items.slice(0,5).map(x=>`${x.name||x.code} ${x.pct.toFixed(1)}%`).join('\n');
-  return `제품별 수율의 평균 (${cy.n}개 제품)\n물량가중 평균은 ${cy.wPct.toFixed(1)}%\n기준 구간 70~80%\n\n[낮은 순]\n${list}`
+  const list=cy.items.slice(0,5).map(x=>`[${x.proc}] ${x.name||x.code} ${x.pct.toFixed(1)}%`).join('\n');
+  const sp=cy.split||{};
+  return `건조공정(진공코터+오븐) 제품별 수율의 평균 (${cy.n}개 제품 · 코터 ${sp.coat||0} · 오븐 ${sp.oven||0})\n물량가중 평균은 ${cy.wPct.toFixed(1)}%\n기준 구간 70~80%\n\n[낮은 순]\n${list}`
        + (low.length?`\n\n70% 미만 ${low.length}건 — 평균을 끌어내린 제품입니다.`:'');
 }
 /* ════════════════════════════════════════════════════════════════════
@@ -5711,6 +5791,37 @@ function buildPackSection(){
     </table></div>`;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   건조공정(진공코터·오븐) 공용 헬퍼
+   ── ① 기준대비 달성률 색상 밴드 : 임계값을 한 곳에서만 관리
+   ── ② EP 근거 조회 안전화     : 코터↔오븐 교차 오배정 차단
+   ════════════════════════════════════════════════════════════════════ */
+const DY_BAND={ok:100, warn:98.5, bad:95};   // ← 임계값은 여기만 고치면 전 화면 반영
+function dyRateStyle(v){
+  if(v==null) return null;
+  if(v>=DY_BAND.ok)   return {col:'#0d8a4f', bg:'#eaf8f0', bd:'#a7e3c4', tag:'달성'};   // 100%↑ 녹색
+  if(v>=DY_BAND.warn) return {col:'#b54708', bg:'#fffaeb', bd:'#fedf89', tag:'주의'};   // 98.5~100 경고(약)
+  if(v>=DY_BAND.bad)  return {col:'#c4320a', bg:'#fff4ed', bd:'#fdb082', tag:'경고'};   // 95~98.5 경고
+  return                     {col:'#b42318', bg:'#fef3f2', bd:'#fda29b', tag:'미달'};   // 95% 미만
+}
+function dryProcLabel(o){ return /오븐/.test(String(o.proc_sub2||''))?'오븐':'진공코터'; }
+/* 건조공정 계획 근거 = 같은 오더의 EP 실적
+   ① 정확키(품번|공정) 우선
+   ② 정확키가 없을 때만 품번 폴백. 단 src='EP 실적' 후보가 "유일할 때만" 채택
+      → 같은 품번이 코터·오븐 양쪽에 걸린 경우 엉뚱한 EP를 끌어오는 것을 차단 */
+function dryEpBasis(o){
+  const sg=CUR_DAY.suggest||{};
+  let r=sg[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')];
+  if(!r){
+    const cands=Object.keys(sg).filter(k=>k.indexOf(o.prod_code+'|')===0)
+                               .map(k=>sg[k]).filter(x=>x&&x.src==='EP 실적');
+    r=(cands.length===1)?cands[0]:null;
+  }
+  if(!r||r.src!=='EP 실적') return null;
+  const v=Number(r.suggest);
+  return v>0?v:null;
+}
+function isDryProcKey(k){ return /진공코터|오븐/.test(String(k||'')); }
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -5739,44 +5850,54 @@ function buildSection2(){
     //  · 진공코터 : 계획 = 같은 오더의 EP 실적으로 자동 산출 → 수정 잠금
     //  · 그 외 반제품 : 원부자재 합산값이라 잠금
     const isCoat=/진공코터|오븐/.test(String(o.proc_sub2||''));   // 건조공정(코터·오븐)
+    const pLbl=dryProcLabel(o);                                   // '진공코터' | '오븐'
     const canEditPlan=isFin(o)&&!isCoat;
-    // 진공코터 자동 계획 (suggest_plan 의 'EP 실적' 근거값)
-    const sg=(CUR_DAY.suggest||{})[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]
-           ||(CUR_DAY.suggest||{})[o.prod_code];
-    const coatPlan=(isCoat && sg && sg.src==='EP 실적' && Number(sg.suggest)>0)?Number(sg.suggest):null;
-    // 건조공정(코터·오븐)은 EP 실적 자동값을 계획으로 사용 (달성률도 이 값 기준)
+    // 건조공정 자동 계획 = 같은 오더의 EP 실적 (코터↔오븐 교차 오배정 차단 조회)
+    const coatPlan=isCoat?dryEpBasis(o):null;
     const oPlan = (coatPlan!=null) ? coatPlan : oPlanRaw;
     const ach   = oPlan>0 ? (oAct/oPlan*100) : 0;
-    // ※ 아래 두 줄은 반드시 oPlan·ach 선언 뒤에 와야 함 (const TDZ)
+    // ※ 아래 세 줄은 반드시 oPlan·ach 선언 뒤에 와야 함 (const TDZ)
+    // [검증 반영] 기준대비는 'EP 실적 기준 드라이수율'일 때만 의미가 있다.
+    //   EP 근거가 없어 MES 계획(원부자재 합산)이 분모가 된 행은 산출하지 않는다.
     const dyStd=isCoat?(CUR_DAY.dy||{})[o.prod_code]:null;                     // 설계 기준수율(%)
-    const dyRate=(dyStd&&oPlan>0&&ach>0)?(ach/dyStd*100):null;                 // 기준대비 달성률
+    const dyRate=(dyStd>0 && coatPlan!=null && ach>0)?(ach/dyStd*100):null;    // 기준대비 달성률
+    const dySt=dyRateStyle(dyRate);
     const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
       ? `<td style="white-space:nowrap">
-          <input class="inp-cell op-plan" id="${rid}_in" data-code="${o.prod_code}" data-orig="${oPlan||0}" data-rid="${rid}" data-coat="${isCoat&&isSemi(o)?'1':''}" value="${oPlan?fmt1(oPlan):''}" placeholder="0" title="${isCoat&&isSemi(o)?'진공코터 계획 — 제안값은 EP 실적 기준입니다. EP 물량이 코터 외 공정으로도 가면 제안이 실제보다 클 수 있으니 확인 후 저장하세요.':'완제품 계획 — 제안값은 진공코터 실적 기준입니다.'}" style="width:74px;text-align:right;background:${isCoat&&isSemi(o)?'#f3f0ff':'#fff8e8'}" oninput="markOrderPlanEdit('${rid}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${o.prod_code}','${rid}');}">
+          <input class="inp-cell op-plan" id="${rid}_in" data-code="${o.prod_code}" data-orig="${oPlan||0}" data-rid="${rid}" value="${oPlan?fmt1(oPlan):''}" placeholder="0" title="완제품 계획 — 제안값은 진공코터·오븐 산출 실적 기준입니다." style="width:74px;text-align:right;background:#fff8e8" oninput="markOrderPlanEdit('${rid}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${o.prod_code}','${rid}');}">
           <button class="rowbtn op-apply" id="${rid}_btn" onclick="saveOrderOverride('${o.prod_code}','${rid}')" style="display:none;margin-left:3px">적용</button>
           ${pedit?`<button class="rowbtn del" onclick="resetOrderOverride('${o.prod_code}')" title="MES 원본 계획으로 복원" style="margin-left:3px">↺</button>`:''}
         </td>`
       : (coatPlan!=null
-        ? `<td class="mono" style="background:#f7f5ff" title="진공코터 계획 = 같은 오더의 EP 실적 ${fmt1(coatPlan)}kg. EP 압출 → 건조·오븐(수분 증발) → 코터 순서라 산출은 계획보다 적은 것이 정상입니다(기준 구간 70~80%). 자동 산출이라 수정할 수 없습니다.">
+        ? `<td class="mono" style="background:#f7f5ff" title="${pLbl} 계획 = 같은 오더의 EP 실적 ${fmt1(coatPlan)}kg. EP 압출 → ${pLbl}(수분 증발) 순서라 산출은 계획보다 적은 것이 정상입니다(기준 구간 70~80%). 자동 산출이라 수정할 수 없습니다.">
              <b style="color:#6d47c9">${fmt1(coatPlan)}</b>
              <div style="font-size:9.5px;color:#8b7bbd;font-weight:700;letter-spacing:-.2px">EP실적 자동</div>
            </td>`
-        : `<td class="mono" title="${isCoat?'EP 실적이 없어 자동 산출 불가 (전일 생산분 코팅 등)':'반제품 계획은 원부자재 합산값이라 수정할 수 없습니다'}">${fmt1(oPlan)}${isCoat?'<div style="font-size:9.5px;color:#98a2b3">EP실적 없음</div>':''}</td>`);
-    // 계획 미입력(MES 부실) 판정: 계획 0 이하인데 실적은 존재 → 달성률 산출 불가
-    const noPlan = (oPlan<=0 && oAct>0);
+        : `<td class="mono" title="${isCoat?'EP 실적이 없어 자동 산출 불가 (전일 EP분 건조 등). 아래 값은 MES 원본 계획이며 드라이수율 분모로는 쓰지 않습니다.':'반제품 계획은 원부자재 합산값이라 수정할 수 없습니다'}">${fmt1(oPlan)}${isCoat?'<div style="font-size:9.5px;color:#98a2b3">EP실적 없음</div>':''}</td>`);
+    // [검증 반영] 원인 분리
+    //   · 비건조공정 : MES 계획 0  → '계획없음' (입력으로 해결 가능)
+    //   · 건조공정   : EP 근거 없음 → 'EP없음'  (입력 대상 아님. 전일 EP분 건조 등)
+    const noBase = (isCoat && coatPlan==null && oAct>0);
+    const noPlan = (!isCoat && oPlan<=0 && oAct>0);
     const noPlanBadge = noPlan
-      ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:4px;padding:1px 5px;vertical-align:1px" title="MES 계획이 없어 달성률을 낼 수 없습니다. 계획(KG)을 입력해 주세요">계획없음</span>` : '';
+      ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:4px;padding:1px 5px;vertical-align:1px" title="MES 계획이 없어 달성률을 낼 수 없습니다. 계획(KG)을 입력해 주세요">계획없음</span>`
+      : (noBase
+      ? ` <span style="display:inline-block;font-size:10.5px;font-weight:800;color:#5b6474;background:#eef1f6;border:1px solid #d8dfea;border-radius:4px;padding:1px 5px;vertical-align:1px" title="당일 EP 실적이 없어 드라이수율을 낼 수 없습니다(전일 EP분 건조 등). 계획 입력 대상이 아닙니다.">EP없음</span>` : '');
     // 진공코터 = EP→코터 건조수율. 원료(연어 등)에 따라 수분율이 달라 정상폭이 넓으므로
     // 70~80% 를 기준 구간으로만 두고, 벗어나면 방향만 색으로 표시(원인 코멘트는 넣지 않음)
-    const achCell = noPlan
-      ? `<td class="mono" id="${rid}_ach" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
-      : (coatPlan!=null
+    // [검증 반영] 건조공정은 EP 근거가 있을 때만 드라이수율을 낸다.
+    //   EP 근거가 없는데 MES 계획을 분모로 쓰면 '달성률 90% 밴드'가 섞여 기준이 뒤바뀐다.
+    const achCell = isCoat
+      ? (coatPlan!=null
         ? (()=>{ const inBand=(ach>=70&&ach<=80);
             const col=inBand?'var(--grn)':(ach>80?'#7fc99a':'#e8918c');   // 초과=연녹 / 미달=연적
-            return `<td class="mono" id="${rid}_ach" style="${inBand?'':'background:'+(ach>80?'#f2faf5':'#fdf3f2')}" title="EP 실적 대비 코터 산출 = 건조수율. 기준 구간 70~80%. 원료 수분율에 따라 정상폭이 달라질 수 있습니다.">
+            return `<td class="mono" id="${rid}_ach" style="${inBand?'':'background:'+(ach>80?'#f2faf5':'#fdf3f2')}" title="EP 실적 대비 ${pLbl} 산출 = 건조수율. 기준 구간 70~80%. 원료 수분율에 따라 정상폭이 달라질 수 있습니다.">
              <b style="color:${col}">${ach.toFixed(1)}%</b>
            </td>`; })()
+        : `<td class="mono" id="${rid}_ach" style="color:#98a2b3" title="당일 EP 실적이 없어 드라이수율 산출 불가. MES 계획(원부자재 합산)은 분모로 쓰지 않습니다.">–</td>`)
+      : (noPlan
+        ? `<td class="mono" id="${rid}_ach" style="color:#b42318;font-size:11.5px" title="계획 미입력 — 달성률 집계 제외">계획 미입력</td>`
         : `<td class="mono" id="${rid}_ach"><b style="color:${ach>=90?'var(--grn)':ach>0?'var(--org,#d97706)':'var(--red)'}">${oPlan?ach.toFixed(1)+'%':'–'}</b></td>`);
     return `<tr data-ord="${o.prod_code}" id="${rid}_tr" data-act="${oAct}"${noPlan?' style="background:#fffbfa"':''}>
       <td class="mono">${o.prod_code}</td>
@@ -5785,7 +5906,8 @@ function buildSection2(){
       <td class="mono">${fmt1(oAct)}</td>
       ${achCell}
       ${isCoat?`<td class="mono" style="background:#fafbfd">${dyStd?dyStd.toFixed(1)+'%':'<span style="font-size:10.5px;color:#b42318">미등록</span>'}</td>
-      <td class="mono" style="background:#fafbfd">${dyRate!=null?`<b style="color:${dyRate>=95&&dyRate<=105?'var(--grn)':(dyRate>105?'#7fc99a':'#e8918c')}">${dyRate.toFixed(1)}%</b>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
+      <td class="mono" style="${dySt?`background:${dySt.bg};box-shadow:inset 3px 0 0 ${dySt.bd}`:'background:#fafbfd'}" title="${dySt?`기준대비 = 드라이수율 ÷ 설계 기준수율 × 100\n${DY_BAND.ok}%↑ 달성 · ${DY_BAND.warn}~${DY_BAND.ok}% 주의 · ${DY_BAND.bad}~${DY_BAND.warn}% 경고 · ${DY_BAND.bad}% 미만 미달`:(dyStd?'EP 실적이 없어 산출 불가':'설계 기준수율 미등록 — 설정 → 🎯 설계수율에서 입력')}">
+        ${dySt?`<b style="color:${dySt.col}">${dyRate.toFixed(1)}%</b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
@@ -5793,16 +5915,29 @@ function buildSection2(){
   }).join('');
   const curIsDry=/진공코터|오븐/.test(String(T2_PROC||''));   // 현재 공정탭이 건조공정인지
   const procTabs=procs.map((p,i)=>{
-    const np=(byProc[p]||[]).filter(o=>Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
-    return `<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b>${np?`<b class="pt-cnt" style="background:#fee4e2;color:#b42318" title="계획 미입력 ${np}건">!${np}</b>`:''}</button>`;
+    // [검증 반영] 건조공정 탭은 'MES 계획 0' 이 아니라 'EP 근거 없음' 을 경고로 센다
+    const dryTab=isDryProcKey(p);
+    const np=(byProc[p]||[]).filter(o=>{
+      const a=Number(o.actual_sum??o.actual_qty??0);
+      return dryTab ? (a>0 && dryEpBasis(o)==null)
+                    : (a>0 && Number(o.plan_sum??o.plan_qty??0)<=0);
+    }).length;
+    return `<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b>${np?`<b class="pt-cnt" style="background:${dryTab?'#eef1f6':'#fee4e2'};color:${dryTab?'#5b6474':'#b42318'}" title="${dryTab?'EP 실적 없음':'계획 미입력'} ${np}건">!${np}</b>`:''}</button>`;
   }).join('');
-  // 현재 탭(완/반) 전체 기준 계획 미입력 건수
-  const noPlanCnt=kindOrders.filter(o=>Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
+  // 현재 탭(완/반) 기준 — 건조공정은 계획 입력 대상이 아니므로 제외
+  const noPlanCnt=kindOrders.filter(o=>!/진공코터|오븐/.test(String(o.proc_sub2||'')) && Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
+  // 현재 공정탭 기준 EP 근거 없음 건수 (건조공정 전용 안내)
+  const noBaseCnt=(curOrders||[]).filter(o=>/진공코터|오븐/.test(String(o.proc_sub2||'')) && Number(o.actual_sum??o.actual_qty??0)>0 && dryEpBasis(o)==null).length;
   const noPlanBar = noPlanCnt
     ? `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
         ⚠ <b>계획 미입력 ${noPlanCnt}건</b> — MES에 계획(KG)이 없어 달성률을 낼 수 없는 오더입니다.
         해당 행의 <b>계획(KG)</b> 칸에 값을 입력하고 아래 <b>[투입공수 · 계획 저장]</b>을 한 번 누르면 <b>여러 건이 한꺼번에</b> 저장됩니다.
         (행별 <b>적용</b> 버튼 또는 <b>Enter</b>로 한 건씩 저장도 가능)
+       </div>` : '';
+  const noBaseBar = noBaseCnt
+    ? `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #d8dfea;background:#f7f9fc;border-radius:8px;font-size:12px;color:#475467;line-height:1.6">
+        ℹ <b>EP 실적 없음 ${noBaseCnt}건</b> — 당일 EP 압출 실적이 없어 드라이수율을 낼 수 없는 오더입니다(전일 EP분을 오늘 건조한 경우 등).
+        <b>계획 입력 대상이 아니며</b>, 달성률·기준대비 집계에서도 제외됩니다.
        </div>` : '';
   // 완제품 탭 : 생산계획번호 묶음(포장 실적) — 계획은 코터/오븐 산출로 자동, 수정 불가
   const usePack = (T2_ORD==='fin') && (CUR_DAY.pack||[]).length>0;
@@ -5821,6 +5956,15 @@ function buildSection2(){
     ${usePack?packBody:`
     ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
     ${noPlanBar}
+    ${noBaseBar}
+    ${curIsDry?`<div style="margin:0 16px 10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:#667085">
+      <b style="color:#344054;font-size:11.5px">기준대비 판정</b>
+      <span style="padding:1px 7px;border-radius:99px;background:#eaf8f0;border:1px solid #a7e3c4;color:#0d8a4f;font-weight:800">${DY_BAND.ok}%↑ 달성</span>
+      <span style="padding:1px 7px;border-radius:99px;background:#fffaeb;border:1px solid #fedf89;color:#b54708;font-weight:800">${DY_BAND.warn}~${DY_BAND.ok}% 주의</span>
+      <span style="padding:1px 7px;border-radius:99px;background:#fff4ed;border:1px solid #fdb082;color:#c4320a;font-weight:800">${DY_BAND.bad}~${DY_BAND.warn}% 경고</span>
+      <span style="padding:1px 7px;border-radius:99px;background:#fef3f2;border:1px solid #fda29b;color:#b42318;font-weight:800">${DY_BAND.bad}% 미만 미달</span>
+      <span style="color:#98a2b3">· 설계 기준수율 대비. 미등록 품목은 판정하지 않습니다.</span>
+    </div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>생산오더</th><th>제품명</th>
         <th>${curIsDry?'EP실적(KG)':'BOM계획(KG)'}</th><th>실적(KG)</th>
@@ -5877,7 +6021,7 @@ function renderMore2(){
       const _diff=Math.round(Number(s.actual_qty))-Math.round(_bp);
       const _loss=_diff*Number(s.unit_price||0);
       const tiny=isTinyMat(s);
-      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" data-tiny="${tiny?'1':''}" class="${isSaved?'row-saved':''}">
+      return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${tiny?'1':''}" data-d0="${_diff===0?'1':''}" class="${isSaved?'row-saved':''}">
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
@@ -6180,16 +6324,19 @@ function filterLossLine(ln){
 function applyLossFilters(){
   const m=Number(DEV_MIN)||0;
   let shown=0, hid=0, hidAmt=0;
-  let tinyHid=0;
+  let tinyHid=0, zeroHid=0, zeroTot=0;
   document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
     const lnOk=!LOSS_LINE||tr.dataset.ln===LOSS_LINE;
     const dr=tr.dataset.dr===''?null:Number(tr.dataset.dr);
+    const isZero=(tr.dataset.d0==='1');                     // 편차 0 (계획=실적)
+    if(lnOk&&isZero) zeroTot++;
     const tinyHide=(tr.dataset.tiny==='1' && !SHOW_TINY);   // 1kg 미만 미량 자재
-    const devHide=(dr!=null && dr<m);
-    const hide=tinyHide||devHide;
+    const devHide=(dr!=null && dr<m);                       // 편차율 하한 미만
+    const zeroHide=(HIDE_ZERO && isZero);                   // 편차 0 수동 숨김(기본 OFF)
+    const hide=tinyHide||devHide||zeroHide;
     tr.style.display=(lnOk&&!hide)?'':'none';
     if(lnOk&&hide){
-      if(tinyHide) tinyHid++; else hid++;
+      if(tinyHide) tinyHid++; else if(zeroHide) zeroHid++; else hid++;
       const c=tr.querySelector('td:nth-child(9)');
       if(c) hidAmt+=Math.abs(Number(String(c.textContent).replace(/[^0-9.-]/g,''))||0);
     }
@@ -6204,7 +6351,7 @@ function applyLossFilters(){
     const per={}; let all=0;
     document.querySelectorAll('#lossBody2 tr[data-loss], #lossBody1 tr[data-loss]').forEach(tr=>{
       const dr=tr.dataset.dr===''?null:Number(tr.dataset.dr);
-      const hide=(tr.dataset.tiny==='1'&&!SHOW_TINY)||(dr!=null&&dr<m);
+      const hide=(tr.dataset.tiny==='1'&&!SHOW_TINY)||(dr!=null&&dr<m)||(HIDE_ZERO&&tr.dataset.d0==='1');
       if(hide)return;
       const ln=tr.dataset.ln||''; per[ln]=(per[ln]||0)+1; all++;
     });
@@ -6250,18 +6397,28 @@ function applyLossFilters(){
       el.title=filtered?`표시 ${vis.length}건 / 전체 ${(CUR_DAY.losses||[]).length}건`:'';
     });
   })();
+  // 편차 0 행이 "왜 안 보이는지"를 명시적으로 알려준다 (숨김 원인 분해)
+  const zb=$('#zeroBtn');
+  if(zb) zb.innerHTML=HIDE_ZERO?`편차0 ${zeroTot}건 제외 중`:`편차0 ${zeroTot}건 포함`;
   const st=$('#devStat');
   const parts=[];
-  if(m>0&&hid) parts.push(`<b style="color:#b42318">편차율 ${hid}건</b>`);
+  if(m>0&&hid) parts.push(`<b style="color:#b42318">편차율 하한 ${hid}건</b>`);
   if(tinyHid)  parts.push(`<b style="color:#8a94a6">1kg미만 ${tinyHid}건</b>`);
-  if(st) st.innerHTML=parts.length
+  if(zeroHid)  parts.push(`<b style="color:#8a94a6">편차0 ${zeroHid}건</b>`);
+  const zeroNote = (zeroTot && m>0 && !HIDE_ZERO)
+    ? ` <span style="color:#b54708;font-weight:800" title="편차율 0% 는 하한(${m}%) 미만이라 '편차율 하한' 필터에 함께 숨겨집니다. 편차 0 건을 보려면 하한을 0 으로 내리세요.">⚠ 편차0 ${zeroTot}건은 하한 ${m}% 필터에 포함되어 숨겨집니다</span>` : '';
+  if(st) st.innerHTML=(parts.length
     ? `${parts.join(' · ')} 숨김 · 표시 ${shown}건 · 숨긴 로스금액 ${fmtWon(hidAmt)}`
-    : `전체 ${shown}건 표시`;
+    : `전체 ${shown}건 표시 · 편차0 ${zeroTot}건 포함`)+zeroNote;
   const em=$('#lossEmptyMsg'); if(em) em.style.display=shown?'none':'block';
 }
 /* 1kg 미만 미량 자재 표시 토글 */
 let SHOW_TINY=false;
 function toggleTiny(){ SHOW_TINY=!SHOW_TINY; applyLossFilters(); }
+/* 편차 0(계획=실적) 행 표시 토글 — 기본 '포함'(=기존 동작 유지) */
+let HIDE_ZERO=false;
+function toggleZero(){ HIDE_ZERO=!HIDE_ZERO; applyLossFilters();
+  toast(HIDE_ZERO?'편차 0 행 숨김':'편차 0 행 표시','ok'); }
 async function saveT2MH(){
   const {date,team}=CUR_DAY;
   const rows=[];
@@ -6624,6 +6781,7 @@ async function doApprove(){
       p_actor:S.user.name,p_role:S.user.role,p_memo:memo||null});
     if(error)throw error;
     if(!data.ok){ toast(data.msg||'승인 불가','err'); return; }
+    calInvalidate(String(date).slice(0,7));
     toast('승인 완료','ok');
     const st=data.status||data.new_status;
     if(st==='done') notifyDone(date,team,S.user.name);        // 최종 완료 → 작성자·팀장·본부장 통보
@@ -6642,6 +6800,7 @@ async function doReject(){
       p_actor:S.user.name,p_role:S.user.role,p_memo:reason});
     if(error)throw error;
     if(!data.ok){ toast(data.msg||'반려 불가','err'); return; }
+    calInvalidate(String(date).slice(0,7));
     toast('반려 처리됨','ok');
     notifyReject(date,team,reason,S.user.role,S.user.name);   // 작성자+하위 결재자 전원 통보
     openDay(date,team);
@@ -6811,7 +6970,7 @@ function renderClosing(){
     const lossVal=Number(s.diff)>0?-Math.abs(Number(s.loss_amount)):Math.abs(Number(s.loss_amount));
     const lossSign=lossVal<0?'-':lossVal>0?'+':'';
     const lossCls=lossVal<0?'neg':lossVal>0?'pos':'';
-    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" class="${isSaved?'row-saved':''}">
+    return `<tr data-loss="${i}" data-ln="${(s.proc_sub1||'')+'/'+(s.proc_sub2||'')}" data-dr="${dr==null?'':dr.toFixed(2)}" data-tiny="${isTinyMat(s)?'1':''}" data-d0="${diffOf(s)===0?'1':''}" class="${isSaved?'row-saved':''}">
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
@@ -6877,14 +7036,14 @@ function renderClosing(){
     <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
       <div class="sc-sub">완제품 기준</div></div>
     ${(()=>{
-      const cy=coaterYield();               // 코터 평균수율 = 코터 산출 ÷ EP 실적
+      const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
       const y=cy?cy.pct:null;
       // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
       const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
       const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (코터 평균수율)</span></div>
-      <div class="v mono" title="${y==null?'코터 수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 코팅 등)':coaterYieldTip(cy)}">${finCount}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCount}종${y!=null?` · 코터 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
+      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (건조 평균수율)</span></div>
+      <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCount}${yTxt}</div>
+      <div class="sc-sub">반제품 ${semiCount}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
     <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
     <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div>
@@ -7618,6 +7777,7 @@ function devFilterBar(){
     <button class="tbtn save" onclick="saveDevMin()">편차율 고정</button>
     <button class="rowbtn" onclick="resetDevMin()">해제</button>
     <button class="rowbtn" id="tinyBtn" onclick="toggleTiny()" title="계획·실적이 모두 1kg 미만인 미량 자재입니다. 저울 오차 1g 만으로도 편차율이 수십 % 이상 나와 기본적으로 제외합니다.">1kg미만 제외</button>
+    <button class="rowbtn" id="zeroBtn" onclick="toggleZero()" title="편차 0(계획=실적) 행의 표시 여부입니다. 기본은 '포함'이며, 편차율 하한을 0보다 크게 고정하면 편차율 0% 도 하한 미만이라 함께 숨겨집니다.">편차0 포함</button>
     <span id="devSavedBadge" class="dev-saved" style="display:${DEV_MIN>0?'':'none'}">고정됨</span>
     <span class="dev-stat" id="devStat"></span>
   </div>`;
@@ -8042,6 +8202,7 @@ async function saveClosing(submit){
   try{
     const {data,error}=await sb.rpc('upsert_closing',{p_date:date,p_team:team,p_status:status,p_writer:S.user.name,p_comment:comment});
     if(error)throw error;
+    calInvalidate(String(date).slice(0,7));   // 캘린더 캐시 무효화 (상태 배지 갱신)
     if(submit){
       await sb.from('t_approval_log').insert({
         closing_id:team+'_'+date, work_date:date, team,
