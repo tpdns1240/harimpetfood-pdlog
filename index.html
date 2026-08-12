@@ -879,7 +879,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12e</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -916,7 +916,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12e</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4605,7 +4605,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12d';
+const APP_VERSION='v2026.08.12e';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5611,13 +5611,16 @@ function buildManpower6(){
 /* ② 오더별 생산실적·투입공수 — 1팀·2팀 공용.
    완/반 탭 + 공정 서브탭 + 투입공수(MH)/인시당/특이사항 입력. T2_ORD/T2_PROC 상태 사용 */
 /* ── 공정(라인) 표시 순서 : 실제 생산 흐름 순 ──────────────────────
-   생산1팀 : 생육 → 계량/배합 → EP → 분체배합 → 진공코터 → 오븐 → 포장
+   생산1팀 : 계량/배합 자동계량 → 생육 → EP → 분체배합 → 진공코터 → 오븐 → 포장
+     · 자동계량이 원료 투입의 시작점이므로 맨 앞
      · 분체배합은 코팅분말을 만드는 공정이라 EP 뒤·진공코터 앞에 위치
+   ※ 배열 안에서 구체적인 이름(자동계량·리싸이클)이 일반명(계량/배합)보다
+     앞에 와야 부분일치 보조가 정확히 동작합니다. 순서를 바꿀 때 주의.
    목록에 없는 공정은 뒤쪽에 가나다순으로 붙습니다(누락 방지).
    ※ 순서만 바꿉니다. 집계·계산 로직에는 영향 없음.                    */
 const PROC_FLOW_ORDER=[
-  '생육',
   '계량/배합 자동계량','계량/배합 리싸이클','계량/배합',
+  '생육',
   'EP','EP 리싸이클',
   '분체배합',
   '진공코터','진공코터 리싸이클',
