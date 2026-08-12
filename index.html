@@ -879,7 +879,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -916,7 +916,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1202,7 +1202,8 @@ function calTtl(ym){ return ym<kstMonth() ? 30*60*1000 : CAL_TTL; }
    ── fire-and-forget : 실패해도 서버 TTL(현재월 60초)이 안전망 역할 */
 function calInvalidate(ym){
   if(ym) CAL_CACHE.delete(ym); else CAL_CACHE.clear();
-  try{ sb.rpc('cal_invalidate',{p_ym:ym||null}).then(()=>{},()=>{}); }catch(_){}
+  try{ return sb.rpc('cal_invalidate',{p_ym:ym||null}).then(()=>true,()=>false); }
+  catch(_){ return Promise.resolve(false); }
 }
 /* 워밍업 : 재구축 비용을 첫 사용자가 물지 않도록 미리 서버 캐시를 채운다 */
 function calWarm(ym){
@@ -4604,7 +4605,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12b';
+const APP_VERSION='v2026.08.12c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -4693,14 +4694,15 @@ async function doUpload(rows){
     res.textContent=`✓ 교체 완료 · 기존 ${data.deleted}행 삭제 → 새 ${data.inserted}행 삽입`
       + (data.scrap_cleaned>0?` · 편차 사라진 로스사유 ${data.scrap_cleaned}건 자동정리`:'');
     toast('업로드 완료','ok');
-    calInvalidate();                 // 계획 교체 → 브라우저·서버 전 월 캐시 폐기
-    // 업로드 직후 첫 조회자가 재구축(1초)을 물지 않도록 당월·전월을 미리 데운다
-    (function(){
+    // 계획 교체 → 브라우저·서버 전 월 캐시 폐기 후, 당월·전월을 미리 데운다
+    // ※ 반드시 무효화 완료를 기다린 뒤 워밍업할 것.
+    //   동시에 쏘면 warm 이 먼저 끝나고 invalidate 가 뒤늦게 dirty 로 되돌려 헛일이 된다.
+    Promise.resolve(calInvalidate()).then(()=>{
       const now=kstMonth(); let [wy,wm]=now.split('-').map(Number);
       wm-=1; if(wm<1){wm=12;wy--;}
       const prev=`${wy}-${String(wm).padStart(2,'0')}`;
-      calWarm(now); calWarm(prev);
-    })();
+      return Promise.all([calWarm(now), calWarm(prev)]);
+    }).catch(()=>{});
     $('#upPaste').value='';
     // 새 팀/라인/호기가 들어왔으면 CAPA 마스터에 자동 반영 (중복은 unique로 차단)
     try{
@@ -4893,7 +4895,7 @@ async function openDay(date, team){
       sb.rpc('get_bom_plan',{p_date:date,p_team:team}),    // BOM 계획(병렬 → 지연 없음)
       sb.rpc('get_pack_summary',{p_date:date,p_team:team}), // 계획번호별 포장 묶음
       sb.rpc('get_design_yield'),                           // 설계수율 마스터
-      sb.from('t_approval_log').select('action,actor,role,memo,created_at')
+      sb.from('t_approval_log').select('action,actor,actor_role,memo,created_at')
         .eq('work_date',date).eq('team',team).order('created_at')
     ]);
     if(lineRes.error)throw lineRes.error;
@@ -4905,6 +4907,8 @@ async function openDay(date, team){
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
     // 결재 의견 : 단계별 최신 메모 (카드 아래 표시용)
     CUR_DAY.apprMemo={};
+    // 조회 실패를 조용히 삼키면 기능이 죽은 줄도 모른다 → 콘솔에 남긴다
+    if(logRes&&logRes.error) console.warn('[결재의견] t_approval_log 조회 실패:', logRes.error);
     ((logRes&&!logRes.error&&logRes.data)||[]).forEach(r=>{
       if(!r.memo||!String(r.memo).trim())return;
       const k={submit:'draft',lead_ok:'lead_ok',div_ok:'div_ok',done:'done',reject:'reject'}[r.action];
