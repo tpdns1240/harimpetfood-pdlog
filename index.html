@@ -2828,6 +2828,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='matx'?'on':''}" onclick="switchSettingsTab('matx')">🚫 로스 제외품목</button>
     <button class="stab ${SETTINGS_TAB==='mailmsg'?'on':''}" onclick="switchSettingsTab('mailmsg')">✉ 결재 알림 문구</button>
     <button class="stab ${SETTINGS_TAB==='bom'?'on':''}" onclick="switchSettingsTab('bom')">🧬 BOM 관리</button>
+    <button class="stab ${SETTINGS_TAB==='dyield'?'on':''}" onclick="switchSettingsTab('dyield')">🎯 설계수율</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -2843,6 +2844,7 @@ function switchSettingsTab(tab){
   else if(tab==='matx'){ btns[5]&&btns[5].classList.add('on'); renderMatExcludeMgmt(); }
   else if(tab==='mailmsg'){ btns[6]&&btns[6].classList.add('on'); renderMailMsgMgmt(); }
   else if(tab==='bom'){ btns[7]&&btns[7].classList.add('on'); renderBomMgmt(); }
+  else if(tab==='dyield'){ btns[8]&&btns[8].classList.add('on'); renderDYieldMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -3188,6 +3190,152 @@ async function toggleBomTree(code){
     }).join('');
     BOM_TREE_CACHE[code]=html; el.innerHTML=html;
   }catch(e){ el.innerHTML='<div style="padding:10px 14px;color:#b42318;font-size:12px">조회 실패: '+(e.message||e)+'</div>'; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   설계수율 관리 (설정 탭)
+   · 코터·오븐 반제품(6번대)의 설계 기준수율(%) 마스터
+   · 계획 업로드에 새 품목이 나타나면 sync_design_yield 로 자동 등록(수율 NULL)
+     → 관리자가 미등록 목록을 보고 채워 넣는 방식
+   · 로딩: 진입 시 1회 조회, 필터·검색은 전부 클라이언트(0ms), 저장은 변경분만
+   ════════════════════════════════════════════════════════════════════ */
+let DY_LIST=[], DY_FILTER='none';   // none=미등록 우선, all, coat, oven
+function dyMark(code){
+  const el=document.querySelector(`.dy-in[data-code="${code}"]`); if(!el)return;
+  const orig=el.dataset.orig==='null'?null:Number(el.dataset.orig);
+  const cur=String(el.value).trim()===''?null:Number(el.value);
+  const dirty=(orig===null?cur!==null:(cur===null||Math.abs(cur-orig)>0.001));
+  el.style.border=dirty?'2px solid #d97706':'';
+  el.style.background=dirty?'#fff3dd':(cur==null?'#fff5f5':'#fff');
+  dyUpdateBar();
+}
+function dyDirty(){
+  const out=[];
+  document.querySelectorAll('.dy-in').forEach(el=>{
+    const orig=el.dataset.orig==='null'?null:Number(el.dataset.orig);
+    const v=String(el.value).trim(); const cur=(v===''?null:Number(v));
+    if(cur!==null && (isNaN(cur)||cur<=0||cur>200)) return;
+    const same=(orig===null?cur===null:(cur!==null&&Math.abs(cur-orig)<=0.001));
+    if(!same) out.push({code:el.dataset.code, val:cur});
+  });
+  return out;
+}
+function dyUpdateBar(){
+  const n=dyDirty().length, b=$('#dyBar'); if(!b)return;
+  b.style.display=n?'flex':'none';
+  const c=$('#dyCnt'); if(c) c.textContent=n;
+}
+async function dySaveAll(){
+  const jobs=dyDirty();
+  if(!jobs.length){ toast('변경된 값이 없습니다','err'); return; }
+  const btn=$('#dySaveBtn'); if(btn){btn.disabled=true;btn.textContent='저장 중…';}
+  let ok=0; const fail=[];
+  for(const j of jobs){
+    try{
+      const {error}=await sb.rpc('set_design_yield',{p_code:j.code,p_yield:j.val,p_by:(S.user&&S.user.name)||'-'});
+      if(error)throw error; ok++;
+    }catch(e){ fail.push(j.code); }
+  }
+  if(btn){btn.disabled=false;btn.textContent='변경분 저장';}
+  if(fail.length) toast(`${ok}건 저장 · 실패 ${fail.length}건`,'err');
+  else toast(`설계수율 ${ok}건 저장완료`,'ok');
+  renderDYieldMgmt();
+}
+async function dySync(){
+  try{
+    const {data,error}=await sb.rpc('sync_design_yield');
+    if(error)throw error;
+    toast(Number(data)>0?`신규 품목 ${fmt(data)}건 등록 — 수율을 입력하세요`:'신규 품목 없음','ok');
+    renderDYieldMgmt();
+  }catch(e){ toast('동기화 실패: '+(e.message||e),'err'); }
+}
+function dySetFilter(f){ DY_FILTER=f; dyRenderBody(); }
+
+async function renderDYieldMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:280px;border-radius:14px"></div>';
+  try{ const {data}=await sb.rpc('get_design_yield'); DY_LIST=data||[]; }
+  catch(e){ toast('조회 실패: '+(e.message||e),'err'); DY_LIST=[]; }
+  dyRenderBody();
+}
+function dyRenderBody(){
+  const L=DY_LIST||[];
+  const M={all:L.length, coat:L.filter(x=>x.proc_kind==='코터').length,
+           oven:L.filter(x=>x.proc_kind==='오븐').length,
+           none:L.filter(x=>x.design_yield==null).length};
+  const q=String((($('#dyQ')||{}).value)||'').trim().toLowerCase();
+  let view=L.filter(x=>{
+    if(DY_FILTER==='none' && x.design_yield!=null) return false;
+    if(DY_FILTER==='coat' && x.proc_kind!=='코터') return false;
+    if(DY_FILTER==='oven' && x.proc_kind!=='오븐') return false;
+    if(q && !(String(x.item_code).includes(q)||String(x.item_name||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const rows=view.map(x=>{
+    const none=(x.design_yield==null);
+    return `<tr class="${none?'dy-none':''}">
+      <td class="mono"><b>${x.item_code}</b>
+        <span class="dy-kind ${x.proc_kind==='오븐'?'k-oven':'k-coat'}">${x.proc_kind||'-'}</span></td>
+      <td class="l">${x.item_name||'-'}${none?'<span class="dy-badge">미등록</span>':''}</td>
+      <td style="white-space:nowrap">
+        <input class="inp-cell dy-in" data-code="${x.item_code}" data-orig="${x.design_yield==null?'null':x.design_yield}"
+          type="number" step="0.1" min="0" max="200" value="${x.design_yield==null?'':x.design_yield}"
+          placeholder="미등록" oninput="dyMark('${x.item_code}')"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();dySaveAll();}"
+          style="width:88px;text-align:right;background:${none?'#fff5f5':'#fff'}"> <span style="font-size:11px;color:#98a2b3">%</span>
+      </td>
+    </tr>`;
+  }).join('');
+  const chip=(k,lb,n,c)=>`<button class="dy-chip ${DY_FILTER===k?'on':''}" onclick="dySetFilter('${k}')" ${c?`style="${DY_FILTER===k?`background:${c};border-color:${c};color:#fff`:`color:${c}`}"`:''}>${lb}<b>${n}</b></button>`;
+
+  $('#settingsBody').innerHTML=`
+  <style>
+  .dy-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f7f9fc;border:1.5px solid var(--line);border-radius:11px;padding:9px 12px;margin-bottom:12px}
+  .dy-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border:1.5px solid var(--line);background:#fff;border-radius:20px;font-size:12.5px;font-weight:700;color:var(--sub);cursor:pointer;transition:.14s}
+  .dy-chip:hover{border-color:#93b4e0}
+  .dy-chip.on{background:var(--navy,#1b2f55);border-color:var(--navy,#1b2f55);color:#fff}
+  .dy-chip b{font-size:11px;opacity:.8}
+  .dy-q{flex:1;min-width:150px;max-width:280px;padding:6px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px}
+  .dy-save{display:none;align-items:center;gap:10px;position:sticky;top:0;z-index:20;background:#fff7e6;border:1.5px solid #f0c060;border-radius:11px;padding:9px 12px;margin-bottom:12px}
+  .dy-none td{background:#fffbfa}
+  .dy-badge{margin-left:7px;font-size:10px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:1px 6px}
+  .dy-kind{margin-left:6px;font-size:10px;font-weight:800;border-radius:5px;padding:1px 6px}
+  .dy-kind.k-coat{background:#ede8fb;color:#6d47c9;border:1px solid #ddd3f7}
+  .dy-kind.k-oven{background:#fff1e6;color:#c2410c;border:1px solid #fed7aa}
+  </style>
+
+  <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
+    🎯 <b>설계수율</b>은 코터·오븐 반제품의 <b>기준 건조수율(%)</b>입니다.
+    ② 오더별 생산실적의 <b>주식/진공코터 · 주식/오븐</b> 공정에 <b>기준수율</b>과 <b>기준대비 달성률</b>로 표시됩니다.<br>
+    · 계획 업로드에 새 품목이 나오면 <b>[미등록 동기화]</b>로 목록에 자동 추가됩니다(수율은 비어 있음).<br>
+    · 값을 입력하고 <b>[변경분 저장]</b> 또는 Enter 로 저장합니다.
+  </div>
+
+  <div class="dy-bar">
+    ${chip('none','미등록',M.none,'#b42318')}
+    ${chip('all','전체',M.all,'')}
+    ${chip('coat','코터',M.coat,'#6d47c9')}
+    ${chip('oven','오븐',M.oven,'#c2410c')}
+    <input class="dy-q" id="dyQ" placeholder="품번·품목명 검색" oninput="dyRenderBody()" value="${q.replace(/"/g,'&quot;')}">
+    <button class="tbtn" onclick="dySync()" title="계획 데이터에서 코터·오븐 품목을 찾아 목록에 없는 것을 자동 등록합니다">↻ 미등록 동기화</button>
+  </div>
+
+  <div class="dy-save" id="dyBar">
+    <span style="font-size:12.5px;font-weight:800;color:#92600a">✎ 미저장 <b id="dyCnt">0</b>건</span>
+    <span style="margin-left:auto"></span>
+    <button class="tbtn save" id="dySaveBtn" onclick="dySaveAll()">변경분 저장</button>
+    <button class="rowbtn" onclick="dyRenderBody()">되돌리기</button>
+  </div>
+
+  ${view.length?`<div class="sec"><div class="sec-hd"><span class="no c1">🎯</span><h3>설계수율 마스터</h3>
+    <span class="desc">${view.length}개 품목${M.none?` · 미등록 ${M.none}건`:''}</span></div>
+    <div class="sec-bd" style="overflow-x:auto"><table>
+      <thead><tr><th style="width:190px">품번</th><th>품목명</th><th style="width:150px">설계수율</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`
+  :`<div style="padding:26px;text-align:center;color:var(--mut);font-size:13px;border:1.5px dashed var(--line);border-radius:12px">
+      ${M.all===0?'등록된 품목이 없습니다. <b>[↻ 미등록 동기화]</b>를 눌러 계획 데이터에서 코터·오븐 품목을 불러오세요.':'조건에 맞는 품목이 없습니다.'}
+    </div>`}`;
+  dyUpdateBar();
 }
 
 /* --- 사용자 관리 탭 --- */
@@ -4632,7 +4780,7 @@ async function openDay(date, team){
   S.view='day';
   $('#wrap').innerHTML='<div class="skel" style="height:100px;border-radius:14px"></div><div class="skel" style="height:400px;margin-top:14px;border-radius:14px"></div>';
   try{
-    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes,packRes]=await Promise.all([
+    const [lineRes,orderRes,lossRes,clRes,parRes,ltRes,dtRes,ldRes,capaRes,sugRes,bomRes,packRes,dyRes]=await Promise.all([
       sb.rpc('get_line_summary',{p_date:date,p_team:team}),
       sb.rpc('get_order_detail',{p_date:date,p_team:team}),
       sb.rpc('get_loss_detail',{p_date:date,p_team:team}),
@@ -4644,7 +4792,8 @@ async function openDay(date, team){
       sb.rpc('get_capa_list',{p_team:team}),
       sb.rpc('suggest_plan',{p_date:date,p_team:team}),
       sb.rpc('get_bom_plan',{p_date:date,p_team:team}),    // BOM 계획(병렬 → 지연 없음)
-      sb.rpc('get_pack_summary',{p_date:date,p_team:team}) // 계획번호별 포장 묶음
+      sb.rpc('get_pack_summary',{p_date:date,p_team:team}), // 계획번호별 포장 묶음
+      sb.rpc('get_design_yield')                            // 설계수율 마스터
     ]);
     if(lineRes.error)throw lineRes.error;
     CUR_DAY.lines=lineRes.data||[];
@@ -4653,6 +4802,9 @@ async function openDay(date, team){
     CUR_DAY.losses=(lossRes.data||[]).filter(l=>String(l.mat_code||'').charAt(0)!=='6');
     CUR_DAY.lossSemiCnt=(lossRes.data||[]).length-CUR_DAY.losses.length;
     // 공정 흐름 기준 제안계획 (진공코터 계획 = EP 실적 / 완제품 제안 = 코터 실적)
+    // 설계수율(기준 건조수율) : 품번 → %
+    CUR_DAY.dy={};
+    ((dyRes&&!dyRes.error&&dyRes.data)||[]).forEach(r=>{ if(r.design_yield!=null) CUR_DAY.dy[r.item_code]=Number(r.design_yield); });
     // 계획번호별 포장 묶음 (코터/오븐 산출 = 계획, SKU 실적 합 = 실적)
     CUR_DAY.pack=(packRes&&!packRes.error&&packRes.data)?packRes.data:[];
     // BOM 계획 : (오더|자재) → 계획량. ③ 로스관리 BOM 모드에서 사용
@@ -5503,7 +5655,7 @@ function buildPackSection(){
         <td class="mono">${t(act)}</td>
         ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}</td>
           <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${ach==null?'–':ach.toFixed(1)+'%'}</b>
-            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">포장수율</div></td>`:''}
+            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">합계÷계획</div></td>`:''}
         <td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
         <td class="mono">${prod?prod.toFixed(1):'–'}</td>
         <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>
@@ -5517,7 +5669,7 @@ function buildPackSection(){
     ${noBase?`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018">⚠ <b>산출 없음 ${noBase}건</b> — 코터·오븐 생산 기록을 찾지 못했습니다(10일 이전 생산분 등). 달성률을 낼 수 없습니다.</div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table pk-table">
       <thead><tr><th>생산계획번호</th><th>계획(KG)<br><span style="font-weight:600;font-size:9.5px">코터·오븐 산출</span></th>
-        <th>제품코드</th><th>제품명</th><th>SKU 실적</th><th>합계 실적</th><th>달성률</th>
+        <th>제품코드</th><th>제품명</th><th>SKU 실적</th><th>합계 실적</th><th>포장수율</th>
         <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
@@ -5531,7 +5683,7 @@ function buildSection2(){
   const byProc={};
   kindOrders.forEach(o=>{ const k=(o.proc_sub1||'')+'/'+(o.proc_sub2||''); (byProc[k]=byProc[k]||[]).push(o); });
   // 진공코터 공정이 있는 팀에서만 코터 관련 안내를 노출 (생산2팀은 코터가 없음)
-  const hasCoat=(orders||[]).some(o=>/진공코터/.test(String(o.proc_sub2||'')));
+  const hasCoat=(orders||[]).some(o=>/진공코터|오븐/.test(String(o.proc_sub2||'')));
   const procs=Object.keys(byProc)
     .filter(k=>{
       // 비활성 라인(호기 전부 OFF) 숨김. 단 해당 공정에 데이터가 있으면 유지(누락 방지)
@@ -5550,12 +5702,14 @@ function buildSection2(){
     //  · 완제품 : 수정 가능 (kind 누락 시 prod_code 앞자리 2·3 폴백)
     //  · 진공코터 : 계획 = 같은 오더의 EP 실적으로 자동 산출 → 수정 잠금
     //  · 그 외 반제품 : 원부자재 합산값이라 잠금
-    const isCoat=/진공코터/.test(String(o.proc_sub2||''));
+    const isCoat=/진공코터|오븐/.test(String(o.proc_sub2||''));   // 건조공정(코터·오븐)
     const canEditPlan=isFin(o)&&!isCoat;
     // 진공코터 자동 계획 (suggest_plan 의 'EP 실적' 근거값)
     const sg=(CUR_DAY.suggest||{})[o.prod_code+'|'+(o.proc_sub1||'')+'/'+(o.proc_sub2||'')]
            ||(CUR_DAY.suggest||{})[o.prod_code];
     const coatPlan=(isCoat && sg && sg.src==='EP 실적' && Number(sg.suggest)>0)?Number(sg.suggest):null;
+    const dyStd=isCoat?(CUR_DAY.dy||{})[o.prod_code]:null;                     // 설계 기준수율(%)
+    const dyRate=(dyStd&&oPlan>0&&ach>0)?(ach/dyStd*100):null;                 // 기준대비 달성률
     // 진공코터는 EP 실적 자동값을 계획으로 사용(달성률도 이 값 기준)
     const oPlan = (coatPlan!=null) ? coatPlan : oPlanRaw;
     const ach   = oPlan>0 ? (oAct/oPlan*100) : 0;
@@ -5594,11 +5748,14 @@ function buildSection2(){
       ${planCell}
       <td class="mono">${fmt1(oAct)}</td>
       ${achCell}
+      ${isCoat?`<td class="mono" style="background:#fafbfd">${dyStd?dyStd.toFixed(1)+'%':'<span style="font-size:10.5px;color:#b42318">미등록</span>'}</td>
+      <td class="mono" style="background:#fafbfd">${dyRate!=null?`<b style="color:${dyRate>=95&&dyRate<=105?'var(--grn)':(dyRate>105?'#7fc99a':'#e8918c')}">${dyRate.toFixed(1)}%</b>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
     </tr>`;
   }).join('');
+  const curIsDry=/진공코터|오븐/.test(String(T2_PROC||''));   // 현재 공정탭이 건조공정인지
   const procTabs=procs.map((p,i)=>{
     const np=(byProc[p]||[]).filter(o=>Number(o.plan_sum??o.plan_qty??0)<=0 && Number(o.actual_sum??o.actual_qty??0)>0).length;
     return `<button class="proc-tab ${p===T2_PROC?'on':''}" onclick="switchT2Proc('${p.replace(/'/g,"\\'")}')"><span class="pt-no">${i+1}</span>${p} <b class="pt-cnt">${(byProc[p]||[]).length}</b>${np?`<b class="pt-cnt" style="background:#fee4e2;color:#b42318" title="계획 미입력 ${np}건">!${np}</b>`:''}</button>`;
@@ -5629,8 +5786,12 @@ function buildSection2(){
     ${procs.length?`<div class="proc-tabbar">${procTabs}</div>`:''}
     ${noPlanBar}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-      <thead><tr><th>생산오더</th><th>제품명</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
-      <tbody>${orderRows||'<tr><td colspan="8" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>'}</tbody>
+      <thead><tr><th>생산오더</th><th>제품명</th>
+        <th>${curIsDry?'EP실적(KG)':'BOM계획(KG)'}</th><th>실적(KG)</th>
+        <th>${curIsDry?'드라이수율(%)':'달성률'}</th>
+        ${curIsDry?'<th>기준수율<br><span style="font-weight:600;font-size:9.5px">설계</span></th><th>기준대비</th>':''}
+        <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
+      <tbody>${orderRows||`<tr><td colspan="${curIsDry?10:8}" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>`}</tbody>
     </table></div>`}
   </div>`;
 }
