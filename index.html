@@ -404,6 +404,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .pk-type.pk-oven{background:#fff1e6;color:#c2410c;border:1px solid #fed7aa}
 .pk-type.pk-etc {background:#f1f3f7;color:#7b8595;border:1px dashed #c9d1de}
 .pk-carry{margin-top:3px;font-size:9.5px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
+/* 강조 헤더 — 숫자가 많은 표에서 핵심 지표 컬럼을 눈에 띄게 (연한 주황) */
+.t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
+.t2-table th.th-hl span{color:#a2652a !important}
 .pk-done{margin-top:3px;font-size:9.5px;font-weight:800;color:#0d8a4f;background:#eaf8f0;border:1px solid #a7e3c4;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
 .pk-going{margin-top:3px;font-size:9.5px;font-weight:800;color:#5a3fb8;background:#f4f1ff;border:1px solid #cfc3f0;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help;white-space:nowrap}
 .pk-base{margin-top:3px;font-size:10px;color:#98a2b3;font-family:ui-monospace,monospace}
@@ -881,7 +884,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12i</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -918,7 +921,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12i</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4607,7 +4610,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12h';
+const APP_VERSION='v2026.08.12i';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5112,9 +5115,9 @@ function renderClosing2(){
       <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCnt}${yTxt}</div>
       <div class="sc-sub">반제품 ${semiCnt}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
-    <div class="sc r"><div class="l">로스금액</div>${scWon(scLoss)}</div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${scScrap}</div>
-      <div class="sc-sub">로스 등록 건수</div></div>
+    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(scLoss)}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${scScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
   </div>
 
   <!-- ① 완제품 라인별 가동 요약 -->
@@ -5825,7 +5828,7 @@ function buildPackSection(){
         ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}
             ${multi?`<div style="font-size:10px;font-weight:800;color:#6d47c9;letter-spacing:-.2px" title="계획번호 ${g.plan_no} 의 전체 포장 실적 (${g.first_pack||'-'} ~ ${g.last_pack||'-'} · ${g.cum_days}일)">누계 ${t(g.grp_cum)}</div>`:''}</td>
           <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${achC==null?'–':achC.toFixed(1)+'%'}</b>
-            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?`누계÷계획<br><span style="color:#b8c0cc">당일 ${ach==null?'–':ach.toFixed(1)+'%'}</span>`:'합계÷계획'}</div></td>`:''}
+            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?'누계÷계획':'합계÷계획'}</div></td>`:''}
         <td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
         <td class="mono">${prod?prod.toFixed(1):'–'}</td>
         <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>
@@ -5844,7 +5847,7 @@ function buildPackSection(){
       <thead><tr><th>생산계획번호</th><th>계획(KG)<br><span style="font-weight:600;font-size:9.5px">코터·오븐 산출</span></th>
         <th>제품코드</th><th>제품명</th><th>SKU 실적<br><span style="font-weight:600;font-size:9.5px">당일 · 누계</span></th>
         <th>합계 실적<br><span style="font-weight:600;font-size:9.5px">당일 · 누계</span></th>
-        <th>포장수율<br><span style="font-weight:600;font-size:9.5px">누계 기준</span></th>
+        <th class="th-hl">포장수율<br><span style="font-weight:600;font-size:9.5px">누계 기준</span></th>
         <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
@@ -6035,7 +6038,7 @@ function buildSection2(){
               :(T2_ORD==='fin'?'계획(KG)<br><span style="font-weight:600;font-size:9.5px">MES</span>'
                               :'BOM계획(KG)')}</th><th>실적(KG)</th>
         <th>${curIsDry?'드라이수율(%)':'달성률'}</th>
-        ${curIsDry?'<th>기준수율<br><span style="font-weight:600;font-size:9.5px">설계</span></th><th>기준대비</th>':''}
+        ${curIsDry?'<th class="th-hl">설계수율</th><th class="th-hl">기준대비</th>':''}
         <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${orderRows||`<tr><td colspan="${curIsDry?10:8}" style="color:var(--mut);padding:16px">해당 공정 오더 없음</td></tr>`}</tbody>
     </table></div>`}
@@ -6457,6 +6460,26 @@ function applyLossFilters(){
       +top(byLine,3).map(([k,v])=>cell('공정 · '+k,v)).join('')
       +top(byType,3).map(([k,v])=>cell('유형 · '+k,v)).join('');
     document.querySelectorAll('.loss-total-amt').forEach(el=>{ el.textContent=fmt(tot)+'원'; });
+    // ── 상단 스코어카드 동기화 ──────────────────────────────────
+    //  ③ 로스관리의 필터(편차율 하한·1kg미만·편차0·라인칩)를 그대로 반영한다.
+    //  금액과 건수가 서로 다른 기준을 쓰면 합이 안 맞으므로 둘 다 같이 움직인다.
+    //  전체값은 부제로 남겨 필터로 가려진 물량을 놓치지 않게 한다.
+    const totalCnt=(CUR_DAY.losses||[]).length;
+    const sv=$('#scScrapV'), ss=$('#scScrapSub'), sl=$('#scLossBox');
+    if(sv) sv.textContent=cnt;
+    if(ss){
+      ss.innerHTML=filtered
+        ? `표시 기준 · <span style="color:#98a2b3">전체 ${totalCnt}</span>`
+        : '로스 등록 건수';
+      ss.title=filtered
+        ? `③ 원부자재 로스관리의 필터가 반영된 건수입니다 (표시 ${vis.length}행 중 편차·금액이 있는 ${cnt}건 / 전체 ${totalCnt}행)`
+        : '';
+    }
+    if(sl){
+      sl.innerHTML=scWon(tot)+(filtered
+        ? `<div style="font-size:9.5px;color:#98a2b3;font-weight:700;margin-top:1px">전체 ${all>0?'-':'+'}${fmt(Math.abs(all))}원</div>` : '');
+      sl.title=filtered?'③ 로스관리 필터가 반영된 금액입니다':'';
+    }
     // 접기 헤더 옆 건수도 표시 중인 행 기준으로 갱신
     document.querySelectorAll('.loss-fold-cnt').forEach(el=>{
       el.textContent=vis.length;
@@ -7113,9 +7136,9 @@ function renderClosing(){
       <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCount}${yTxt}</div>
       <div class="sc-sub">반제품 ${semiCount}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
     })()}
-    <div class="sc r"><div class="l">로스금액</div>${scWon(totLoss)}</div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono">${totScrap}</div>
-      <div class="sc-sub">로스 등록 건수</div></div>
+    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
   </div>
 
   <!-- ① 라인별 요약 -->
