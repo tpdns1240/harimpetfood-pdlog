@@ -405,6 +405,9 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .pk-type.pk-etc {background:#f1f3f7;color:#7b8595;border:1px dashed #c9d1de}
 .pk-carry{margin-top:3px;font-size:9.5px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
 /* 강조 헤더 — 숫자가 많은 표에서 핵심 지표 컬럼을 눈에 띄게 (연한 주황) */
+/* 24시간제 시각 입력 — 폭 고정 + 숫자 정렬 */
+input.t24{font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:.5px;min-width:74px}
+input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
 .t2-table th.th-hl span{color:#a2652a !important}
 .pk-done{margin-top:3px;font-size:9.5px;font-weight:800;color:#0d8a4f;background:#eaf8f0;border:1px solid #a7e3c4;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
@@ -884,7 +887,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12k</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12m</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -921,7 +924,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12k</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12m</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4610,7 +4613,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12k';
+const APP_VERSION='v2026.08.12m';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5254,9 +5257,9 @@ function buildSection5(){
       <div class="run-form">
         <select id="runLine" onchange="filterRunProds()"><option value="">라인선택</option>${lineOpt2}</select>
         <select id="runProd"><option value="">먼저 라인 선택</option></select>
-        <input id="runStart" type="time" lang="en-GB" step="60" title="시작">
+        <input id="runStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="시작">
         <span style="color:var(--mut)">~</span>
-        <input id="runEnd" type="time" lang="en-GB" step="60" title="종료">
+        <input id="runEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="종료">
         <input id="runMemo" placeholder="비고(선택)" style="flex:1;min-width:100px">
         <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
       </div>
@@ -5463,7 +5466,7 @@ function buildSection5(){
           <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
           <select id="stCat"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
-          <input id="stStart" type="time" lang="en-GB" step="60" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="time" lang="en-GB" step="60" title="종료">
+          <input id="stStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="종료">
         </div>
         <div class="sf-row">
           <input id="stReason" placeholder="정지원인 *" style="flex:1">
@@ -6242,7 +6245,7 @@ async function saveStop2(){
   const [s1,s2]=splitLine(ln);
   const type=$('#stType').value; if(!type){toast('유형 선택','err');return;}
   const reason=$('#stReason').value.trim(); if(!reason){toast('정지원인 입력','err');return;}
-  const st=$('#stStart').value, en=$('#stEnd').value;
+  const st=normTime24($('#stStart')), en=normTime24($('#stEnd'));
   if(!st||!en){toast('시작·종료 입력','err');return;}
   try{
     const {data,error}=await sb.from('t_cl_downtime').insert({
@@ -6272,8 +6275,8 @@ function openStopEdit(id){
       <div style="flex:1"><label class="se-lb">유형</label><input id="seType" value="${(t.reason_type||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px">
-      <div style="flex:1"><label class="se-lb">시작</label><input id="seStart" type="time" lang="en-GB" step="60" value="${t.start_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
-      <div style="flex:1"><label class="se-lb">종료</label><input id="seEnd" type="time" lang="en-GB" step="60" value="${t.end_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+      <div style="flex:1"><label class="se-lb">시작</label><input id="seStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${t.start_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+      <div style="flex:1"><label class="se-lb">종료</label><input id="seEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${t.end_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
     </div>
     <label class="se-lb">정지원인</label><input id="seReason" value="${(t.memo||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
     <label class="se-lb">조치내용</label><input id="seAction" value="${(t.action_taken||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
@@ -6285,7 +6288,7 @@ function openStopEdit(id){
   document.body.appendChild(m);
 }
 async function saveStopEdit(id){
-  const st=$('#seStart').value, en=$('#seEnd').value;
+  const st=normTime24($('#seStart')), en=normTime24($('#seEnd'));
   if(!st||!en){toast('시작·종료 입력','err');return;}
   try{
     const payload={category:$('#seCat').value,reason_type:$('#seType').value,start_time:st,end_time:en,
@@ -6311,9 +6314,9 @@ function openRunEdit(id){
     <div style="font-size:12.5px;color:var(--mut);margin-bottom:16px">${(t.proc_sub1||'')}/${(t.proc_sub2||'')} · ${t.prod_code||''} ${o?o.prod_name||'':''}</div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
       <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">시작</label>
-        <input id="reStart" type="time" lang="en-GB" step="60" value="${t.start_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+        <input id="reStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${t.start_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
       <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">종료</label>
-        <input id="reEnd" type="time" lang="en-GB" step="60" value="${t.end_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+        <input id="reEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${t.end_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
     </div>
     <label style="font-size:12px;font-weight:700;color:var(--sub)">비고</label>
     <input id="reMemo" value="${(t.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin:4px 0 16px">
@@ -6325,7 +6328,7 @@ function openRunEdit(id){
 }
 async function saveRunEdit(id){
   const {date,team}=CUR_DAY;
-  const st=$('#reStart').value, en=$('#reEnd').value;
+  const st=normTime24($('#reStart')), en=normTime24($('#reEnd'));
   if(!st||!en){toast('시작·종료 입력','err');return;}
   try{
     const {error}=await sb.from('t_cl_downtime').update({
@@ -6351,7 +6354,7 @@ async function saveRunTime(){
   const {date,team}=CUR_DAY;
   const pv=$('#runProd').value; if(!pv){toast('오더 선택','err');return;}
   const [code,name,s1,s2]=pv.split('|');
-  const st=$('#runStart').value, en=$('#runEnd').value;
+  const st=normTime24($('#runStart')), en=normTime24($('#runEnd'));
   if(!st||!en){toast('시작·종료 시간 입력','err');return;}
   try{
     const {data,error}=await sb.from('t_cl_downtime').insert({
@@ -7427,6 +7430,38 @@ function renderMoreSections(){
 
   <div id="inputForm"></div>`;
 }
+/* ════════════════════════════════════════════════════════════════════
+   24시간제 시각 입력
+   ── <input type="time"> 은 브라우저 UI 로케일을 따라가 한국어 환경에서
+      오전/오후로 표시된다. lang 속성으로는 최신 Chrome 에서 강제되지 않는다.
+   ── 그래서 텍스트 입력 + 자동 포맷으로 바꾼다. 값은 항상 'HH:MM' 24시간제.
+      2230 처럼 숫자만 쳐도 22:30 으로 완성된다.
+   ════════════════════════════════════════════════════════════════════ */
+function fmtTime24(el){
+  let v=String(el.value||'').replace(/[^0-9]/g,'').slice(0,4);
+  if(v.length>=3) v=v.slice(0,v.length-2)+':'+v.slice(-2);
+  el.value=v;
+  el.style.borderColor='';
+}
+function normTime24(el){
+  const raw=String(el.value||'').replace(/[^0-9]/g,'');
+  if(!raw){ el.value=''; el.style.borderColor=''; return ''; }
+  let h,m;
+  if(raw.length<=2){ h=+raw; m=0; }                       // 22  → 22:00
+  else if(raw.length===3){ h=+raw.slice(0,1); m=+raw.slice(1); }   // 930 → 09:30
+  else { h=+raw.slice(0,2); m=+raw.slice(2,4); }
+  if(!(h>=0&&h<=23)||!(m>=0&&m<=59)){                     // 잘못된 시각은 비운다
+    el.value=''; el.style.borderColor='#f04438';
+    toast('시각은 00:00 ~ 23:59 범위로 입력하세요','err');
+    return '';
+  }
+  el.value=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  el.style.borderColor='';
+  return el.value;
+}
+/* 저장 직전 호출 — 화면의 모든 시각칸을 정규화해 'HH:MM' 을 보장한다 */
+function normAllTime24(){ document.querySelectorAll('input.t24').forEach(normTime24); }
+
 /* 종료시각이 시작시각보다 이르면 익일로 넘어간 것 — diffMin 이 +1440 처리한다.
    숫자만으로는 오해하기 쉬워 화면에 '익일' 배지를 붙여 명시한다. */
 function isOvernight(s,e){
@@ -7530,8 +7565,8 @@ function openDownForm(){
       <div class="work-field"><label>구분</label><select id="dtCat">
         <option value="plan">계획정지</option><option value="unplan">비계획정지</option><option value="sudden">돌발정지</option><option value="run">가동</option></select></div>
       <div class="work-field"><label>사유유형</label><input id="dtReason" placeholder="설비고장 등"></div>
-      <div class="work-field"><label>시작</label><input id="dtStart" type="time" lang="en-GB" step="60"></div>
-      <div class="work-field"><label>종료</label><input id="dtEnd" type="time" lang="en-GB" step="60"></div>
+      <div class="work-field"><label>시작</label><input id="dtStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()"></div>
+      <div class="work-field"><label>종료</label><input id="dtEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()"></div>
       <div class="work-field"><label>비고</label><input id="dtMemo" placeholder="발생사유·메모"></div>
     </div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
@@ -7546,7 +7581,7 @@ async function saveDownNew(){
       hoki:$('#dtHoki').value.trim(),
       shift:$('#dtShift').value||null,
       category:$('#dtCat').value,
-      reason_type:$('#dtReason').value,start_time:$('#dtStart').value,end_time:$('#dtEnd').value,
+      reason_type:$('#dtReason').value,start_time:normTime24($('#dtStart')),end_time:normTime24($('#dtEnd')),
       memo:$('#dtMemo').value,
       source:'manual'
     });
@@ -7606,8 +7641,8 @@ function openDownEdit(id){
           <div class="work-field"><label>구분</label><select id="edCat">
             ${opt('run','가동')}${opt('plan','계획정지')}${opt('unplan','비계획정지')}${opt('sudden','돌발정지')}</select></div>
           <div class="work-field"><label>사유유형</label><input id="edReason" value="${esc(t.reason_type)}" placeholder="설비고장 등"></div>
-          <div class="work-field"><label>시작</label><input id="edStart" type="time" lang="en-GB" step="60" value="${esc(t.start_time)}"></div>
-          <div class="work-field"><label>종료</label><input id="edEnd" type="time" lang="en-GB" step="60" value="${esc(t.end_time)}"></div>
+          <div class="work-field"><label>시작</label><input id="edStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${esc(t.start_time)}"></div>
+          <div class="work-field"><label>종료</label><input id="edEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${esc(t.end_time)}"></div>
         </div>
         <div class="work-field" style="margin-top:10px"><label>비고</label>
           <input id="edMemo" value="${esc(t.memo)}" placeholder="발생사유·메모"></div>
@@ -7627,8 +7662,8 @@ async function saveDownEdit(id){
     shift:$('#edShift').value||null,
     category:$('#edCat').value,
     reason_type:$('#edReason').value.trim(),
-    start_time:$('#edStart').value,
-    end_time:$('#edEnd').value,
+    start_time:normTime24($('#edStart')),
+    end_time:normTime24($('#edEnd')),
     memo:$('#edMemo').value.trim(),
     source:'manual'   // 손으로 고친 건 manual로 승격 → 자동 업데이트에 안 덮임
   };
@@ -8415,8 +8450,8 @@ function renderPO(){
         <div class="work-field"><label>호기</label><input id="wHoki" value="${w.hoki||''}" placeholder="호기"></div>
         <div class="work-field"><label>투입인원(명)</label><input id="wHead" type="number" value="${w.input_head||''}" placeholder="0"></div>
         <div class="work-field"><label></label><div></div></div>
-        <div class="work-field"><label>생산시작</label><input id="wStart" type="time" lang="en-GB" step="60" value="${w.start_time||''}"></div>
-        <div class="work-field"><label>생산종료</label><input id="wEnd" type="time" lang="en-GB" step="60" value="${w.end_time||''}"></div>
+        <div class="work-field"><label>생산시작</label><input id="wStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${w.start_time||''}"></div>
+        <div class="work-field"><label>생산종료</label><input id="wEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${w.end_time||''}"></div>
         <div class="work-field"><label>메모</label><input id="wMemo" value="${w.memo||''}" placeholder="비고"></div>
         <div class="work-field"><label>계획정지(분)</label><input id="wStopPlan" type="number" value="${w.stop_plan||''}" placeholder="0"></div>
         <div class="work-field"><label>비계획정지(분)</label><input id="wStopUnplan" type="number" value="${w.stop_unplan||''}" placeholder="0"></div>
@@ -8452,7 +8487,7 @@ async function savePOWork(){
   try{
     const {error}=await sb.rpc('save_po_work',{
       p_date:date,p_team:team,p_sub1:sub1,p_sub2:sub2,p_hoki:$('#wHoki').value,
-      p_head:n('#wHead'),p_start:$('#wStart').value,p_end:$('#wEnd').value,
+      p_head:n('#wHead'),p_start:normTime24($('#wStart')),p_end:normTime24($('#wEnd')),
       p_stop_plan:n('#wStopPlan'),p_stop_unplan:n('#wStopUnplan'),p_stop_sudden:n('#wStopSudden'),
       p_memo:$('#wMemo').value
     });
