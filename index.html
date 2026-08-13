@@ -887,7 +887,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -924,7 +924,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4613,7 +4613,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13b';
+const APP_VERSION='v2026.08.13c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -4923,6 +4923,8 @@ async function openDay(date, team){
       if(k) CUR_DAY.apprMemo[k]={memo:r.memo, actor:r.actor, at:r.created_at, action:r.action};
     });
     // 설계수율(기준 건조수율) : 품번 → %
+    CUR_DAY.dtTypes={};
+    loadDtTypes().then(()=>{ try{ refreshDtSelects(); }catch(_){} });   // 비가동 사유유형 마스터
     CUR_DAY.dy={};
     ((dyRes&&!dyRes.error&&dyRes.data)||[]).forEach(r=>{ if(r.design_yield!=null) CUR_DAY.dy[r.item_code]=Number(r.design_yield); });
     // 계획번호별 포장 묶음 (코터/오븐 산출 = 계획, SKU 실적 합 = 실적)
@@ -5397,8 +5399,7 @@ function buildSection5(){
           .sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||'')||((a.id||0)-(b.id||0)));
         const lineOpt=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort()
           .map(ln=>`<option value="${ln}">${ln}</option>`).join('');
-        const dtypeOpt=(CUR_DAY.downtimeTypes||['생산준비','품목교체','청소','설비고장','자재부족','생산대기','기타'])
-          .map(t=>`<option value="${t}">${t}</option>`).join('');
+        const dtypeOpt=dtTypeOpts('unplan','');   // 구분 select 기본값(비계획정지) 기준
         // [E] 리스트
         const eRows=stopList.map(t=>{
           const cat=t.category==='plan'?'계획정지':t.category==='unplan'?'비계획정지':'돌발';
@@ -5464,8 +5465,9 @@ function buildSection5(){
         <div class="sf-row">
           <select id="stLine"><option value="">라인 *</option>${lineOpt}</select>
           <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
-          <select id="stCat"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
+          <select id="stCat" onchange="refreshDtSelects();if($('#dtTypeMgr')&&$('#dtTypeMgr').style.display!=='none')renderDtMgr();"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
+          <button class="rowbtn" onclick="toggleDtMgr('stCat')" title="선택한 구분(계획/비계획)의 사유유형을 등록·수정합니다. 등록하면 바로 쓸 수 있습니다">⚙ 유형관리</button>
           <input id="stStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="종료">
         </div>
         <div class="sf-row">
@@ -5474,6 +5476,7 @@ function buildSection5(){
           <input id="stPrevent" placeholder="재발방지대책" style="flex:1">
           <button class="tbtn save" onclick="saveStop2()">+ 추가</button>
         </div>
+        <div id="dtTypeMgr" style="display:none"></div>
       </div>
 
       <!-- [E] 등록된 비가동 리스트 -->
@@ -6289,6 +6292,125 @@ function renderMore2(){
   </div>`;
   $('#sec2More').style.cssText='text-align:left';
 }
+/* ═══════════════════════════════════════════════════════════════════
+   비가동 사유유형 마스터 (계획정지 / 비계획정지 각각 별도 관리)
+   ── 저장소 : t_app_config (get_config/set_config RPC) — 새 테이블 불필요
+        key = dt_types_plan | dt_types_unplan | dt_types_sudden
+   ── 등록 즉시 사용 : 화면 전체를 다시 그리지 않고 select 만 갱신하므로
+        스크롤이 상단으로 튀지 않는다.
+   ═══════════════════════════════════════════════════════════════════ */
+const DT_DEF={
+  plan  :['생산준비','품목교체','청소','계획보전','식사/휴게','교육/회의','기타'],
+  unplan:['설비고장','자재부족','생산대기','품질이상','전력/유틸리티','작업자부재','기타'],
+  sudden:['설비돌발','안전사고','정전','기타']
+};
+const DT_CAT_KO={plan:'계획정지',unplan:'비계획정지',sudden:'돌발정지'};
+function dtTypeList(cat){
+  const c=(CUR_DAY.dtTypes||{})[cat];
+  return (Array.isArray(c)&&c.length)?c.slice():(DT_DEF[cat]||[]).slice();
+}
+function dtTypeOpts(cat,sel){
+  return dtTypeList(cat).map(t=>`<option value="${t.replace(/"/g,'&quot;')}"${t===sel?' selected':''}>${t}</option>`).join('');
+}
+async function loadDtTypes(){
+  CUR_DAY.dtTypes=CUR_DAY.dtTypes||{};
+  await Promise.all(['plan','unplan','sudden'].map(async cat=>{
+    try{
+      const {data}=await sb.rpc('get_config',{p_key:'dt_types_'+cat});
+      const arr=data?JSON.parse(data):null;
+      if(Array.isArray(arr)) CUR_DAY.dtTypes[cat]=arr;
+    }catch(_){ }
+  }));
+}
+async function saveDtTypes(cat,list){
+  CUR_DAY.dtTypes=CUR_DAY.dtTypes||{};
+  CUR_DAY.dtTypes[cat]=list;
+  const {error}=await sb.rpc('set_config',{p_key:'dt_types_'+cat,p_value:JSON.stringify(list),p_by:(S.user&&S.user.name)||'-'});
+  if(error) throw error;
+}
+/* 화면 갱신 — 재렌더 없이 해당 select 들만 다시 채운다 (스크롤 유지) */
+function refreshDtSelects(){
+  const sc=$('#stCat'), st=$('#stType');
+  if(sc&&st){ const keep=st.value; st.innerHTML='<option value="">유형 *</option>'+dtTypeOpts(sc.value,keep); }
+  const dc=$('#dtCat'), dr=$('#dtReason');
+  if(dc&&dr&&dr.tagName==='SELECT'){ const keep=dr.value; dr.innerHTML='<option value="">유형 선택</option>'+dtTypeOpts(dc.value,keep); }
+  const ec=$('#edCat'), er=$('#edReason');
+  if(ec&&er&&er.tagName==='SELECT'){ const keep=er.value; er.innerHTML='<option value="">유형 선택</option>'+dtTypeOpts(ec.value,keep); }
+}
+function onDtCatChange(){ refreshDtSelects(); const b=$('#dtTypeMgr'); if(b&&b.style.display!=='none') renderDtMgr(); }
+/* 유형 관리 패널 — 입력칸 바로 아래에 인라인으로 열린다 (모달 아님 = 위치 이동 없음) */
+function toggleDtMgr(anchorSelId){
+  const host=$('#dtTypeMgr');
+  if(!host) return;
+  if(host.style.display!=='none'){ host.style.display='none'; return; }
+  host.dataset.anchor=anchorSelId||'stCat';
+  host.style.display='block';
+  renderDtMgr();
+}
+function curDtCat(){
+  const host=$('#dtTypeMgr'); const a=host?host.dataset.anchor:'stCat';
+  const el=$('#'+(a||'stCat'));
+  const v=el?el.value:'unplan';
+  return DT_CAT_KO[v]?v:'unplan';
+}
+function renderDtMgr(){
+  const host=$('#dtTypeMgr'); if(!host) return;
+  const cat=curDtCat(), list=dtTypeList(cat);
+  host.innerHTML=`
+    <div style="border:1.5px solid #cfd8e6;background:#f7f9fc;border-radius:10px;padding:11px 13px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <b style="font-size:12.5px;color:#243b63">${DT_CAT_KO[cat]} 유형 관리</b>
+        <span style="font-size:11px;color:#7a8699">등록하면 바로 아래 선택칸에서 쓸 수 있습니다 · 팀 공용</span>
+        <span class="sp" style="flex:1"></span>
+        <button class="rowbtn" onclick="$('#dtTypeMgr').style.display='none'">닫기</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:9px">
+        <input id="dtNewType" placeholder="새 유형명 입력 후 Enter" style="flex:1;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();addDtType();}">
+        <button class="tbtn save" style="padding:6px 14px" onclick="addDtType()">＋ 등록</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${list.length?list.map((t,i)=>`
+          <span style="display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #d8e0ec;border-radius:99px;padding:3px 6px 3px 11px;font-size:11.5px;font-weight:700;color:#33415c">
+            <span style="cursor:pointer" title="이름 수정" onclick="renameDtType(${i})">${t}</span>
+            <span style="cursor:pointer;color:#b42318;font-weight:900;padding:0 3px" title="삭제" onclick="removeDtType(${i})">×</span>
+          </span>`).join('')
+          :'<span style="font-size:11.5px;color:#98a2b3">등록된 유형이 없습니다</span>'}
+      </div>
+    </div>`;
+}
+async function addDtType(){
+  const el=$('#dtNewType'); if(!el) return;
+  const v=String(el.value||'').trim();
+  if(!v){ toast('유형명을 입력하세요','err'); el.focus(); return; }
+  const cat=curDtCat(), list=dtTypeList(cat);
+  if(list.some(x=>x===v)){ toast('이미 있는 유형입니다','err'); el.select(); return; }
+  try{
+    await saveDtTypes(cat,[...list,v]);
+    el.value=''; renderDtMgr(); refreshDtSelects();
+    const st=$('#stType'), dr=$('#dtReason'), er=$('#edReason');
+    [st,dr,er].forEach(sel=>{ if(sel&&sel.tagName==='SELECT'&&[...sel.options].some(o=>o.value===v)) sel.value=v; });
+    toast(`'${v}' 등록 · 바로 선택되었습니다`,'ok');
+    el.focus();
+  }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
+}
+async function renameDtType(i){
+  const cat=curDtCat(), list=dtTypeList(cat), old=list[i];
+  const v=prompt('유형명 수정',old); if(v==null) return;
+  const nv=String(v).trim(); if(!nv||nv===old) return;
+  if(list.some((x,j)=>j!==i&&x===nv)){ toast('이미 있는 유형입니다','err'); return; }
+  try{ list[i]=nv; await saveDtTypes(cat,list); renderDtMgr(); refreshDtSelects();
+    toast('수정되었습니다 · 기존 등록건의 유형명은 그대로 유지됩니다','ok'); }
+  catch(e){ toast('수정 실패: '+(e.message||e),'err'); }
+}
+async function removeDtType(i){
+  const cat=curDtCat(), list=dtTypeList(cat), t=list[i];
+  const used=(CUR_DAY.downtime||[]).filter(d=>d.reason_type===t).length;
+  if(!confirm(`'${t}' 유형을 목록에서 삭제할까요?`+(used?`\n\n이 날짜에 ${used}건이 이 유형으로 등록돼 있습니다. 기존 등록건은 지워지지 않고 그대로 남습니다.`:''))) return;
+  try{ await saveDtTypes(cat,list.filter((_,j)=>j!==i)); renderDtMgr(); refreshDtSelects(); toast('삭제되었습니다','ok'); }
+  catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
+}
+
 /* ⑤ [D/E] 비가동 입력·수정 */
 /* 라인명 → [대분류, 소분류] 분해
    "주식/계량/배합 자동계량" 처럼 소분류에 '/'가 포함된 라인이 있어
@@ -7627,13 +7749,15 @@ function openDownForm(){
       <div class="work-field"><label>호기</label><input id="dtHoki" placeholder="1"></div>
       <div class="work-field"><label>근무형태</label><select id="dtShift">
         <option value="">미지정</option><option value="주간">주간</option><option value="야간">야간</option></select></div>
-      <div class="work-field"><label>구분</label><select id="dtCat">
+      <div class="work-field"><label>구분</label><select id="dtCat" onchange="onDtCatChange()">
         <option value="plan">계획정지</option><option value="unplan">비계획정지</option><option value="sudden">돌발정지</option><option value="run">가동</option></select></div>
-      <div class="work-field"><label>사유유형</label><input id="dtReason" placeholder="설비고장 등"></div>
+      <div class="work-field"><label>사유유형 <span style="font-weight:600;color:#5a6b85;cursor:pointer;text-decoration:underline" onclick="toggleDtMgr('dtCat')" title="유형 등록·수정">⚙ 관리</span></label>
+        <select id="dtReason"><option value="">유형 선택</option>${dtTypeOpts('plan','')}</select></div>
       <div class="work-field"><label>시작</label><input id="dtStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()"></div>
       <div class="work-field"><label>종료</label><input id="dtEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()"></div>
       <div class="work-field"><label>비고</label><input id="dtMemo" placeholder="발생사유·메모"></div>
     </div>
+    <div id="dtTypeMgr" style="display:none"></div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
   </div>`;
 }
@@ -7703,9 +7827,16 @@ function openDownEdit(id){
           <div class="work-field"><label>호기</label><input id="edHoki" value="${esc(t.hoki)}" placeholder="1"></div>
           <div class="work-field"><label>근무형태</label><select id="edShift">
             ${sOpt('')}${sOpt('주간')}${sOpt('야간')}</select></div>
-          <div class="work-field"><label>구분</label><select id="edCat">
+          <div class="work-field"><label>구분</label><select id="edCat" onchange="refreshDtSelects()">
             ${opt('run','가동')}${opt('plan','계획정지')}${opt('unplan','비계획정지')}${opt('sudden','돌발정지')}</select></div>
-          <div class="work-field"><label>사유유형</label><input id="edReason" value="${esc(t.reason_type)}" placeholder="설비고장 등"></div>
+          <div class="work-field"><label>사유유형</label>
+            <select id="edReason"><option value="">유형 선택</option>${
+              (function(){ const cur=String(t.reason_type||'');
+                const cat=DT_CAT_KO[t.category]?t.category:'unplan';
+                let o=dtTypeOpts(cat,cur);
+                if(cur&&dtTypeList(cat).indexOf(cur)<0)
+                  o=`<option value="${cur.replace(/"/g,'&quot;')}" selected>${cur} (목록에 없음)</option>`+o;
+                return o; })()}</select></div>
           <div class="work-field"><label>시작</label><input id="edStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${esc(t.start_time)}"></div>
           <div class="work-field"><label>종료</label><input id="edEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" value="${esc(t.end_time)}"></div>
         </div>
@@ -8260,7 +8391,11 @@ function editLossRow(i){
 }
 /* 팀에 맞는 마감 화면 재렌더 */
 function rerenderClosing(){
+  // 재렌더는 innerHTML 전체 교체라 스크롤이 최상단으로 튄다.
+  // 비가동·로스 등록처럼 화면 중간에서 일어나는 작업은 위치가 유지돼야 한다.
+  const y=window.scrollY||document.documentElement.scrollTop||0;
   if(CUR_DAY.team==='생산2팀') renderClosing2(); else renderClosing();
+  requestAnimationFrame(()=>{ window.scrollTo(0,y); });
 }
 /* 로스 행 삭제 */
 async function delLossRow(i){
