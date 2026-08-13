@@ -884,7 +884,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12i</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12k</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -921,7 +921,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12i</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12k</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4610,7 +4610,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12i';
+const APP_VERSION='v2026.08.12k';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5238,7 +5238,7 @@ function buildSection5(){
         <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
         <td>${kind!=='-'?`<span class="type-tag">${kind}</span>`:'–'}</td>
         <td>${srcBadge}</td>
-        <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
+        <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}${overnightBadge(t)}</td>
         <td class="mono"><b>${(dmin/60).toFixed(1)}</b></td>
         <td class="l" style="font-size:12px">${t.memo||'–'}</td>
         <td class="row-actions">${CUR_DAY.locked?'':`<button class="rowbtn edit" onclick="openRunEdit(${t.id})">수정</button> <button class="rowbtn del" onclick="delDown(${t.id})">삭제</button>`}</td>
@@ -5254,9 +5254,9 @@ function buildSection5(){
       <div class="run-form">
         <select id="runLine" onchange="filterRunProds()"><option value="">라인선택</option>${lineOpt2}</select>
         <select id="runProd"><option value="">먼저 라인 선택</option></select>
-        <input id="runStart" type="time" title="시작">
+        <input id="runStart" type="time" lang="en-GB" step="60" title="시작">
         <span style="color:var(--mut)">~</span>
-        <input id="runEnd" type="time" title="종료">
+        <input id="runEnd" type="time" lang="en-GB" step="60" title="종료">
         <input id="runMemo" placeholder="비고(선택)" style="flex:1;min-width:100px">
         <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
       </div>
@@ -5409,7 +5409,7 @@ function buildSection5(){
             <td><span class="type-tag ${catCls}">${cat}</span></td>
             <td>${srcBadge}</td>
             <td>${t.reason_type||'–'}</td>
-            <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
+            <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}${overnightBadge(t)}</td>
             <td class="mono"><b>${diffMin(t.start_time,t.end_time)}분</b></td>
             <td class="l" style="font-size:12px">${t.memo||'–'}</td>
             <td class="l" style="font-size:12px">${t.action_taken||'–'}</td>
@@ -5463,7 +5463,7 @@ function buildSection5(){
           <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
           <select id="stCat"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
-          <input id="stStart" type="time" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="time" title="종료">
+          <input id="stStart" type="time" lang="en-GB" step="60" title="시작"><span style="color:var(--mut)">~</span><input id="stEnd" type="time" lang="en-GB" step="60" title="종료">
         </div>
         <div class="sf-row">
           <input id="stReason" placeholder="정지원인 *" style="flex:1">
@@ -5922,7 +5922,8 @@ function buildSection2(){
     // [검증 반영] 기준대비는 'EP 실적 기준 드라이수율'일 때만 의미가 있다.
     //   EP 근거가 없어 MES 계획(원부자재 합산)이 분모가 된 행은 산출하지 않는다.
     const dyStd=isCoat?(CUR_DAY.dy||{})[o.prod_code]:null;                     // 설계 기준수율(%)
-    const dyRate=(dyStd>0 && coatPlan!=null && ach>0)?(ach/dyStd*100):null;    // 기준대비 달성률
+    const dyRate=(dyStd>0 && coatPlan!=null && ach>0)?(ach/dyStd*100):null;    // 기준대비 비율(색 판정용)
+    const dyGap =(dyRate!=null)?(ach-dyStd):null;                              // 기준대비 편차(%p) — 표시값
     const dySt=dyRateStyle(dyRate);
     const rid='op'+oi;   // 행 고유 id — 동일 품번이 여러 공정에 걸쳐도 충돌 없음
     const planCell = canEditPlan
@@ -5968,8 +5969,8 @@ function buildSection2(){
       <td class="mono">${fmt1(oAct)}</td>
       ${achCell}
       ${isCoat?`<td class="mono" style="background:#fafbfd">${dyStd?dyStd.toFixed(1)+'%':'<span style="font-size:10.5px;color:#b42318">미등록</span>'}</td>
-      <td class="mono" style="${dySt?`background:${dySt.bg};box-shadow:inset 3px 0 0 ${dySt.bd}`:'background:#fafbfd'}" title="${dySt?`기준대비 = 드라이수율 ÷ 설계 기준수율 × 100\n${DY_BAND.ok}%↑ 달성 · ${DY_BAND.warn}~${DY_BAND.ok}% 주의 · ${DY_BAND.bad}~${DY_BAND.warn}% 경고 · ${DY_BAND.bad}% 미만 미달`:(dyStd?'EP 실적이 없어 산출 불가':'설계 기준수율 미등록 — 설정 → 🎯 설계수율에서 입력')}">
-        ${dySt?`<b style="color:${dySt.col}">${dyRate.toFixed(1)}%</b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
+      <td class="mono" style="${dySt?`background:${dySt.bg};box-shadow:inset 3px 0 0 ${dySt.bd}`:'background:#fafbfd'}" title="${dySt?`기준대비 = 드라이수율(${ach.toFixed(1)}%) − 설계수율(${dyStd.toFixed(1)}%) = ${dyGap>=0?'+':''}${dyGap.toFixed(1)}%p\n＋ 기준보다 잘 나옴 · － 기준보다 덜 나옴\n색 판정은 비율 기준 : ${DY_BAND.ok}%↑ 달성 · ${DY_BAND.warn}~${DY_BAND.ok}% 주의 · ${DY_BAND.bad}~${DY_BAND.warn}% 경고 · ${DY_BAND.bad}% 미만 미달 (현재 ${dyRate.toFixed(1)}%)`:(dyStd?'EP 실적이 없어 산출 불가':'설계수율 미등록 — 설정 → 🎯 설계수율에서 입력')}">
+        ${dySt?`<b style="color:${dySt.col};font-size:14px">${dyGap>=0?'+':'−'}${Math.abs(dyGap).toFixed(1)}<span style="font-size:10px;font-weight:700">%p</span></b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
       <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
@@ -6030,7 +6031,7 @@ function buildSection2(){
       <span style="padding:1px 7px;border-radius:99px;background:#fffaeb;border:1px solid #fedf89;color:#b54708;font-weight:800">${DY_BAND.warn}~${DY_BAND.ok}% 주의</span>
       <span style="padding:1px 7px;border-radius:99px;background:#fff4ed;border:1px solid #fdb082;color:#c4320a;font-weight:800">${DY_BAND.bad}~${DY_BAND.warn}% 경고</span>
       <span style="padding:1px 7px;border-radius:99px;background:#fef3f2;border:1px solid #fda29b;color:#b42318;font-weight:800">${DY_BAND.bad}% 미만 미달</span>
-      <span style="color:#98a2b3">· 설계 기준수율 대비. 미등록 품목은 판정하지 않습니다.</span>
+      <span style="color:#98a2b3">· 표시값은 <b>드라이수율 − 설계수율(%p)</b>. ＋는 기준 초과, －는 기준 미달. 색은 비율 기준. 미등록 품목은 판정하지 않습니다.</span>
     </div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
       <thead><tr><th>생산오더</th><th>제품명</th>
@@ -6271,8 +6272,8 @@ function openStopEdit(id){
       <div style="flex:1"><label class="se-lb">유형</label><input id="seType" value="${(t.reason_type||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:12px">
-      <div style="flex:1"><label class="se-lb">시작</label><input id="seStart" type="time" value="${t.start_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
-      <div style="flex:1"><label class="se-lb">종료</label><input id="seEnd" type="time" value="${t.end_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+      <div style="flex:1"><label class="se-lb">시작</label><input id="seStart" type="time" lang="en-GB" step="60" value="${t.start_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
+      <div style="flex:1"><label class="se-lb">종료</label><input id="seEnd" type="time" lang="en-GB" step="60" value="${t.end_time||''}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin-top:4px;box-sizing:border-box"></div>
     </div>
     <label class="se-lb">정지원인</label><input id="seReason" value="${(t.memo||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
     <label class="se-lb">조치내용</label><input id="seAction" value="${(t.action_taken||'').replace(/"/g,'&quot;')}" style="width:100%;padding:8px;border:1.5px solid var(--line);border-radius:8px;margin:4px 0 12px;box-sizing:border-box">
@@ -6310,9 +6311,9 @@ function openRunEdit(id){
     <div style="font-size:12.5px;color:var(--mut);margin-bottom:16px">${(t.proc_sub1||'')}/${(t.proc_sub2||'')} · ${t.prod_code||''} ${o?o.prod_name||'':''}</div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
       <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">시작</label>
-        <input id="reStart" type="time" value="${t.start_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+        <input id="reStart" type="time" lang="en-GB" step="60" value="${t.start_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
       <div style="flex:1"><label style="font-size:12px;font-weight:700;color:var(--sub)">종료</label>
-        <input id="reEnd" type="time" value="${t.end_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
+        <input id="reEnd" type="time" lang="en-GB" step="60" value="${t.end_time||''}" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin-top:4px"></div>
     </div>
     <label style="font-size:12px;font-weight:700;color:var(--sub)">비고</label>
     <input id="reMemo" value="${(t.memo||'').replace(/"/g,'&quot;')}" placeholder="비고" style="width:100%;padding:9px;border:1.5px solid var(--line);border-radius:8px;box-sizing:border-box;margin:4px 0 16px">
@@ -7287,7 +7288,7 @@ function renderMoreSections(){
       <td><span class="type-tag ${isRun?'':'neg'}">${catKo}</span></td>
       <td>${srcBadge}</td>
       <td>${t.reason_type||'–'}</td>
-      <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}</td>
+      <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}${overnightBadge(t)}</td>
       <td class="mono">${diffMin(t.start_time,t.end_time)}분</td>
       <td class="l" style="max-width:180px;font-size:12px;color:var(--sub)">${t.memo||'–'}</td>
       <td class="row-actions" style="white-space:nowrap">
@@ -7426,6 +7427,18 @@ function renderMoreSections(){
 
   <div id="inputForm"></div>`;
 }
+/* 종료시각이 시작시각보다 이르면 익일로 넘어간 것 — diffMin 이 +1440 처리한다.
+   숫자만으로는 오해하기 쉬워 화면에 '익일' 배지를 붙여 명시한다. */
+function isOvernight(s,e){
+  if(!s||!e) return false;
+  const p=x=>{const[h,m]=String(x).split(':').map(Number);return h*60+m;};
+  return p(e)<p(s);
+}
+function overnightBadge(t){
+  return isOvernight(t&&t.start_time,t&&t.end_time)
+    ? ` <span style="display:inline-block;font-size:9.5px;font-weight:800;color:#5a3fb8;background:#f4f1ff;border:1px solid #cfc3f0;border-radius:4px;padding:0 4px;vertical-align:1px" title="종료가 시작보다 이른 시각이라 익일로 계산했습니다">익일</span>`
+    : '';
+}
 function diffMin(s,e){
   if(!s||!e)return 0;
   const p=x=>{const[h,m]=x.split(':').map(Number);return h*60+m;};
@@ -7517,8 +7530,8 @@ function openDownForm(){
       <div class="work-field"><label>구분</label><select id="dtCat">
         <option value="plan">계획정지</option><option value="unplan">비계획정지</option><option value="sudden">돌발정지</option><option value="run">가동</option></select></div>
       <div class="work-field"><label>사유유형</label><input id="dtReason" placeholder="설비고장 등"></div>
-      <div class="work-field"><label>시작</label><input id="dtStart" type="time"></div>
-      <div class="work-field"><label>종료</label><input id="dtEnd" type="time"></div>
+      <div class="work-field"><label>시작</label><input id="dtStart" type="time" lang="en-GB" step="60"></div>
+      <div class="work-field"><label>종료</label><input id="dtEnd" type="time" lang="en-GB" step="60"></div>
       <div class="work-field"><label>비고</label><input id="dtMemo" placeholder="발생사유·메모"></div>
     </div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
@@ -7593,8 +7606,8 @@ function openDownEdit(id){
           <div class="work-field"><label>구분</label><select id="edCat">
             ${opt('run','가동')}${opt('plan','계획정지')}${opt('unplan','비계획정지')}${opt('sudden','돌발정지')}</select></div>
           <div class="work-field"><label>사유유형</label><input id="edReason" value="${esc(t.reason_type)}" placeholder="설비고장 등"></div>
-          <div class="work-field"><label>시작</label><input id="edStart" type="time" value="${esc(t.start_time)}"></div>
-          <div class="work-field"><label>종료</label><input id="edEnd" type="time" value="${esc(t.end_time)}"></div>
+          <div class="work-field"><label>시작</label><input id="edStart" type="time" lang="en-GB" step="60" value="${esc(t.start_time)}"></div>
+          <div class="work-field"><label>종료</label><input id="edEnd" type="time" lang="en-GB" step="60" value="${esc(t.end_time)}"></div>
         </div>
         <div class="work-field" style="margin-top:10px"><label>비고</label>
           <input id="edMemo" value="${esc(t.memo)}" placeholder="발생사유·메모"></div>
@@ -8402,8 +8415,8 @@ function renderPO(){
         <div class="work-field"><label>호기</label><input id="wHoki" value="${w.hoki||''}" placeholder="호기"></div>
         <div class="work-field"><label>투입인원(명)</label><input id="wHead" type="number" value="${w.input_head||''}" placeholder="0"></div>
         <div class="work-field"><label></label><div></div></div>
-        <div class="work-field"><label>생산시작</label><input id="wStart" type="time" value="${w.start_time||''}"></div>
-        <div class="work-field"><label>생산종료</label><input id="wEnd" type="time" value="${w.end_time||''}"></div>
+        <div class="work-field"><label>생산시작</label><input id="wStart" type="time" lang="en-GB" step="60" value="${w.start_time||''}"></div>
+        <div class="work-field"><label>생산종료</label><input id="wEnd" type="time" lang="en-GB" step="60" value="${w.end_time||''}"></div>
         <div class="work-field"><label>메모</label><input id="wMemo" value="${w.memo||''}" placeholder="비고"></div>
         <div class="work-field"><label>계획정지(분)</label><input id="wStopPlan" type="number" value="${w.stop_plan||''}" placeholder="0"></div>
         <div class="work-field"><label>비계획정지(분)</label><input id="wStopUnplan" type="number" value="${w.stop_unplan||''}" placeholder="0"></div>
