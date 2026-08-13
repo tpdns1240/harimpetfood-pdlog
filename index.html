@@ -404,6 +404,8 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 .pk-type.pk-oven{background:#fff1e6;color:#c2410c;border:1px solid #fed7aa}
 .pk-type.pk-etc {background:#f1f3f7;color:#7b8595;border:1px dashed #c9d1de}
 .pk-carry{margin-top:3px;font-size:9.5px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
+.pk-done{margin-top:3px;font-size:9.5px;font-weight:800;color:#0d8a4f;background:#eaf8f0;border:1px solid #a7e3c4;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
+.pk-going{margin-top:3px;font-size:9.5px;font-weight:800;color:#5a3fb8;background:#f4f1ff;border:1px solid #cfc3f0;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help;white-space:nowrap}
 .pk-base{margin-top:3px;font-size:10px;color:#98a2b3;font-family:ui-monospace,monospace}
 .pk-plan{background:#f7f5ff;font-weight:800;font-size:14px;color:#5b4b9a;vertical-align:middle!important;border-right:1.5px solid #e3e8f2}
 .pk-sum{background:#f2f7fb;font-weight:800;font-size:14px;color:#1c5fb0;vertical-align:middle!important;border-left:1.5px solid #e3e8f2}
@@ -879,7 +881,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12h</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -916,7 +918,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.12h</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4605,7 +4607,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.12e';
+const APP_VERSION='v2026.08.12h';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5049,7 +5051,9 @@ function renderClosing2(){
     if(isFin(o)){ scPlan+=p; scActual+=a; }
     else if(isSemi(o)){ scSemiPlan+=p; scSemiActual+=a; }
   });
-  const scAch=scPlan>0?scActual/scPlan:0;
+  // 당일 계획·실적 기준 확정 (1팀=코터·오븐 산출 / 2팀=MES)
+  const SC=dayPlanActual(scPlan, scActual);
+  const scAch=SC.plan>0?SC.actual/SC.plan:0;
   // 종합수율 = 완제품 산출 ÷ 원자재 투입 (원자재 = 반제품 오더의 자재 투입 실적)
   const scLoss=(CUR_DAY.losses||[]).reduce((a,l)=>a+Math.round((l.diff||0)*(l.unit_price||0)),0);
   const scScrap=(CUR_DAY.losses||[]).length;
@@ -5092,12 +5096,12 @@ function renderClosing2(){
 
   <!-- 스코어카드 (생산1팀과 동일) -->
   <div class="score-row">
-    <div class="sc"><div class="l">총 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scPlan)}
-      <div class="sc-sub" title="반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
-    <div class="sc b"><div class="l">총 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scActual)}
-      <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
-    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
-      <div class="sc-sub">완제품 기준</div></div>
+    <div class="sc b"><div class="l">당일 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(SC.actual)}
+      <div class="sc-sub" title="${SC.basis==='pack'?'포장 SKU 실적 합계 (생산계획번호 묶음 '+SC.n+'건). 반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다':'MES 완제품 실적. 반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다'}">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
+    <div class="sc"><div class="l">당일 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(SC.plan)}
+      <div class="sc-sub" title="${SC.basis==='pack'?'진공코터·오븐에서 나온 산출 수량이 당일 포장 계획입니다. ②오더별 화면과 동일 기준':'MES 완제품 계획. 건조공정이 없어 MES 계획을 그대로 사용합니다'}">${SC.basis==='pack'?'코터·오븐 산출':'MES 계획'} <span style="color:#b8c0cc">·</span> [반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
+    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${SC.plan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
+      <div class="sc-sub">${SC.basis==='pack'?'포장수율':'완제품 기준'}</div></div>
     ${(()=>{
       const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
       const y=cy?cy.pct:null;
@@ -5728,6 +5732,8 @@ function coaterYieldTip(cy){
    ── 계획 수정 불가(자동 산출), 투입공수·특이사항만 입력
    ── 전날 코터분을 당일 포장한 이월 건은 생산일자 배지로 표시
    ════════════════════════════════════════════════════════════════════ */
+/* 포장 완결 판정 임계값(%) — 누계 포장수율이 이 값 이상이면 완결로 본다 */
+const PK_DONE=95;
 function packGroups(){
   const rows=CUR_DAY.pack||[];
   const g=new Map();
@@ -5736,7 +5742,15 @@ function packGroups(){
     if(!g.has(k)) g.set(k,{key:k, plan_no:r.plan_no||'', base_code:r.base_code,
       base_name:r.base_name, base_type:r.base_type, base_actual:Number(r.base_actual)||0,
       base_date:r.base_date, base_team:r.base_team,
-      grp_actual:Number(r.grp_actual)||0, achieve:(r.achieve==null?null:Number(r.achieve)), skus:[]});
+      grp_actual:Number(r.grp_actual)||0, achieve:(r.achieve==null?null:Number(r.achieve)),
+      // 계획번호 누계 (일자 무관) — 이월 포장까지 합산된 값
+      grp_cum:(r.grp_actual_cum==null?Number(r.grp_actual)||0:Number(r.grp_actual_cum)),
+      ach_cum:(r.achieve_cum==null?(r.achieve==null?null:Number(r.achieve)):Number(r.achieve_cum)),
+      cum_days:Number(r.cum_days)||1,
+      first_pack:r.first_pack_date||null, last_pack:r.last_pack_date||null,
+      // 코터 산출 매칭 방식 : 'plan'=계획번호 일치(정확) / 'code'=품번 추정 / 'none'=없음
+      base_match:r.base_match||'plan', base_days:Number(r.base_days)||1,
+      skus:[]});
     g.get(k).skus.push(r);
   });
   const arr=[...g.values()];
@@ -5744,6 +5758,26 @@ function packGroups(){
   // 이월(전일 생산분) 먼저 → 눈에 띄게
   arr.sort((a,b)=>String(a.plan_no).localeCompare(String(b.plan_no)));
   return arr;
+}
+/* ════════════════════════════════════════════════════════════════════
+   스코어카드 '당일 계획 / 당일 실적' 산출 기준
+   ── 생산1팀(코터·오븐 보유)
+        계획 = 코터/오븐 산출 실적 (포장 묶음 base_actual 합)
+        실적 = 포장 SKU 실적 합    (grp_actual 합)
+        ※ MES 완제품 계획은 0·1 이 절반 이상이라 달성률이 338% 처럼 튐.
+          ②오더별 화면과 동일한 기준으로 통일해 화면 간 숫자 불일치를 없앤다.
+   ── 생산2팀(건조공정 없음)
+        계획·실적 모두 MES 완제품 값 (계획 수정 가능)
+   ── 판정은 팀명이 아니라 데이터(base_actual 유무)로 한다.
+      전일 코터분을 당일 포장한 이월 건도 정확히 잡히기 때문.
+   ════════════════════════════════════════════════════════════════════ */
+function dayPlanActual(mesPlan, mesActual){
+  const G=packGroups();
+  const hasBase=G.some(x=>Number(x.base_actual)>0);
+  if(!hasBase) return {plan:Number(mesPlan)||0, actual:Number(mesActual)||0, basis:'mes', n:0};
+  let p=0, a=0;
+  G.forEach(x=>{ p+=Number(x.base_actual)||0; a+=Number(x.grp_actual)||0; });
+  return {plan:p, actual:a, basis:'pack', n:G.length};
 }
 function buildPackSection(){
   const G=packGroups();
@@ -5753,12 +5787,19 @@ function buildPackSection(){
   const t=v=>fmt1(Number(v)||0);
   const carry=G.filter(x=>x.base_date&&x.base_date!==date).length;
   const noBase=G.filter(x=>!(x.base_actual>0)).length;
+  const going=G.filter(x=>x.base_actual>0&&x.ach_cum!=null&&x.ach_cum<PK_DONE).length;
+  const guess=G.filter(x=>x.base_actual>0&&x.base_match==='code').length;
 
+  // 완결 판정 : 누계 포장수율이 PK_DONE 이상이면 더 이상 추적할 필요가 없다
   const rows=G.map(g=>{
     const n=g.skus.length;
     const isCarry=(g.base_date&&g.base_date!==date);
-    const ach=g.achieve;
-    const achCol=(ach==null)?'var(--mut)':(ach>=95&&ach<=105?'var(--grn)':(ach>105?'#7fc99a':'#e8918c'));
+    const ach=g.achieve;                       // 당일 기준 (참고)
+    const achC=g.ach_cum;                      // 누계 기준 (주 지표)
+    const achCol=(achC==null)?'var(--mut)':(achC>=PK_DONE?'var(--grn)':(achC>=90?'#d97706':'#e8918c'));
+    const rest=Math.max((Number(g.base_actual)||0)-(Number(g.grp_cum)||0),0);
+    const done=(achC!=null&&achC>=PK_DONE);
+    const multi=(g.cum_days>1);
     const typeCls=g.base_type==='오븐'?'pk-oven':(g.base_type==='코터'?'pk-coat':'pk-etc');
     return g.skus.map((s,i)=>{
       const mh=mhMap[s.sku_code]||{mh:'',note:''};
@@ -5769,16 +5810,22 @@ function buildPackSection(){
         ${first?`<td rowspan="${n}" class="pk-grp">
             <div class="pk-no">${g.plan_no||'-'}</div>
             <span class="pk-type ${typeCls}">${g.base_type}</span>
+            ${achC==null?'':(done
+              ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
+              : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. 코터·오븐 산출 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>`)}
             ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
             <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
           </td>
-          <td rowspan="${n}" class="mono pk-plan">${g.base_actual>0?t(g.base_actual):'<span style="color:#b42318;font-size:11px">산출 없음</span>'}</td>`:''}
+          <td rowspan="${n}" class="mono pk-plan">${g.base_actual>0?t(g.base_actual):'<span style="color:#b42318;font-size:11px">산출 없음</span>'}
+            ${g.base_actual>0&&g.base_match==='code'?`<div style="font-size:9.5px;font-weight:800;color:#b54708" title="이 계획번호로 코터·오븐 생산 기록을 찾지 못해, 같은 반제품 품번의 가장 최근 1일치 산출을 대신 사용했습니다. 다른 계획번호의 물량일 수 있으니 수율 판단 시 주의하세요.">⚠ 품번 추정</div>`:''}
+            ${g.base_days>1?`<div style="font-size:9.5px;color:#8b7bbd;font-weight:700" title="이 계획번호의 코터·오븐 생산이 ${g.base_days}일에 걸쳐 있어 합산했습니다">${g.base_days}일 합산</div>`:''}</td>`:''}
         <td class="mono">${s.sku_code}</td>
         <td class="l">${s.sku_name||'-'}</td>
-        <td class="mono">${t(act)}</td>
-        ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}</td>
-          <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${ach==null?'–':ach.toFixed(1)+'%'}</b>
-            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">합계÷계획</div></td>`:''}
+        <td class="mono" title="${Number(s.sku_actual_cum)>act?`계획번호 누계 ${t(s.sku_actual_cum)}kg (이월 포함)`:''}">${t(act)}${Number(s.sku_actual_cum)>act?`<div style="font-size:9.5px;color:#8b7bbd;font-weight:700">누계 ${t(s.sku_actual_cum)}</div>`:''}</td>
+        ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}
+            ${multi?`<div style="font-size:10px;font-weight:800;color:#6d47c9;letter-spacing:-.2px" title="계획번호 ${g.plan_no} 의 전체 포장 실적 (${g.first_pack||'-'} ~ ${g.last_pack||'-'} · ${g.cum_days}일)">누계 ${t(g.grp_cum)}</div>`:''}</td>
+          <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${achC==null?'–':achC.toFixed(1)+'%'}</b>
+            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?`누계÷계획<br><span style="color:#b8c0cc">당일 ${ach==null?'–':ach.toFixed(1)+'%'}</span>`:'합계÷계획'}</div></td>`:''}
         <td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
         <td class="mono">${prod?prod.toFixed(1):'–'}</td>
         <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>
@@ -5787,12 +5834,17 @@ function buildPackSection(){
   }).join('');
 
   return `
-    ${carry?`<div class="pk-note">⚠ <b>이월 ${carry}건</b> — 전일 생산한 코터·오븐 반제품을 오늘 포장한 건입니다.
-      계획(산출량)은 생산일 기준이라 <b>달성률이 낮게 보일 수 있습니다.</b> 계획번호 칸의 날짜 배지를 확인하세요.</div>`:''}
+    ${carry?`<div class="pk-note">⚠ <b>이월 ${carry}건</b> — 전일 생산한 코터·오븐 반제품을 오늘 포장한 건입니다. 계획번호 칸의 날짜 배지를 확인하세요.</div>`:''}
+    ${going?`<div class="pk-note" style="background:#f7f5ff;border-color:#d6ccf5;color:#4b3b8f">▷ <b>진행중 ${going}건</b> — 코터·오븐 산출 대비 포장이 덜 끝난 계획번호입니다.
+      <b>익일 포장이 이어지면 다음 일보에서 누계와 수율이 함께 올라갑니다.</b> 리뷰 시 "잔여 물량은 익일 포장 예정"으로 설명하시면 됩니다.</div>`:''}
+    ${guess?`<div class="pk-note">⚠ <b>품번 추정 ${guess}건</b> — 해당 계획번호로 코터·오븐 생산 기록을 찾지 못해 같은 반제품 품번의 최근 산출로 대신했습니다.
+      <b>다른 계획번호의 물량일 수 있어 수율이 왜곡될 수 있습니다.</b> MES에서 코터 공정의 생산계획번호가 비어 있지 않은지 확인하세요.</div>`:''}
     ${noBase?`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018">⚠ <b>산출 없음 ${noBase}건</b> — 코터·오븐 생산 기록을 찾지 못했습니다(10일 이전 생산분 등). 달성률을 낼 수 없습니다.</div>`:''}
     <div class="sec-bd" style="overflow-x:auto"><table class="t2-table pk-table">
       <thead><tr><th>생산계획번호</th><th>계획(KG)<br><span style="font-weight:600;font-size:9.5px">코터·오븐 산출</span></th>
-        <th>제품코드</th><th>제품명</th><th>SKU 실적</th><th>합계 실적</th><th>포장수율</th>
+        <th>제품코드</th><th>제품명</th><th>SKU 실적<br><span style="font-weight:600;font-size:9.5px">당일 · 누계</span></th>
+        <th>합계 실적<br><span style="font-weight:600;font-size:9.5px">당일 · 누계</span></th>
+        <th>포장수율<br><span style="font-weight:600;font-size:9.5px">누계 기준</span></th>
         <th>투입공수(MH)</th><th>인시당(KG/MH)</th><th>특이사항</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
@@ -6884,7 +6936,9 @@ function renderClosing(){
     const semi=(o.kind==='semi')||(!o.kind&&String(o.prod_code||'').charAt(0)==='6');
     if(fin){ scPlan+=p; scActual+=a; } else if(semi){ scSemiPlan+=p; scSemiActual+=a; }
   });
-  const scAch=scPlan>0?scActual/scPlan:0;
+  // 당일 계획·실적 기준 확정 (1팀=코터·오븐 산출 / 2팀=MES)
+  const SC=dayPlanActual(scPlan, scActual);
+  const scAch=SC.plan>0?SC.actual/SC.plan:0;
 
   // ① 라인별 요약 — 완제품/반제품 탭으로 필터 (오더 기준 재집계)
   const lineRowsAll=lines.map((l,i)=>{
@@ -7043,12 +7097,12 @@ function renderClosing(){
 
   <!-- 스코어카드 -->
   <div class="score-row">
-    <div class="sc"><div class="l">총 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scPlan)}
-      <div class="sc-sub" title="반제품은 EP·계량/배합·진공코터 등 공정을 거칠 때마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
-    <div class="sc b"><div class="l">총 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(scActual)}
-      <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
-    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${scPlan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
-      <div class="sc-sub">완제품 기준</div></div>
+    <div class="sc b"><div class="l">당일 실적 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(SC.actual)}
+      <div class="sc-sub" title="${SC.basis==='pack'?'포장 SKU 실적 합계 (생산계획번호 묶음 '+SC.n+'건). 반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다':'MES 완제품 실적. 반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다'}">[반제품 ${(scSemiActual/1000).toFixed(1)}t]</div></div>
+    <div class="sc"><div class="l">당일 계획 <span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span></div>${scTon(SC.plan)}
+      <div class="sc-sub" title="${SC.basis==='pack'?'진공코터·오븐에서 나온 산출 수량이 당일 포장 계획입니다. ②오더별 화면과 동일 기준':'MES 완제품 계획. 건조공정이 없어 MES 계획을 그대로 사용합니다'}">${SC.basis==='pack'?'코터·오븐 산출':'MES 계획'} <span style="color:#b8c0cc">·</span> [반제품 ${(scSemiPlan/1000).toFixed(1)}t]</div></div>
+    <div class="sc ${scAch>=.98?'g':'r'}"><div class="l">달성률</div><div class="v mono">${SC.plan>0?(scAch*100).toFixed(1)+'%':'–'}</div>
+      <div class="sc-sub">${SC.basis==='pack'?'포장수율':'완제품 기준'}</div></div>
     ${(()=>{
       const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
       const y=cy?cy.pct:null;
