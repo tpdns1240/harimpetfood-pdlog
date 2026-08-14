@@ -906,7 +906,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13j</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13k</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -943,7 +943,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13j</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13k</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1485,9 +1485,12 @@ function hbPaint(){
       <div class="sc ${tStop>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(tStop/60).toFixed(1)}<span class="u">hr</span></div><div class="sc-sub">${fmt(Math.round(tStop))}분</div></div>`;
     const noRun=rows.length&&rows.every(r=>Number(r.run_min||0)<=0);
     const allRun=all.reduce((a,b)=>a+Number(b.run_min||0),0);
+    const shareCnt=rows.filter(r=>r.run_src==='share').length;
     const warn=$('#hbWarn');
     if(warn) warn.innerHTML=noRun
       ? `<div class="pk-note" style="margin:0 0 12px">⚠ <b>${HB.line?HB.line+' 라인의 ':''}가동시간 기록이 없습니다</b>${HB.line&&allRun>0?` — <b>다른 라인에는 ${(allRun/60).toFixed(1)}hr 이 등록돼 있습니다.</b> 라인 칩에서 <b>전체</b>를 눌러 확인해 보세요.`:` — ⑤ 라인 가동/비가동에서 <b>호기를 지정해</b> 가동(run)을 등록해야 운영시간·시간당 생산량이 집계됩니다.`} 생산량·SKU는 MES 실적 기준이라 정상 표시됩니다.</div>` : '';
+    if(warn&&!noRun&&shareCnt) warn.innerHTML=`<div class="pk-note" style="background:#f7f5ff;border-color:#d6ccf5;color:#4b3b8f;margin:0 0 12px">▷ <b>배분 ${shareCnt}건</b> — 가동 등록에 <b>호기가 없어</b> 라인 전체 가동시간을 호기별 생산량 비중으로 나눈 추정치입니다.
+      ⑤ 라인 가동/비가동에서 오더를 지정해 등록하면 그 호기는 <b>실측</b>으로 바뀝니다.</div>`;
     const ft=$('#hbFilterTag');
     if(ft) ft.innerHTML=HB.line
       ? ` · <span style="color:#f5a15f;font-weight:800">라인 필터: ${HB.line}</span>` : '';
@@ -1496,7 +1499,13 @@ function hbPaint(){
     {k:'line',t:'라인',ty:'s',cls:'l'},
     {k:'hoki',t:'호기',ty:'n',f:v=>`<b>${v}호기</b>`},
     {k:'work_days',t:'가동일수',ty:'n',cls:'mono',f:v=>fmt(v||0)+'일'},
-    {k:'run_min',t:'운영시간',ty:'n',cls:'mono',f:v=>`<b>${(Number(v||0)/60).toFixed(1)}</b>hr`},
+    {k:'run_min',t:'운영시간',ty:'n',cls:'mono',f:(v,r)=>{
+      const h=(Number(v||0)/60).toFixed(1);
+      const src=r.run_src||'none';
+      const tag=src==='share'
+        ? `<div style="font-size:9.5px;font-weight:800;color:#5a3fb8" title="가동 등록에 호기가 없어, 라인 전체 가동시간을 호기별 생산량 비중으로 배분한 추정치입니다. ⑤에서 호기를 지정해 등록하면 실측으로 바뀝니다">배분</div>`
+        : (src==='direct'?'':`<div style="font-size:9.5px;font-weight:800;color:#b8c0cc">기록없음</div>`);
+      return `<b>${h}</b>hr${tag}`; }},
     {k:'plan_stop_min',t:'계획정지',ty:'n',cls:'mono',f:v=>Number(v)>0?(Number(v)/60).toFixed(1)+'hr':'–'},
     {k:'unplan_stop_min',t:'비계획정지',ty:'n',cls:'mono',f:v=>Number(v)>0?`<b style="color:var(--red)">${(Number(v)/60).toFixed(1)}</b>hr`:'–'},
     {k:'sku_cnt',t:'제품 SKU',ty:'n',cls:'mono',f:v=>fmt(v||0)+'종'},
@@ -4880,7 +4889,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13j';
+const APP_VERSION='v2026.08.13k';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
