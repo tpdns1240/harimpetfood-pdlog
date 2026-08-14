@@ -422,6 +422,10 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
 .t2-table th.th-hl span{color:#a2652a !important}
 /* 호기 자동표기 배지 */
+/* 특이사항 : 좁은 칸이라 글이 잘린다 → 마우스오버 툴팁 + 포커스 시 확장 */
+.t2-note{transition:width .12s ease, box-shadow .12s ease}
+.t2-note:focus{position:relative;z-index:20;width:340px !important;min-width:340px;
+  box-shadow:0 6px 18px rgba(20,40,80,.18);background:#fff !important;border-color:var(--navy3) !important}
 .hk-tag{display:inline-block;font-size:10px;font-weight:800;color:#1d4ed8;background:#eaf4ff;border:1px solid #b9d4f5;border-radius:4px;padding:0 5px;vertical-align:1px}
 .idle-tag{display:inline-block;font-size:10px;font-weight:800;color:#8a94a6;background:#f1f4f9;border:1px solid #d8e0ec;border-radius:4px;padding:0 5px;vertical-align:1px}
 .hoki-badge{display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:8px;
@@ -906,7 +910,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13m</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13r</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -943,7 +947,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13m</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13r</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4889,7 +4893,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13m';
+const APP_VERSION='v2026.08.13r';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5086,6 +5090,23 @@ function isDeadlinePassed(dateStr){
   return today > deadline;
 }
 // 이 (일자+팀)이 기한마감으로 잠겼는지 (관리자 임시해제면 풀림)
+/* 결재 진행 중인 상태에서만 잠근다.
+   ── 화이트리스트(편집 가능 목록)로 하면 DB 가 'reject' 처럼 다른 표기를 쓸 때
+      작성자가 문서를 아예 못 고치는 사고가 난다. 그래서 잠글 상태만 명시한다.
+      모르는 상태는 '편집 가능'으로 열어둔다 (업무 중단 방지 우선).
+   ── 관리자는 예외 (오기재 정정 목적) */
+const APPR_LOCKED=['submitted','lead_ok','div_ok','done'];
+function isApprLocked(status, isAdmin){
+  if(isAdmin) return false;
+  return APPR_LOCKED.includes(String(status||'').trim());
+}
+function apprLockMsg(status){
+  const st=String(status||'none').trim();
+  const ko={submitted:'팀장 승인 대기', lead_ok:'본부장 승인 대기', div_ok:'CEO 승인 대기', done:'결재 완료'}[st]||'결재 진행';
+  return st==='done'
+    ? '<b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.'
+    : `<b>결재 상신된 문서</b>입니다 (현재 ${ko}). 수정하려면 <b>결재자에게 반려</b>를 요청하세요.`;
+}
 function isDeadlineLocked(dateStr, team){
   if(!isDeadlinePassed(dateStr)) return false;
   if(ADMIN_UNLOCKED.has(dateStr+'|'+team)) return false; // 관리자가 열어둠
@@ -5291,7 +5312,8 @@ function renderClosing2(){
   const cst2=c.status||'none';
   const isAdmin2=S.user.role==='admin';
   const dlLocked2=isDeadlineLocked(CUR_DAY.date, CUR_DAY.team);
-  CUR_DAY.locked = dlLocked2 || (cst2==='done' && !isAdmin2);
+  CUR_DAY.locked = dlLocked2 || isApprLocked(cst2, isAdmin2);
+  CUR_DAY._apprLocked=isApprLocked(cst2, isAdmin2);
   CUR_DAY._dlLocked=dlLocked2;
 
   // 공정별 기준시간 맵 (설정값)
@@ -5464,15 +5486,17 @@ function renderClosingHeader2(){
   ${(()=>{
     const admin=S.user.role==='admin';
     const cst=c.status||'none';
+    // ※ 관리자 해제 배너가 기한마감 배너보다 먼저 (교착 방지)
     if(admin && isDeadlinePassed(date)){
       const opened=ADMIN_UNLOCKED.has(date+'|'+team);
-      return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;display:flex;align-items:center;gap:10px">
-        <span>🔓 <b>기한마감된 문서를 관리자 권한으로 보고 있습니다.</b> ${opened?'현재 수정 가능(임시해제). 마치면 다시 잠그세요.':'수정하려면 잠금해제하세요.'}</span>
+      return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span>🔓 <b>월 마감 기한(익월 10일)이 지난 문서</b>입니다. ${opened?'<b style="color:#0d8a4f">현재 수정 가능(임시해제)</b> · 마치면 다시 잠그세요.':'관리자 권한으로 <b>잠금 해제</b>하면 수정할 수 있습니다.'}</span>
         <button class="tbtn" style="margin-left:auto" onclick="toggleAdminUnlock()">${opened?'🔒 다시 잠그기':'🔓 잠금 해제'}</button>
       </div>`;
     }
-    if(CUR_DAY._dlLocked) return `<div class="lock-banner" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">🔒 <b>월 마감 기한(익월 10일)이 지나 잠긴 문서</b>입니다. ${cst==='done'?'결재 완료됨.':'<b style="color:#c2410c">미완료 상태로 기한마감(자동)</b>.'} 수정할 수 없습니다.</div>`;
-    if(CUR_DAY.locked) return `<div class="lock-banner">🔒 <b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.</div>`;
+    if(CUR_DAY._dlLocked) return `<div class="lock-banner" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">🔒 <b>월 마감 기한(익월 10일)이 지나 잠긴 문서</b>입니다. ${cst==='done'?'결재 완료됨.':'<b style="color:#c2410c">미완료 상태로 기한마감(자동)</b>.'} 수정하려면 관리자에게 요청하세요.</div>`;
+    if(CUR_DAY.locked) return `<div class="lock-banner" title="문서 상태값: ${cst} · 기한마감: ${CUR_DAY._dlLocked?'예':'아니오'}">🔒 ${apprLockMsg(cst)}</div>`;
+    if(admin && ['submitted','lead_ok','div_ok','done'].includes(cst)) return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ <b>관리자 권한으로 수정 가능한 상태</b>입니다 (현재 ${cst}). 확정된 숫자가 바뀌니 주의하세요.</div>`;
     return '';
   })()}`;
 }
@@ -6142,6 +6166,7 @@ function buildPackSection(){
   const guess=G.filter(x=>x.base_actual>0&&x.base_match==='code').length;
 
   // 완결 판정 : 누계 포장수율이 PK_DONE 이상이면 더 이상 추적할 필요가 없다
+  const seenSku=new Set();   // 품번 중복 입력칸 방지 (t_cl_mh 는 품번 단위 PK)
   const rows=G.map(g=>{
     const n=g.skus.length;
     const isCarry=(g.base_date&&g.base_date!==date);
@@ -6159,6 +6184,7 @@ function buildPackSection(){
       const act=Number(s.sku_actual)||0;
       const prod=(mh.mh&&act)?(act/Number(mh.mh)):0;
       const first=(i===0);
+      const dupSku=seenSku.has(s.sku_code); if(!dupSku) seenSku.add(s.sku_code);
       return `<tr class="pk-row ${first?'pk-first':''}">
         ${first?`<td rowspan="${n}" class="pk-grp">
             <div class="pk-no">${g.plan_no||'-'}</div>
@@ -6177,19 +6203,23 @@ function buildPackSection(){
             ${pb.src==='dry'&&g.base_days>1?`<div style="font-size:9.5px;color:#8b7bbd;font-weight:700" title="이 계획번호의 코터·오븐 생산이 ${g.base_days}일에 걸쳐 있어 합산했습니다">${g.base_days}일 합산</div>`:''}</td>`:''}
         <td class="mono">${s.sku_code}</td>
         <td class="l">${s.sku_name||'-'}</td>
-        ${anyMes?(canEditP
+        ${anyMes?(canEditP&&!dupSku
           ? `<td><input class="inp-cell op-plan" id="pk_${s.sku_code}_in" data-code="${s.sku_code}" data-rid="pk_${s.sku_code}" data-orig="${skuMesPlan(s.sku_code)}" value="${skuMesPlan(s.sku_code)?fmt1(skuMesPlan(s.sku_code)):''}" placeholder="0" title="완제품 계획 — 비워두면 ${pb.src==='edit'?'원래 근거':'왼쪽 계획'}를 그대로 씁니다. 값을 넣으면 그 값이 계획번호 합계와 포장수율에 우선 적용됩니다." style="width:76px;text-align:right;background:#fff8e8" oninput="markOrderPlanEdit('pk_${s.sku_code}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOrderOverride('${s.sku_code}','pk_${s.sku_code}');}">
               ${skuPlanEdited(s.sku_code)?`<div style="font-size:9.5px;font-weight:800;color:#0d8a4f;margin-top:2px">✎수정 <span class="rowbtn del" style="cursor:pointer;padding:0 4px" onclick="resetOrderOverride('${s.sku_code}')" title="MES 원본 계획으로 복원">↺</span></div>`:''}
               <button id="pk_${s.sku_code}_btn" class="rowbtn" style="display:none;margin-top:3px;padding:2px 7px;font-size:10.5px" onclick="saveOrderOverride('${s.sku_code}','pk_${s.sku_code}')">저장</button></td>`
-          : `<td class="mono" style="color:#98a2b3" title="코터·오븐 산출이 계획이라 수정할 수 없습니다">–</td>`):''}
+          : `<td class="mono" style="color:#98a2b3" title="${dupSku?'같은 품번이 위 계획번호에도 있어 입력칸은 한 곳에만 둡니다 (계획·공수는 품번 단위로 저장됩니다)':'코터·오븐 산출이 계획이라 수정할 수 없습니다'}">${dupSku?'↑ 동일품번':'–'}</td>`):''}
         <td class="mono" title="${Number(s.sku_actual_cum)>act?`계획번호 누계 ${t(s.sku_actual_cum)}kg (이월 포함)`:''}">${t(act)}${Number(s.sku_actual_cum)>act?`<div style="font-size:9.5px;color:#8b7bbd;font-weight:700">누계 ${t(s.sku_actual_cum)}</div>`:''}</td>
         ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}
             ${multi?`<div style="font-size:10px;font-weight:800;color:#6d47c9;letter-spacing:-.2px" title="계획번호 ${g.plan_no} 의 전체 포장 실적 (${g.first_pack||'-'} ~ ${g.last_pack||'-'} · ${g.cum_days}일)">누계 ${t(g.grp_cum)}</div>`:''}</td>
           <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${achC==null?'–':achC.toFixed(1)+'%'}</b>
             <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?'누계÷계획':'합계÷계획'}</div></td>`:''}
-        <td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
-        <td class="mono">${prod?prod.toFixed(1):'–'}</td>
-        <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>
+        ${dupSku
+          ? `<td class="mono" style="color:#98a2b3;font-size:11px" title="같은 품번이 위 계획번호에도 있습니다. 투입공수는 품번 단위로 저장되므로 입력칸은 한 곳에만 둡니다">↑ 동일품번</td>
+             <td class="mono">${prod?prod.toFixed(1):'–'}</td>
+             <td class="mono" style="color:#98a2b3;font-size:11px">↑ 동일품번</td>`
+          : `<td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
+             <td class="mono">${prod?prod.toFixed(1):'–'}</td>
+             <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>`}
       </tr>`;
     }).join('');
   }).join('');
@@ -6335,7 +6365,7 @@ function buildSection2(){
         ${dySt?`<b style="color:${dySt.col};font-size:14px">${dyGap>=0?'+':'−'}${Math.abs(dyGap).toFixed(1)}<span style="font-size:10px;font-weight:700">%p</span></b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
-      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
+      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
     </tr>`;
   }).join('');
   const curIsDry=/진공코터|오븐/.test(String(T2_PROC||''));   // 현재 공정탭이 건조공정인지
@@ -7107,14 +7137,18 @@ function toggleZero(){ HIDE_ZERO=!HIDE_ZERO; applyLossFilters();
   toast(HIDE_ZERO?'편차 0 행 숨김':'편차 0 행 표시','ok'); }
 async function saveT2MH(){
   const {date,team}=CUR_DAY;
-  const rows=[];
+  // t_cl_mh 의 PK 는 (work_date, team, prod_code) 이므로 배열에 같은 품번이
+  // 두 번 들어가면 'ON CONFLICT DO UPDATE cannot affect row a second time' 이 난다.
+  // 화면에서도 품번당 입력칸을 하나만 두지만, 여기서도 한 번 더 막는다.
+  const rowMap=new Map();
   document.querySelectorAll('.t2-mh').forEach(inp=>{
     const code=inp.dataset.code;
     const mh=Number(inp.value)||0;
     const noteEl=document.querySelector(`.t2-note[data-code="${code}"]`);
     const note=noteEl?noteEl.value:'';
-    if(mh||note) rows.push({work_date:date,team,prod_code:code,mh,note});
+    if(mh||note) rowMap.set(code,{work_date:date,team,prod_code:code,mh,note});
   });
+  const rows=[...rowMap.values()];
   // ── 미적용 계획(KG) 변경분 수집 : '적용' 버튼을 안 눌러도 함께 저장 (값 유실 방지) ──
   const planMap={};
   document.querySelectorAll('.op-plan').forEach(inp=>{
@@ -7553,8 +7587,9 @@ function renderClosing(){
   const isAdmin=S.user.role==='admin';
   const dlLocked=isDeadlineLocked(CUR_DAY.date, CUR_DAY.team);   // 월+10일 기한마감(관리자 임시해제 반영됨)
   // 결재완료 잠금은 관리자 예외. 기한마감 잠금은 관리자도 '명시적 해제' 전까지 유지(실수 방지)
-  const isLocked = dlLocked || (cst==='done' && !isAdmin);
+  const isLocked = dlLocked || isApprLocked(cst, isAdmin);
   CUR_DAY.locked=isLocked;
+  CUR_DAY._apprLocked=isApprLocked(cst, isAdmin);
   CUR_DAY._dlLocked=dlLocked;   // 기한마감 여부 (배너 표시용)
   // 합계 계산
   let totPlan=0,totActual=0,totOrders=0,totScrap=0,totLoss=0;
@@ -7754,21 +7789,23 @@ function renderClosing(){
   </div>
   ${(()=>{
     const admin=S.user.role==='admin';
-    // 기한마감 상태
-    if(dlLocked){
-      return `<div class="lock-banner" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">🔒 <b>월 마감 기한(익월 10일)이 지나 잠긴 문서</b>입니다. ${cst==='done'?'결재 완료됨.':'<b style="color:#c2410c">미완료 상태로 기한마감(자동)</b>.'} 수정할 수 없습니다.</div>`;
-    }
-    if(isLocked) return `<div class="lock-banner">🔒 <b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.</div>`;
-    // 관리자가 열어본 경우들
+    // ※ 순서 주의 : 관리자 잠금해제 배너를 '기한마감 배너보다 먼저' 평가해야 한다.
+    //   기한마감 배너를 먼저 반환하면 해제 버튼이 영영 렌더되지 않아
+    //   관리자도 문서를 열 수 없는 교착이 생긴다 (해제해야 버튼이 보이는 모순).
     if(admin && isDeadlinePassed(date)){
       const opened=ADMIN_UNLOCKED.has(date+'|'+team);
-      return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;display:flex;align-items:center;gap:10px">
-        <span>🔓 <b>기한마감된 문서를 관리자 권한으로 보고 있습니다.</b> ${opened?'현재 수정 가능(임시해제). 마치면 다시 잠그세요.':'수정하려면 잠금해제하세요.'}</span>
+      return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span>🔓 <b>월 마감 기한(익월 10일)이 지난 문서</b>입니다. ${opened?'<b style="color:#0d8a4f">현재 수정 가능(임시해제)</b> · 마치면 다시 잠그세요.':'관리자 권한으로 <b>잠금 해제</b>하면 수정할 수 있습니다.'}</span>
         <button class="tbtn" style="margin-left:auto" onclick="toggleAdminUnlock()">${opened?'🔒 다시 잠그기':'🔓 잠금 해제'}</button>
       </div>`;
     }
-    if(cst==='done') return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ <b>결재 완료된 문서를 관리자 권한으로 열었습니다.</b> 수정 시 확정된 실적이 변경되니 주의하세요.</div>`;
-    if(['submitted','lead_ok','div_ok'].includes(cst)) return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">✎ 결재 진행 중입니다. <b>최종 완료 전까지는 수정할 수 있습니다.</b></div>`;
+    // 기한마감 상태 (일반 사용자)
+    if(dlLocked){
+      return `<div class="lock-banner" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c">🔒 <b>월 마감 기한(익월 10일)이 지나 잠긴 문서</b>입니다. ${cst==='done'?'결재 완료됨.':'<b style="color:#c2410c">미완료 상태로 기한마감(자동)</b>.'} 수정하려면 관리자에게 요청하세요.</div>`;
+    }
+    if(isLocked) return `<div class="lock-banner" title="문서 상태값: ${cst} · 기한마감: ${dlLocked?'예':'아니오'}">🔒 ${apprLockMsg(cst)}</div>`;
+    if(admin && cst==='done') return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ <b>결재 완료된 문서를 관리자 권한으로 열었습니다.</b> 수정 시 확정된 실적이 변경되니 주의하세요.</div>`;
+    if(admin && ['submitted','lead_ok','div_ok'].includes(cst)) return `<div class="lock-banner" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c">⚙ 결재 진행 중이지만 <b>관리자 권한으로 수정할 수 있습니다.</b> 결재자가 본 숫자가 바뀌니 주의하세요.</div>`;
     return '';
   })()}
   <div class="closing-body t2-theme ${isLocked?'locked':''}">
