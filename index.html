@@ -421,6 +421,14 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .tdd-table tbody tr:hover{background:#eef4ff}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
 .t2-table th.th-hl span{color:#a2652a !important}
+/* 호기 자동표기 배지 */
+.hk-tag{display:inline-block;font-size:10px;font-weight:800;color:#1d4ed8;background:#eaf4ff;border:1px solid #b9d4f5;border-radius:4px;padding:0 5px;vertical-align:1px}
+.idle-tag{display:inline-block;font-size:10px;font-weight:800;color:#8a94a6;background:#f1f4f9;border:1px solid #d8e0ec;border-radius:4px;padding:0 5px;vertical-align:1px}
+.hoki-badge{display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:8px;
+  background:#f1f4f9;border:1.5px solid #d8e0ec;color:#8a94a6;font-size:12.5px;font-weight:700;white-space:nowrap}
+.hoki-badge.on{background:#eaf8f0;border-color:#a7e3c4;color:#0d6b40}
+.hoki-badge b{font-size:14px}
+.hoki-badge .hb-src{font-size:9.5px;font-weight:800;opacity:.65;letter-spacing:-.2px}
 .pk-done{margin-top:3px;font-size:9.5px;font-weight:800;color:#0d8a4f;background:#eaf8f0;border:1px solid #a7e3c4;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
 .pk-going{margin-top:3px;font-size:9.5px;font-weight:800;color:#5a3fb8;background:#f4f1ff;border:1px solid #cfc3f0;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help;white-space:nowrap}
 .pk-base{margin-top:3px;font-size:10px;color:#98a2b3;font-family:ui-monospace,monospace}
@@ -898,7 +906,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13h</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -935,7 +943,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13h</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1392,7 +1400,8 @@ function shiftMonth(delta){
 }
 
 /* ================= 호기 밸런스 (6번) ================= */
-let HB={team:'생산1팀', from:null, to:null, preset:'m', line:null, rows:[], sk:'qty_kg', sd:-1, open:null};
+let HB={team:'생산1팀', from:null, to:null, preset:'m', line:null, rows:[], sk:'qty_kg', sd:-1,
+        open:null, detail:[], dLine:null, dHoki:null, dOpen:null};
 function hbRange(preset){
   const t=kstToday(); const d=new Date(t+'T00:00:00');
   const pad=n=>String(n).padStart(2,'0');
@@ -1519,30 +1528,93 @@ async function hbDetail(line,hoki){
     if(error)throw error; d=data||[];
   }catch(e){ toast('상세 조회 실패: '+(e.message||e),'err'); }
   if(!box) return;
+  HB.detail=d; HB.dLine=line; HB.dHoki=hoki; HB.dOpen=null;
+  hbDetailPaint();
+  box.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function hbDetailPaint(){
+  const box=$('#hbDetail'); if(!box) return;
+  const d=HB.detail||[], line=HB.dLine, hoki=HB.dHoki;
+  const row=(HB.rows||[]).find(r=>r.line===line&&String(r.hoki)===String(hoki))||{};
   const tot=d.reduce((a,b)=>a+Number(b.qty_kg||0),0);
+  const runMin=Number(row.run_min||0);
+  const avgHr=runMin>0?tot/(runMin/60):0;
+  const days=Number(row.work_days||0);
   box.innerHTML=`
   <div class="sec" style="border:2px solid var(--navy);margin:0"><div class="sec-hd">
     <span class="no c1">▸</span><h3>${line} ${hoki}호기 · 제품별 상세</h3>
-    <span class="desc">${HB.from} ~ ${HB.to} · ${d.length}품목 · 합계 ${fmt(Math.round(tot))}kg</span>
+    <span class="desc">${HB.from} ~ ${HB.to}</span>
     <span class="sp" style="flex:1"></span><button class="tbtn" onclick="hbDetail('${line.replace(/'/g,"\\'")}','${hoki}')">닫기</button></div>
-    <div class="sec-bd" style="overflow-x:auto"><table class="tdd-table">
-      <thead><tr><th>제품코드</th><th>제품명</th><th>생산일수</th><th>기간</th><th>생산량</th><th>비중</th><th>배분 운영시간</th><th>시간당</th></tr></thead>
-      <tbody>${d.length?d.map(x=>`<tr>
+    <div class="sec-bd">
+      <div class="team-stat-grid" style="margin-bottom:12px">
+        <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(runMin/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(runMin))}분 · ${fmt(days)}일 가동</div></div>
+        <div class="sc"><div class="l">총 생산량</div><div class="v mono">${fmt(Math.round(tot))}<small>kg</small></div><div class="sc-sub">${d.length}품목</div></div>
+        <div class="sc"><div class="l">시간당 생산량</div><div class="v mono">${runMin>0?fmt(Math.round(avgHr)):'–'}<small>kg/hr</small></div><div class="sc-sub">이 호기 평균</div></div>
+        <div class="sc"><div class="l">일평균 운영</div><div class="v mono">${days>0?(runMin/days/60).toFixed(1):'–'}<small>hr</small></div><div class="sc-sub">${days>0?fmt(Math.round(tot/days))+'kg/일':'–'}</div></div>
+        <div class="sc ${Number(row.unplan_stop_min||0)>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(Number(row.unplan_stop_min||0)/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">계획정지 ${(Number(row.plan_stop_min||0)/60).toFixed(1)}hr</div></div>
+      </div>
+      <div style="overflow-x:auto"><table class="tdd-table">
+      <thead><tr><th>제품코드</th><th>제품명</th><th>생산일수</th><th>기간</th><th>생산량</th><th>비중</th><th>배분 운영시간</th><th>시간당</th><th>일자별</th></tr></thead>
+      <tbody>${d.length?d.map(x=>{
+        const kh=x.kg_per_hr!=null?Number(x.kg_per_hr):null;
+        const dev=(kh!=null&&avgHr>0)?((kh-avgHr)/avgHr*100):null;
+        const open=HB.dOpen===x.prod_code;
+        return `<tr${open?' style="background:#eef4ff"':''}>
         <td class="mono">${x.prod_code}</td><td class="l">${x.prod_name||'-'}</td>
         <td class="mono">${fmt(x.work_days)}일</td>
         <td class="mono" style="font-size:11.5px;color:var(--sub)">${String(x.first_date).slice(5)} ~ ${String(x.last_date).slice(5)}</td>
         <td class="mono"><b>${fmt(Math.round(x.qty_kg))}</b>kg</td>
         <td class="mono">${tot>0?(x.qty_kg/tot*100).toFixed(1)+'%':'–'}</td>
         <td class="mono">${Number(x.run_min)>0?(Number(x.run_min)/60).toFixed(1)+'hr':'–'}</td>
-        <td class="mono">${x.kg_per_hr!=null?fmt(Math.round(x.kg_per_hr))+'kg/hr':'–'}</td>
-      </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--mut);padding:24px">해당 기간 생산 실적이 없습니다</td></tr>'}</tbody>
-    </table>
-    <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
-      ※ <b>배분 운영시간</b>은 호기 전체 운영시간을 제품별 생산량 비중으로 나눈 <b>추정치</b>입니다.
-      제품별 실제 가동시간은 ⑤에서 오더를 지정해 등록하면 정확해집니다.</div>
+        <td class="mono">${kh!=null?`<b>${fmt(Math.round(kh))}</b>kg/hr${dev!=null?`<div style="font-size:9.5px;font-weight:800;color:${dev>=0?'#0d8a4f':'#c4320a'}">${dev>=0?'+':'−'}${Math.abs(dev).toFixed(0)}% <span style="color:#98a2b3;font-weight:700">평균대비</span></div>`:''}`:'–'}</td>
+        <td><button class="rowbtn" onclick="hbDaily('${String(x.prod_code).replace(/'/g,"\\'")}')">${open?'닫기':'일자별 ▸'}</button></td>
+      </tr>${open?`<tr><td colspan="9" style="padding:0;background:#f7f9fc"><div id="hbDailyBox" style="padding:12px 14px"></div></td></tr>`:''}`;}).join('')
+        :'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:24px">해당 기간 생산 실적이 없습니다</td></tr>'}</tbody>
+      </table></div>
+      <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+        ※ <b>배분 운영시간</b>은 호기 전체 운영시간을 제품별 생산량 비중으로 나눈 <b>추정치</b>입니다.
+        ⑤에서 오더를 지정해 가동을 등록하면 그 제품은 실측값으로 바뀝니다.</div>
     </div>
   </div>`;
-  box.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+async function hbDaily(prod){
+  if(HB.dOpen===prod){ HB.dOpen=null; hbDetailPaint(); return; }
+  HB.dOpen=prod; hbDetailPaint();
+  const box=$('#hbDailyBox'); if(box) box.innerHTML='<div class="skel" style="height:120px;border-radius:10px"></div>';
+  let rows=[];
+  try{
+    const {data,error}=await sb.rpc('hoki_product_daily',
+      {p_team:HB.team,p_from:HB.from,p_to:HB.to,p_line:HB.dLine,p_hoki:HB.dHoki,p_prod:prod});
+    if(error)throw error; rows=data||[];
+  }catch(e){ toast('일자별 조회 실패: '+(e.message||e),'err'); }
+  const b=$('#hbDailyBox'); if(!b) return;
+  const tq=rows.reduce((a,x)=>a+Number(x.qty_kg||0),0);
+  const tm=rows.reduce((a,x)=>a+Number(x.run_min||0),0);
+  const avg=tm>0?tq/(tm/60):0;
+  const vals=rows.filter(x=>x.kg_per_hr!=null).map(x=>Number(x.kg_per_hr));
+  const mx=vals.length?Math.max(...vals):0, mn=vals.length?Math.min(...vals):0;
+  b.innerHTML=`
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:9px;font-size:12px">
+      <b style="font-size:12.5px;color:#243b63">${prod} · 일자별 생산</b>
+      <span style="color:#5a6b85">${rows.length}일 · ${fmt(Math.round(tq))}kg · ${(tm/60).toFixed(1)}hr</span>
+      <span style="padding:2px 9px;border-radius:99px;background:#eaf4ff;border:1px solid #b9d4f5;color:#1d4ed8;font-weight:800">평균 ${tm>0?fmt(Math.round(avg)):'–'} kg/hr</span>
+      ${vals.length>1?`<span style="color:#7a8699">최고 ${fmt(Math.round(mx))} · 최저 ${fmt(Math.round(mn))} kg/hr</span>`:''}
+    </div>
+    <table class="tdd-table" style="min-width:0">
+      <thead><tr><th>일자</th><th>생산량</th><th>운영시간</th><th>시간당</th><th>평균대비</th><th>산출근거</th></tr></thead>
+      <tbody>${rows.length?rows.map(x=>{
+        const kh=x.kg_per_hr!=null?Number(x.kg_per_hr):null;
+        const dv=(kh!=null&&avg>0)?((kh-avg)/avg*100):null;
+        return `<tr>
+          <td class="mono">${String(x.work_date).slice(5)}</td>
+          <td class="mono"><b>${fmt(Math.round(x.qty_kg))}</b>kg</td>
+          <td class="mono">${Number(x.run_min)>0?(Number(x.run_min)/60).toFixed(1)+'hr':'–'}</td>
+          <td class="mono">${kh!=null?`<b>${fmt(Math.round(kh))}</b>`:'–'}</td>
+          <td class="mono">${dv!=null?`<b style="color:${dv>=0?'#0d8a4f':'#c4320a'}">${dv>=0?'+':'−'}${Math.abs(dv).toFixed(0)}%</b>`:'–'}</td>
+          <td><span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;${x.run_src==='direct'?'background:#eaf8f0;border:1px solid #a7e3c4;color:#0d6b40':(x.run_src==='share'?'background:#f4f1ff;border:1px solid #cfc3f0;color:#5a3fb8':'background:#f1f4f9;border:1px solid #d8e0ec;color:#8a94a6')}" title="${x.run_src==='direct'?'⑤에서 이 오더로 직접 등록된 가동시간':(x.run_src==='share'?'호기 전체 가동시간을 생산량 비중으로 배분한 추정치':'가동시간 기록이 없습니다')}">${x.run_src==='direct'?'실측':(x.run_src==='share'?'배분':'없음')}</span></td>
+        </tr>`;}).join('')
+        :'<tr><td colspan="6" style="text-align:center;color:var(--mut);padding:18px">일자별 실적이 없습니다</td></tr>'}</tbody>
+    </table>`;
 }
 
 /* ================= 관리자: 계획 업로드 ================= */
@@ -4799,7 +4871,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13e';
+const APP_VERSION='v2026.08.13h';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5393,12 +5465,12 @@ function filterRunList(f){
     else if(RUN_FILTER==='__auto')   hit=(tr.dataset.rsrc==='auto');
     else if(RUN_FILTER)              hit=(tr.dataset.rline===RUN_FILTER);
     if(hit&&q){
-      const txt=(tr.dataset.rord+' '+(tr.children[2]?tr.children[2].textContent:'')).toLowerCase();
+      const txt=(tr.dataset.rord+' '+(tr.children[3]?tr.children[3].textContent:'')).toLowerCase();
       hit=txt.includes(q);
     }
     tr.style.display=hit?'':'none';
     if(hit){ shown++;
-      const h=Number(String((tr.children[7]||{}).textContent||'').replace(/[^0-9.]/g,''))||0;
+      const h=Number(String((tr.children[8]||{}).textContent||'').replace(/[^0-9.]/g,''))||0;
       mins+=h;
     }
   });
@@ -5425,6 +5497,7 @@ function buildSection5(){
         : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
       return `<tr data-down="${t.id}" data-rline="${(t.proc_sub1||'')}/${(t.proc_sub2||'')}" data-rkind="${kind}" data-rsrc="${t.source==='auto'?'auto':'manual'}" data-rord="${t.prod_code||''}">
         <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
+        <td class="mono">${t.hoki?`<b>${t.hoki}</b>호기`:'–'}</td>
         <td class="mono">${t.prod_code||'–'}</td>
         <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
         <td>${kind!=='-'?`<span class="type-tag">${kind}</span>`:'–'}</td>
@@ -5444,10 +5517,12 @@ function buildSection5(){
       <div class="blk-hd">📋 오더별 라인 가동 이력 <span class="blk-sub">작업 시작/종료를 입력하면 라인별 작업시간이 집계됩니다</span></div>
       <div class="run-form">
         <select id="runLine" onchange="filterRunProds()"><option value="">라인선택</option>${lineOpt2}</select>
-        <select id="runProd"><option value="">먼저 라인 선택</option></select>
+        <select id="runProd" onchange="syncHokiBadge('runLine','runProd','runHoki')"><option value="">먼저 라인 선택</option></select>
         <input id="runStart" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="시작">
         <span style="color:var(--mut)">~</span>
         <input id="runEnd" type="text" class="t24" inputmode="numeric" maxlength="5" placeholder="--:--" autocomplete="off" oninput="fmtTime24(this)" onblur="normTime24(this)" onfocus="this.select()" title="종료">
+        <span id="runHokiBox" class="hoki-badge" title="오더를 선택하면 MES 원본의 호기가 자동 표기됩니다">호기 –</span>
+        <input type="hidden" id="runHoki" value="">
         <input id="runMemo" placeholder="비고(선택)" style="flex:1;min-width:100px">
         <button class="tbtn save" onclick="saveRunTime()">+ 작업시간 추가</button>
       </div>
@@ -5481,7 +5556,7 @@ function buildSection5(){
         </div>`;
       })()}
       <div class="sec-bd" style="overflow-x:auto;border-top:1px solid var(--line)"><table class="t2-table" id="runTable">
-        <thead><tr><th>라인</th><th>오더</th><th>제품명</th><th>제품구분</th><th>출처</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
+        <thead><tr><th>라인</th><th>호기</th><th>오더</th><th>제품명</th><th>제품구분</th><th>출처</th><th>시작</th><th>종료</th><th>시간(hr)</th><th>비고</th><th>관리</th></tr></thead>
         <tbody id="runBody">${runRows2||'<tr><td colspan="10" style="color:var(--mut);padding:16px">오더별 작업시간을 추가해 주세요</td></tr>'}</tbody>
       </table></div>
 
@@ -5650,9 +5725,10 @@ function buildSection5(){
       <div class="blk-hd">➕ 새 비가동 추가 <span class="blk-sub">정지원인·조치내용·재발방지대책까지 기록</span></div>
       <div class="stop-form">
         <div class="sf-row">
-          <select id="stLine" onchange="loadStopProds();fillHokiOptions('stLine','stHoki')"><option value="">라인 *</option>${lineOpt}</select>
-          <select id="stHoki" onchange="onHokiChange('stHoki')" style="min-width:96px"><option value="">호기 전체</option></select>
-          <select id="stProd" onclick="loadStopProds()" onchange="onStopProdChange()" title="오더를 고르면 그 오더의 호기가 자동으로 채워집니다"><option value="">오더(선택)</option></select>
+          <select id="stLine" onchange="loadStopProds();syncHokiBadge('stLine','stProd','stHoki')"><option value="">라인 *</option>${lineOpt}</select>
+          <select id="stProd" onclick="loadStopProds()" onchange="syncHokiBadge('stLine','stProd','stHoki')" title="오더를 고르면 MES 원본의 호기가 자동 표기됩니다"><option value="">오더(선택)</option></select>
+          <span id="stHokiBox" class="hoki-badge" title="MES 원본(생산계획 호기)에서 자동 표기됩니다. 값이 틀리면 MES 데이터를 바로잡아야 합니다">호기 –</span>
+          <input type="hidden" id="stHoki" value="">
           <select id="stCat" onchange="refreshDtSelects();if($('#dtTypeMgr')&&$('#dtTypeMgr').style.display!=='none')renderDtMgr();"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
           <button class="rowbtn" onclick="toggleDtMgr('stCat')" title="선택한 구분(계획/비계획)의 사유유형을 등록·수정합니다. 등록하면 바로 쓸 수 있습니다">⚙ 유형관리</button>
@@ -6639,6 +6715,32 @@ function hokiListOf(line){
   });
   return [...set].sort((a,b)=>(Number(a)||99)-(Number(b)||99)||String(a).localeCompare(String(b)));
 }
+/* 호기는 사람이 고르지 않는다 — MES 원본(오더의 호기)에서 자동으로 결정한다.
+   ① 오더를 고르면 그 오더의 호기
+   ② 오더 미선택 시, 그 라인의 호기가 딱 하나뿐이면 그 값
+   ③ 그 외에는 '전체'(호기 미지정)로 남긴다
+   값이 틀리면 화면이 아니라 MES 데이터를 바로잡는 것이 맞다. */
+function syncHokiBadge(lineSelId,prodSelId,hiddenId){
+  const ls=$('#'+lineSelId), ps=$('#'+prodSelId), hd=$('#'+hiddenId);
+  const box=$('#'+hiddenId+'Box');
+  if(!hd) return;
+  let h='', src='';
+  if(ps&&ps.selectedIndex>0){
+    const op=ps.options[ps.selectedIndex];
+    h=String((op&&op.dataset.hoki)||'').trim(); src='오더';
+  }
+  if(!h&&ls){
+    const list=hokiListOf(ls.value);
+    if(list.length===1){ h=list[0]; src='라인'; }
+  }
+  hd.value=h;
+  if(box){
+    box.innerHTML=h?`<b>${h}</b>호기 <span class="hb-src">${src}</span>`:'호기 –';
+    box.classList.toggle('on',!!h);
+    box.title=h?`MES 원본 ${src} 기준으로 자동 표기된 호기입니다. 값이 틀리면 MES 데이터를 바로잡아야 합니다.`
+               :'오더를 선택하면 해당 오더의 호기가 자동 표기됩니다. 호기 구분이 없는 라인은 비워둡니다.';
+  }
+}
 function fillHokiOptions(lineSelId,hokiSelId){
   const ls=$('#'+lineSelId), hs=$('#'+hokiSelId);
   if(!ls||!hs) return;
@@ -6699,7 +6801,7 @@ async function saveStop2(){
   try{
     const {data,error}=await sb.from('t_cl_downtime').insert({
       work_date:date,team,proc_sub1:s1,proc_sub2:s2,prod_code:$('#stProd').value||null,
-      hoki:($('#stHoki')&&$('#stHoki').value!=='__etc'?($('#stHoki').value||null):null),
+      hoki:(($('#stHoki')&&$('#stHoki').value)||null),
       category:$('#stCat').value,reason_type:type,start_time:st,end_time:en,
       memo:reason,action_taken:$('#stAction').value||'',prevention:$('#stPrevent').value||'',
       source:'manual'
@@ -6798,7 +6900,11 @@ function filterRunProds(){
   const ln=$('#runLine').value;
   const sel=$('#runProd');
   const os=(CUR_DAY.orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===ln);
-  sel.innerHTML='<option value="">오더 선택</option>'+os.map(o=>`<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}">${o.prod_code} · ${o.prod_name||''}</option>`).join('');
+  sel.innerHTML='<option value="">오더 선택</option>'+os.map(o=>{
+    const h=String(o.hoki||'').trim();
+    return `<option value="${o.prod_code}|${(o.prod_name||'').replace(/"/g,'')}|${o.proc_sub1}|${o.proc_sub2}" data-hoki="${h}">${o.prod_code} · ${o.prod_name||''}${h?' · '+h+'호기':''}</option>`;
+  }).join('');
+  syncHokiBadge('runLine','runProd','runHoki');
 }
 async function saveRunTime(){
   const {date,team}=CUR_DAY;
@@ -6809,6 +6915,7 @@ async function saveRunTime(){
   try{
     const {data,error}=await sb.from('t_cl_downtime').insert({
       work_date:date,team,proc_sub1:s1,proc_sub2:s2,prod_code:code,
+      hoki:((($('#runHoki')&&$('#runHoki').value)||'').trim()||null),
       category:'run',reason_type:'',start_time:st,end_time:en,
       memo:$('#runMemo').value||'',source:'manual'
     }).select();
@@ -7388,6 +7495,21 @@ function toggleAdminUnlock(){
   else { ADMIN_UNLOCKED.add(key); toast('임시 잠금해제 (이 세션 동안)','ok'); }
   rerenderClosing();
 }
+/* ── 호기 분리 대상 라인 ────────────────────────────────────────────
+   설비가 2대여도 관리 단위가 아니면 나눌 이유가 없다.
+   포장(4대·CAPA 편차 큼)과 EP(2대)만 호기별로 본다.
+   여기 배열만 고치면 ① 라인별 요약 전체에 반영된다.                */
+const HOKI_SPLIT=['주식/포장','주식/EP'];
+/* 호기 미지정으로 숨긴 과거 등록분 (탭별) — 표 아래에 안내만 남긴다 */
+const LINE_SUM_NOHK={};
+function hkKey(line,hoki){
+  const h=String(hoki||'').trim();
+  return (HOKI_SPLIT.includes(line)&&h) ? (line+'#'+h) : line;
+}
+function hkSplit(key){
+  const i=String(key).indexOf('#');
+  return i<0 ? [String(key),''] : [String(key).slice(0,i), String(key).slice(i+1)];
+}
 function renderClosing(){
   const {date,team,lines,orders,losses}=CUR_DAY;
   // 결재 진행/완료 시 작성자 수정 잠금 (draft/rejected/none만 편집 가능)
@@ -7433,26 +7555,68 @@ function renderClosing(){
     const {stdTime,mhMap,downtime}=CUR_DAY;
     // 기준시간 맵
     const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0)}; });
-    // 라인별 가동/정지 시간
+    // 라인별 가동/정지 시간 — 호기 분리 대상 라인만 호기 단위로 쪼갠다
     const runByLine={}, stopByLine={};
     (downtime||[]).forEach(t=>{
-      const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
+      const k=hkKey((t.proc_sub1||'')+'/'+(t.proc_sub2||''), t.hoki);
       const dur=diffMin(t.start_time,t.end_time);
       if(t.category==='run') runByLine[k]=(runByLine[k]||0)+dur;
       else if(['plan','unplan','sudden'].includes(t.category)) stopByLine[k]=(stopByLine[k]||0)+dur;
     });
     // 오더 집계 (해당 kind만, all이면 완+반 전체)
-    const agg={};
+    //  ※ 이 탭에 '속한 라인'은 오더 기준으로만 정한다.
+    //    가동시간만 있고 그 구분의 오더가 없는 라인(예: 완제품 탭의 주식/생육)은
+    //    끌어들이지 않는다 — 완제품 탭에 반제품 라인이 섞이는 원인이었음.
+    const agg={}, allowBase=new Set();
     orders.filter(o=> kind==='all' ? (o.kind==='fin'||o.kind==='semi') : o.kind===kind).forEach(o=>{
-      const k=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
+      const base=o.line_name||((o.proc_sub1||'')+'/'+(o.proc_sub2||''));
+      const k=hkKey(base, o.hoki);
+      allowBase.add(base);
       if(!agg[k])agg[k]={plan:0,act:0,cnt:0,mh:0};
       agg[k].plan+=Number(o.plan_sum||0); agg[k].act+=Number(o.actual_sum||0); agg[k].cnt++;
       const mh=mhMap&&mhMap[o.prod_code]; if(mh)agg[k].mh+=Number(mh.mh||0);
     });
-    const keys=Object.keys(agg).sort(procOrderCmp);
+    // [default 노출] 계획이 있는 라인은 실적·가동이 없어도 표에 남긴다.
+    //   → 표에서 사라지면 '안 돌린 것'인지 '기록을 안 한 것'인지 구분이 안 된다.
+    (lines||[]).forEach(l=>{
+      const base=l.line_name||((l.proc_sub1||'')+'/'+(l.proc_sub2||''));
+      const has = kind==='fin'  ? (Number(l.fin_plan||0)>0||Number(l.fin_order_count||0)>0)
+                : kind==='semi' ? (Number(l.semi_plan||0)>0)
+                : (Number(l.plan_sum||0)>0);
+      if(!has) return;
+      allowBase.add(base);
+      if(HOKI_SPLIT.includes(base)){
+        // 호기 분리 라인은 계획에 등장한 호기들을 모두 자리 잡아둔다
+        const hs=[...new Set((orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===base)
+                    .map(o=>String(o.hoki||'').trim()).filter(Boolean))];
+        hs.forEach(h=>{ const k=hkKey(base,h); if(!agg[k])agg[k]={plan:0,act:0,cnt:0,mh:0}; });
+      }else if(!agg[base]) agg[base]={plan:0,act:0,cnt:0,mh:0};
+    });
+    // 가동시간은 '이 탭에 속한 라인'에 대해서만 행을 만든다
+    Object.keys(runByLine).forEach(k=>{
+      const [b]=hkSplit(k);
+      if(!allowBase.has(b)) return;
+      if(!agg[k])agg[k]={plan:0,act:0,cnt:0,mh:0};
+    });
+    // 호기 분리 라인인데 호기가 없는 행(과거 등록분)은 표시하지 않는다
+    let noHkMin=0, noHkCnt=0;
+    Object.keys(agg).forEach(k=>{
+      const [b,h]=hkSplit(k);
+      if(HOKI_SPLIT.includes(b) && !h){
+        noHkMin+=(runByLine[k]||0); noHkCnt++;
+        delete agg[k];
+      }
+    });
+    LINE_SUM_NOHK[kind]={min:noHkMin, cnt:noHkCnt};
+    const keys=Object.keys(agg).sort((a,b)=>{
+      const [la,ha]=hkSplit(a), [lb,hb]=hkSplit(b);
+      const c=procOrderCmp(la,lb); if(c) return c;
+      return (Number(ha)||99)-(Number(hb)||99)||String(ha).localeCompare(String(hb));
+    });
     if(!keys.length)return `<tr><td colspan="13" style="color:var(--mut);padding:16px">${kind==='fin'?'완제품':kind==='semi'?'반제품':'데이터'} 없음</td></tr>`;
     return keys.map((k,i)=>{
-      const a=agg[k]; const st=stdMap[k]||{std:0};
+      const a=agg[k]; const [kLine,kHoki]=hkSplit(k);
+      const st=stdMap[k]||stdMap[kLine]||{std:0};
       const planH=(runByLine[k]||0)/60;                 // 계획 가동시간 = run 합
       const stopH=(stopByLine[k]||0)/60;
       const actH=Math.max(planH-stopH,0);               // 실적 가동시간 = 계획 - 정지
@@ -7461,8 +7625,9 @@ function renderClosing(){
       const ach=a.plan>0?(a.act/a.plan*100):0;          // 달성률
       const hrProd=actH>0?(a.act/actH):0;               // 시간당 생산성 = 실적 ÷ 실적시간
       const mhProd=a.mh>0?(a.act/a.mh):0;               // 인시당 생산성 = 실적 ÷ MH
-      return `<tr>
-        <td class="l"><span class="t2-lno">L${i+1}</span> ${k}</td>
+      const idle=(a.plan<=0&&a.act<=0&&!(runByLine[k]>0));
+      return `<tr${idle?' style="background:#fafbfc"':''}>
+        <td class="l"><span class="t2-lno">L${i+1}</span> ${kLine}${kHoki?` <span class="hk-tag">${kHoki}호기</span>`:''}${idle?' <span class="idle-tag" title="계획은 있으나 실적·가동시간 기록이 없습니다">미가동</span>':''}</td>
         <td class="mono">${st.std||'–'}</td>
         <td class="mono">${planH?planH.toFixed(1):'–'}</td>
         <td class="mono">${actH?actH.toFixed(1):'–'}</td>
@@ -7610,7 +7775,12 @@ function renderClosing(){
         <tr><th>기준</th><th>계획</th><th>실적</th><th>편성률</th><th>가동률</th><th>계획</th><th>실적</th><th>달성률</th></tr>
       </thead>
       <tbody id="lineSummaryBody">${lineRowsByKind(LINE_SUM_TAB)}</tbody>
-    </table></div>
+    </table>
+    ${(()=>{ const n=LINE_SUM_NOHK[LINE_SUM_TAB]||{};
+      return n.cnt?`<div style="font-size:11.5px;color:#8a94a6;margin-top:8px;line-height:1.6">
+        ※ 호기가 지정되지 않은 과거 등록분 <b>${n.cnt}건</b>${n.min?` (${(n.min/60).toFixed(1)}hr)</b>`:''}은 표시하지 않습니다.
+        ⑤ 라인 가동/비가동에서 해당 건을 수정하면 호기별 집계에 포함됩니다.</div>`:''; })()}
+    </div>
   </div>
 
   <!-- ② 오더별 생산실적 · 투입공수 (2팀과 동일 · 공용 함수) -->
@@ -8008,8 +8178,11 @@ function openDownForm(){
   <div class="sec" style="border:2px solid var(--navy);margin:16px 0 8px;box-shadow:var(--sh-lg)"><div class="sec-hd"><h3>비가동 등록</h3>
     <span class="sp"></span><button class="tbtn" onclick="$('#downFormSlot').innerHTML=''">닫기</button></div>
     <div class="sec-bd"><div class="work-grid">
-      <div class="work-field"><label>라인</label><select id="dtLine" onchange="fillHokiOptions('dtLine','dtHoki')">${CUR_DAY._lineOpts}</select></div>
-      <div class="work-field"><label>호기</label><select id="dtHoki" onchange="onHokiChange('dtHoki')"><option value="">호기 전체</option></select></div>
+      <div class="work-field"><label>라인</label><select id="dtLine" onchange="loadDownProds();syncHokiBadge('dtLine','dtProd','dtHoki')">${CUR_DAY._lineOpts}</select></div>
+      <div class="work-field"><label>오더</label><select id="dtProd" onchange="syncHokiBadge('dtLine','dtProd','dtHoki')"><option value="">오더(선택)</option></select></div>
+      <div class="work-field"><label>호기 <span style="font-weight:600;color:#98a2b3;font-size:10.5px">자동</span></label>
+        <div id="dtHokiBox" class="hoki-badge" style="margin-top:4px" title="MES 원본(생산계획 호기)에서 자동 표기됩니다">호기 –</div>
+        <input type="hidden" id="dtHoki" value=""></div>
       <div class="work-field"><label>근무형태</label><select id="dtShift">
         <option value="">미지정</option><option value="주간">주간</option><option value="야간">야간</option></select></div>
       <div class="work-field"><label>구분</label><select id="dtCat" onchange="onDtCatChange()">
@@ -8023,7 +8196,18 @@ function openDownForm(){
     <div id="dtTypeMgr" style="display:none"></div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
   </div>`;
-  fillHokiOptions('dtLine','dtHoki');   // 라인 기본선택 기준 호기 목록 초기화
+  loadDownProds(); syncHokiBadge('dtLine','dtProd','dtHoki');
+}
+/* 1팀 등록폼 : 선택한 라인의 오더 목록 (호기 자동 표기용) */
+function loadDownProds(){
+  const ls=$('#dtLine'), sel=$('#dtProd'); if(!ls||!sel) return;
+  const raw=String(ls.value||'');
+  const [s1,s2]= raw.indexOf('|')>=0 ? [raw.slice(0,raw.indexOf('|')), raw.slice(raw.indexOf('|')+1)] : splitLine(raw);
+  const os=(CUR_DAY.orders||[]).filter(o=>(o.proc_sub1||'')===s1&&(o.proc_sub2||'')===s2);
+  sel.innerHTML='<option value="">오더(선택)</option>'+os.map(o=>{
+    const h=String(o.hoki||'').trim();
+    return `<option value="${o.prod_code}" data-hoki="${h}">${o.prod_code} · ${o.prod_name||''}${h?' · '+h+'호기':''}</option>`;
+  }).join('');
 }
 async function saveDownNew(){
   const {date,team}=CUR_DAY;
@@ -8031,8 +8215,9 @@ async function saveDownNew(){
   try{
     const {error}=await sb.from('t_cl_downtime').insert({
       work_date:date,team,proc_sub1:s1,proc_sub2:s2,
-      hoki:(($('#dtHoki').value||'').trim()==='__etc'?null:(($('#dtHoki').value||'').trim()||null)),
+      hoki:((($('#dtHoki')&&$('#dtHoki').value)||'').trim()||null),
       shift:$('#dtShift').value||null,
+      prod_code:(($('#dtProd')&&$('#dtProd').value)||null),
       category:$('#dtCat').value,
       reason_type:$('#dtReason').value,start_time:normTime24($('#dtStart')),end_time:normTime24($('#dtEnd')),
       memo:$('#dtMemo').value,
@@ -8088,14 +8273,9 @@ function openDownEdit(id){
           수정 시 '수동' 데이터로 전환되어 이후 자동 업데이트에 덮이지 않습니다.
         </div>`:''}
         <div class="work-grid">
-          <div class="work-field"><label>호기</label>
-            <select id="edHoki" onchange="onHokiChange('edHoki')">${
-              (function(){ const cur=String(t.hoki||'');
-                const list=hokiListOf((t.proc_sub1||'')+'/'+(t.proc_sub2||''));
-                return `<option value=""${cur?'':' selected'}>호기 전체</option>`
-                  +list.map(h=>`<option value="${h}"${h===cur?' selected':''}>${h}호기</option>`).join('')
-                  +(cur&&list.indexOf(cur)<0?`<option value="${cur}" selected>${cur}호기</option>`:'')
-                  +'<option value="__etc">직접입력…</option>'; })()}</select></div>
+          <div class="work-field"><label>호기 <span style="font-weight:600;color:#98a2b3;font-size:10.5px">MES 자동</span></label>
+            <div class="hoki-badge ${t.hoki?'on':''}" style="margin-top:4px" title="MES 원본 기준 호기입니다. 값이 틀리면 MES 데이터를 바로잡아야 합니다">${t.hoki?`<b>${esc(t.hoki)}</b>호기`:'호기 –'}</div>
+            <input type="hidden" id="edHoki" value="${esc(t.hoki)}"></div>
           <div class="work-field"><label>근무형태</label><select id="edShift">
             ${sOpt('')}${sOpt('주간')}${sOpt('야간')}</select></div>
           <div class="work-field"><label>구분</label><select id="edCat" onchange="refreshDtSelects()">
