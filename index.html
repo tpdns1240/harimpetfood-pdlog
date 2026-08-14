@@ -906,7 +906,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13k</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13m</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -943,7 +943,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13k</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13m</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -4889,7 +4889,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13k';
+const APP_VERSION='v2026.08.13m';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5200,6 +5200,13 @@ async function openDay(date, team){
     });
     // 설계수율(기준 건조수율) : 품번 → %
     CUR_DAY.dtTypes={};
+    // 품명 폴백 맵 — 설정에서 라인을 OFF 하면 db_plan 뷰에서 빠져 오더 목록에 없다.
+    //   그 품목의 가동/비가동 기록은 남아 있어 화면에 '–' 로 뜨므로, 원본에서 이름만 별도로 채운다.
+    CUR_DAY.nameMap={};
+    sb.rpc('get_prod_names',{p_date:date,p_team:team}).then(({data})=>{
+      (data||[]).forEach(r=>{ if(r.prod_code) CUR_DAY.nameMap[r.prod_code]={name:r.prod_name||'', hoki:r.hoki||''}; });
+      try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+    },()=>{});
     loadDtTypes().then(()=>{ try{ refreshDtSelects(); }catch(_){} });   // 비가동 사유유형 마스터
     CUR_DAY.dy={};
     ((dyRes&&!dyRes.error&&dyRes.data)||[]).forEach(r=>{ if(r.design_yield!=null) CUR_DAY.dy[r.item_code]=Number(r.design_yield); });
@@ -5517,7 +5524,10 @@ function buildSection5(){
         <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
         <td class="mono">${t.hoki?`<b>${t.hoki}</b>호기`:'–'}</td>
         <td class="mono">${t.prod_code||'–'}</td>
-        <td class="l" style="font-size:12px">${o?(o.prod_name||''):(t.memo||'–')}</td>
+        <td class="l" style="font-size:12px">${(function(){
+          const nm=prodNameOf(t.prod_code);
+          if(nm) return nm+(o?'':' <span style="font-size:9.5px;font-weight:800;color:#8a94a6" title="설정에서 라인이 OFF 되어 오더 목록에는 없지만, 원본 계획에서 품명을 찾았습니다">라인OFF</span>');
+          return t.memo||'–'; })()}</td>
         <td>${kind!=='-'?`<span class="type-tag">${kind}</span>`:'–'}</td>
         <td>${srcBadge}</td>
         <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}${overnightBadge(t)}</td>
@@ -5688,7 +5698,7 @@ function buildSection5(){
             : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
           return `<tr data-down="${t.id}">
             <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
-            <td class="mono" style="font-size:11px">${t.prod_code||'–'}</td>
+            <td class="mono" style="font-size:11px">${t.prod_code?`${t.prod_code}${(function(){const n=prodNameOf(t.prod_code);return n?`<div style="font-size:10.5px;color:var(--sub);font-weight:600">${n}</div>`:'';})()}`:'–'}</td>
             <td><span class="type-tag ${catCls}">${cat}</span></td>
             <td>${srcBadge}</td>
             <td class="mono">${t.hoki?t.hoki+'호기':'–'}</td>
@@ -6698,6 +6708,14 @@ async function removeDtType(i){
    "주식/계량/배합 자동계량" 처럼 소분류에 '/'가 포함된 라인이 있어
    split('/') 를 쓰면 뒷부분이 잘려 다른 키로 저장됨(저장 실패처럼 보임).
    반드시 첫 '/' 기준으로만 나눈다.                                        */
+/* 품명 찾기 : ①당일 오더 ②원본 품명맵(라인 OFF 품목 포함) 순으로 조회 */
+function prodNameOf(code){
+  if(!code) return '';
+  const o=(CUR_DAY.orders||[]).find(x=>x.prod_code===code);
+  if(o&&o.prod_name) return o.prod_name;
+  const m=(CUR_DAY.nameMap||{})[code];
+  return m?(m.name||''):'';
+}
 function splitLine(ln){
   const s=String(ln||''); const i=s.indexOf('/');
   return i<0 ? [s,''] : [s.slice(0,i), s.slice(i+1)];
