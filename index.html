@@ -898,7 +898,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13e</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -935,7 +935,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13e</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1392,34 +1392,157 @@ function shiftMonth(delta){
 }
 
 /* ================= 호기 밸런스 (6번) ================= */
+let HB={team:'생산1팀', from:null, to:null, preset:'m', line:null, rows:[], sk:'qty_kg', sd:-1, open:null};
+function hbRange(preset){
+  const t=kstToday(); const d=new Date(t+'T00:00:00');
+  const pad=n=>String(n).padStart(2,'0');
+  const f=x=>`${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`;
+  if(preset==='w'){ const s2=new Date(d); s2.setDate(d.getDate()-6); return {from:f(s2), to:t}; }
+  if(preset==='m'){ return {from:t.slice(0,8)+'01', to:t}; }
+  if(preset==='pm'){ const y=new Date(d.getFullYear(), d.getMonth()-1, 1);
+    const e=new Date(d.getFullYear(), d.getMonth(), 0); return {from:f(y), to:f(e)}; }
+  if(preset==='3m'){ const s2=new Date(d.getFullYear(), d.getMonth()-2, 1); return {from:f(s2), to:t}; }
+  return {from:t.slice(0,8)+'01', to:t};
+}
 async function renderHoki(){
+  S.view='hoki';
+  if(!HB.from){ const r=hbRange('m'); HB.from=r.from; HB.to=r.to; }
   $('#wrap').innerHTML='<div class="skel" style="height:300px;border-radius:14px"></div>';
-  let list=[];
+  await hbLoad();
+}
+function hbPreset(p){ HB.preset=p; const r=hbRange(p); HB.from=r.from; HB.to=r.to; HB.open=null; hbLoad(); }
+function hbCustom(){
+  const f=$('#hbFrom').value, t=$('#hbTo').value;
+  if(!f||!t){ toast('기간을 모두 선택하세요','err'); return; }
+  if(f>t){ toast('시작일이 종료일보다 늦습니다','err'); return; }
+  HB.preset='c'; HB.from=f; HB.to=t; HB.open=null; hbLoad();
+}
+function hbLineFilter(v){ HB.line=v||null; HB.open=null; hbPaint(); }
+function hbSort(k){ if(HB.sk===k) HB.sd=-HB.sd; else { HB.sk=k; HB.sd=-1; } hbPaint(); }
+async function hbLoad(){
   try{
-    const {data,error}=await sb.rpc('get_hoki_balance',{p_ym:S.ym,p_team:'생산1팀'});
+    const {data,error}=await sb.rpc('hoki_balance_v2',{p_team:HB.team,p_from:HB.from,p_to:HB.to,p_line:null});
     if(error)throw error;
-    list=data||[];
-  }catch(e){ toast('호기 밸런스 실패: '+(e.message||e),'err'); }
-  const rows=list.map(h=>`<tr>
-    <td class="l"><b>${h.hoki}호기</b></td>
-    <td class="mono">${fmt(h.work_days)}일</td>
-    <td class="mono">${fmt(h.total_min)}분</td>
-    <td class="mono">${(h.total_min/60).toFixed(1)}시간</td>
-    <td class="mono">${fmt(h.avg_min)}분</td>
-    <td class="mono">${(h.avg_min/60).toFixed(1)}시간</td>
-  </tr>`).join('');
-  $('#wrap').innerHTML=`
+    HB.rows=data||[];
+  }catch(e){ HB.rows=[]; toast('호기 밸런스 조회 실패: '+(e.message||e),'err'); }
+  $('#wrap').innerHTML=hbShell();
+  hbPaint();
+}
+function hbShell(){
+  const pv=(k,t)=>`<button class="tab ${HB.preset===k?'on':''}" onclick="hbPreset('${k}')">${t}</button>`;
+  return `
   <div class="day-hd">
-    <div><h2>호기별 운영 밸런스</h2><div class="en">HOKI BALANCE · 포장(생산1팀) · ${S.ym}</div></div>
-    <div class="meta">토·일 제외 집계</div>
+    <div><h2>호기별 운영 밸런스</h2><div class="en">HOKI BALANCE · ${HB.team} · ${HB.from} ~ ${HB.to}</div></div>
+    <div class="meta">가동시간은 ⑤ 라인 가동/비가동 등록 기준</div>
   </div>
-  <div class="sec"><div class="sec-hd"><span class="no">◈</span><h3>호기별 운영시간</h3>
-    <span class="desc">생산시작~종료 − 정지시간 · 일평균은 근무일 기준</span></div>
-    <div class="sec-bd" style="overflow-x:auto"><table>
-      <thead><tr><th>호기</th><th>가동일수</th><th>총 운영(분)</th><th>총 운영(시간)</th><th>일평균(분)</th><th>일평균(시간)</th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="6" style="color:var(--mut);padding:20px">작업기록(생산시작/종료)을 입력하면 호기별 운영시간이 집계됩니다.</td></tr>'}</tbody>
-    </table></div>
+  <div class="sec"><div class="sec-hd" style="gap:8px;flex-wrap:wrap">
+      <div class="tabbar" style="margin:0">${pv('w','최근 7일')}${pv('m','당월')}${pv('pm','전월')}${pv('3m','최근 3개월')}</div>
+      <span class="sp" style="flex:1"></span>
+      <input type="date" id="hbFrom" value="${HB.from}" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12px">
+      <span style="color:var(--mut)">~</span>
+      <input type="date" id="hbTo" value="${HB.to}" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12px">
+      <button class="tbtn" onclick="hbCustom()">조회</button>
+    </div>
+    <div class="sec-bd" style="padding-top:10px">
+      <div id="hbLineChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div id="hbCards" class="team-stat-grid" style="margin-bottom:14px"></div>
+      <div class="tdd-scroll" style="max-height:none;min-height:0"><table class="tdd-table" id="hbTable"></table></div>
+      <div id="hbDetail" style="margin-top:14px"></div>
+    </div>
   </div>`;
+}
+function hbPaint(){
+  const all=HB.rows||[];
+  const lines=[...new Set(all.map(r=>r.line))].sort((a,b)=>procOrderCmp(a,b));
+  const chips=$('#hbLineChips');
+  if(chips) chips.innerHTML=`<span class="line-chip ${HB.line?'':'on'}" style="cursor:pointer" onclick="hbLineFilter('')">전체 ${all.length}</span>`
+    +lines.map(l=>{ const n=all.filter(r=>r.line===l).length;
+      return `<span class="line-chip ${HB.line===l?'on':''}" style="cursor:pointer" onclick="hbLineFilter('${l.replace(/'/g,"\\'")}')">${l} <b>${n}</b></span>`; }).join('');
+  let rows=HB.line?all.filter(r=>r.line===HB.line):all;
+  const cards=$('#hbCards');
+  if(cards){
+    const tRun=rows.reduce((a,b)=>a+Number(b.run_min||0),0);
+    const tQty=rows.reduce((a,b)=>a+Number(b.qty_kg||0),0);
+    const tStop=rows.reduce((a,b)=>a+Number(b.unplan_stop_min||0),0);
+    const maxD=rows.length?Math.max(...rows.map(r=>Number(r.qty_kg||0))):0;
+    const minD=rows.length?Math.min(...rows.map(r=>Number(r.qty_kg||0))):0;
+    const gap=maxD>0?((maxD-minD)/maxD*100):0;
+    cards.innerHTML=`
+      <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(tRun/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(tRun))}분 · 호기 ${rows.length}대</div></div>
+      <div class="sc"><div class="l">총 생산량</div><div class="v mono">${(tQty/1000).toFixed(1)}<small>t</small></div><div class="sc-sub">${fmt(Math.round(tQty))}kg</div></div>
+      <div class="sc"><div class="l">시간당 평균</div><div class="v mono">${tRun>0?fmt(Math.round(tQty/(tRun/60))):'–'}<small>kg/hr</small></div><div class="sc-sub">전체 호기 합산 기준</div></div>
+      <div class="sc ${gap>=50?'r':''}"><div class="l">호기 편차</div><div class="v mono">${maxD>0?gap.toFixed(0)+'%':'–'}</div><div class="sc-sub" title="가장 많이 생산한 호기 대비 가장 적은 호기의 격차입니다. 클수록 물량이 한쪽에 쏠려 있습니다">최대 대비 최소 격차</div></div>
+      <div class="sc ${tStop>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(tStop/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(tStop))}분</div></div>`;
+  }
+  const cols=[
+    {k:'line',t:'라인',ty:'s',cls:'l'},
+    {k:'hoki',t:'호기',ty:'n',f:v=>`<b>${v}호기</b>`},
+    {k:'work_days',t:'가동일수',ty:'n',cls:'mono',f:v=>fmt(v||0)+'일'},
+    {k:'run_min',t:'운영시간',ty:'n',cls:'mono',f:v=>`<b>${(Number(v||0)/60).toFixed(1)}</b>hr`},
+    {k:'plan_stop_min',t:'계획정지',ty:'n',cls:'mono',f:v=>Number(v)>0?(Number(v)/60).toFixed(1)+'hr':'–'},
+    {k:'unplan_stop_min',t:'비계획정지',ty:'n',cls:'mono',f:v=>Number(v)>0?`<b style="color:var(--red)">${(Number(v)/60).toFixed(1)}</b>hr`:'–'},
+    {k:'sku_cnt',t:'제품 SKU',ty:'n',cls:'mono',f:v=>fmt(v||0)+'종'},
+    {k:'qty_kg',t:'생산량',ty:'n',cls:'mono',f:v=>`<b>${fmt(Math.round(v||0))}</b>kg`},
+    {k:'kghr',t:'시간당',ty:'n',cls:'mono',f:(v,r)=>{ const m=Number(r.run_min||0); return m>0?fmt(Math.round(Number(r.qty_kg||0)/(m/60)))+'kg/hr':'–'; }},
+    {k:'util_pct',t:'CAPA 대비',ty:'n',cls:'mono',f:v=>v==null?'–':`<b style="color:${v>=90?'var(--grn)':v>=70?'#d97706':'var(--red)'}">${Number(v).toFixed(0)}%</b>`}
+  ];
+  if(HB.sk){
+    const col=cols.find(c=>c.k===HB.sk)||{ty:'n'};
+    rows=rows.slice().sort((a,b)=>{
+      if(HB.sk==='kghr'){ const g=x=>Number(x.run_min||0)>0?Number(x.qty_kg||0)/(Number(x.run_min)/60):0; return (g(a)-g(b))*HB.sd; }
+      if(col.ty==='n'){ return ((Number(a[HB.sk])||0)-(Number(b[HB.sk])||0))*HB.sd; }
+      return String(a[HB.sk]||'').localeCompare(String(b[HB.sk]||''),'ko')*HB.sd;
+    });
+  }
+  const th=cols.map(c=>{ const on=HB.sk===c.k; const ar=on?(HB.sd<0?'▼':'▲'):'<span style="opacity:.3">↕</span>';
+    return `<th class="tdd-th${on?' on':''}" onclick="hbSort('${c.k}')">${c.t} ${ar}</th>`; }).join('')+'<th>상세</th>';
+  const body=rows.length?rows.map(r=>{
+    const key=r.line+'|'+r.hoki;
+    return `<tr${HB.open===key?' style="background:#eef4ff"':''}>`+cols.map(c=>{
+      const v=r[c.k]; const txt=c.f?c.f(v,r):(v==null?'–':v);
+      return `<td class="${c.cls||''}">${txt}</td>`;
+    }).join('')
+    +`<td><button class="rowbtn" onclick="hbDetail('${r.line.replace(/'/g,"\\'")}','${r.hoki}')">${HB.open===key?'닫기':'제품별 ▸'}</button></td></tr>`;
+  }).join('')
+   :`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--mut);padding:30px">호기 정보가 있는 실적이 없습니다. ⑤ 라인 가동/비가동에서 호기를 지정해 등록하세요.</td></tr>`;
+  const t=$('#hbTable'); if(t) t.innerHTML=`<thead><tr>${th}</tr></thead><tbody>${body}</tbody>`;
+}
+async function hbDetail(line,hoki){
+  const key=line+'|'+hoki;
+  const box=$('#hbDetail');
+  if(HB.open===key){ HB.open=null; if(box) box.innerHTML=''; hbPaint(); return; }
+  HB.open=key; hbPaint();
+  if(box) box.innerHTML='<div class="skel" style="height:160px;border-radius:12px"></div>';
+  let d=[];
+  try{
+    const {data,error}=await sb.rpc('hoki_balance_detail',{p_team:HB.team,p_from:HB.from,p_to:HB.to,p_line:line,p_hoki:hoki});
+    if(error)throw error; d=data||[];
+  }catch(e){ toast('상세 조회 실패: '+(e.message||e),'err'); }
+  if(!box) return;
+  const tot=d.reduce((a,b)=>a+Number(b.qty_kg||0),0);
+  box.innerHTML=`
+  <div class="sec" style="border:2px solid var(--navy);margin:0"><div class="sec-hd">
+    <span class="no c1">▸</span><h3>${line} ${hoki}호기 · 제품별 상세</h3>
+    <span class="desc">${HB.from} ~ ${HB.to} · ${d.length}품목 · 합계 ${fmt(Math.round(tot))}kg</span>
+    <span class="sp" style="flex:1"></span><button class="tbtn" onclick="hbDetail('${line.replace(/'/g,"\\'")}','${hoki}')">닫기</button></div>
+    <div class="sec-bd" style="overflow-x:auto"><table class="tdd-table">
+      <thead><tr><th>제품코드</th><th>제품명</th><th>생산일수</th><th>기간</th><th>생산량</th><th>비중</th><th>배분 운영시간</th><th>시간당</th></tr></thead>
+      <tbody>${d.length?d.map(x=>`<tr>
+        <td class="mono">${x.prod_code}</td><td class="l">${x.prod_name||'-'}</td>
+        <td class="mono">${fmt(x.work_days)}일</td>
+        <td class="mono" style="font-size:11.5px;color:var(--sub)">${String(x.first_date).slice(5)} ~ ${String(x.last_date).slice(5)}</td>
+        <td class="mono"><b>${fmt(Math.round(x.qty_kg))}</b>kg</td>
+        <td class="mono">${tot>0?(x.qty_kg/tot*100).toFixed(1)+'%':'–'}</td>
+        <td class="mono">${Number(x.run_min)>0?(Number(x.run_min)/60).toFixed(1)+'hr':'–'}</td>
+        <td class="mono">${x.kg_per_hr!=null?fmt(Math.round(x.kg_per_hr))+'kg/hr':'–'}</td>
+      </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--mut);padding:24px">해당 기간 생산 실적이 없습니다</td></tr>'}</tbody>
+    </table>
+    <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+      ※ <b>배분 운영시간</b>은 호기 전체 운영시간을 제품별 생산량 비중으로 나눈 <b>추정치</b>입니다.
+      제품별 실제 가동시간은 ⑤에서 오더를 지정해 등록하면 정확해집니다.</div>
+    </div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 /* ================= 관리자: 계획 업로드 ================= */
@@ -4676,7 +4799,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13d';
+const APP_VERSION='v2026.08.13e';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5529,7 +5652,7 @@ function buildSection5(){
         <div class="sf-row">
           <select id="stLine" onchange="loadStopProds();fillHokiOptions('stLine','stHoki')"><option value="">라인 *</option>${lineOpt}</select>
           <select id="stHoki" onchange="onHokiChange('stHoki')" style="min-width:96px"><option value="">호기 전체</option></select>
-          <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
+          <select id="stProd" onclick="loadStopProds()" onchange="onStopProdChange()" title="오더를 고르면 그 오더의 호기가 자동으로 채워집니다"><option value="">오더(선택)</option></select>
           <select id="stCat" onchange="refreshDtSelects();if($('#dtTypeMgr')&&$('#dtTypeMgr').style.display!=='none')renderDtMgr();"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
           <button class="rowbtn" onclick="toggleDtMgr('stCat')" title="선택한 구분(계획/비계획)의 사유유형을 등록·수정합니다. 등록하면 바로 쓸 수 있습니다">⚙ 유형관리</button>
@@ -6543,7 +6666,27 @@ function loadStopProds(){
   const ln=$('#stLine').value; if(!ln)return;
   const sel=$('#stProd');
   const os=(CUR_DAY.orders||[]).filter(o=>((o.proc_sub1||'')+'/'+(o.proc_sub2||''))===ln);
-  sel.innerHTML='<option value="">오더(선택)</option>'+os.map(o=>`<option value="${o.prod_code}">${o.prod_code} · ${o.prod_name||''}</option>`).join('');
+  sel.innerHTML='<option value="">오더(선택)</option>'+os.map(o=>{
+    const h=String(o.hoki||'').trim();
+    return `<option value="${o.prod_code}" data-hoki="${h}">${o.prod_code} · ${o.prod_name||''}${h?' · '+h+'호기':''}</option>`;
+  }).join('');
+}
+/* 오더를 고르면 그 오더의 호기(MES 원본 호기 컬럼)를 자동 기입한다.
+   같은 라인에 호기가 여러 개인 공정(주식/포장 1~4, 주식/EP 1~2)에서
+   사람이 다시 고를 필요가 없게 하기 위함. 필요하면 수동 변경 가능. */
+function onStopProdChange(){
+  const ps=$('#stProd'), hs=$('#stHoki');
+  if(!ps||!hs) return;
+  const op=ps.options[ps.selectedIndex];
+  const h=op?String(op.dataset.hoki||'').trim():'';
+  if(!h) return;
+  if(![...hs.options].some(o=>o.value===h)){
+    const opNew=document.createElement('option'); opNew.value=h; opNew.textContent=h+'호기';
+    hs.insertBefore(opNew, hs.options[hs.options.length-1]);
+  }
+  hs.value=h;
+  hs.style.background='#eafaf1';
+  setTimeout(()=>{ hs.style.background=''; },900);
 }
 async function saveStop2(){
   const {date,team}=CUR_DAY;
