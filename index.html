@@ -906,7 +906,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13j</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -943,7 +943,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13j</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1441,7 +1441,7 @@ function hbShell(){
   const pv=(k,t)=>`<button class="tab ${HB.preset===k?'on':''}" onclick="hbPreset('${k}')">${t}</button>`;
   return `
   <div class="day-hd">
-    <div><h2>호기별 운영 밸런스</h2><div class="en">HOKI BALANCE · ${HB.team} · ${HB.from} ~ ${HB.to}</div></div>
+    <div><h2>호기별 운영 밸런스</h2><div class="en">HOKI BALANCE · ${HB.team} · <span id="hbPeriod">${HB.from} ~ ${HB.to}</span><span id="hbFilterTag"></span></div></div>
     <div class="meta">가동시간은 ⑤ 라인 가동/비가동 등록 기준</div>
   </div>
   <div class="sec"><div class="sec-hd" style="gap:8px;flex-wrap:wrap">
@@ -1454,7 +1454,8 @@ function hbShell(){
     </div>
     <div class="sec-bd" style="padding-top:10px">
       <div id="hbLineChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
-      <div id="hbCards" class="team-stat-grid" style="margin-bottom:14px"></div>
+      <div id="hbWarn"></div>
+      <div id="hbCards" class="score-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px"></div>
       <div class="tdd-scroll" style="max-height:none;min-height:0"><table class="tdd-table" id="hbTable"></table></div>
       <div id="hbDetail" style="margin-top:14px"></div>
     </div>
@@ -1464,9 +1465,9 @@ function hbPaint(){
   const all=HB.rows||[];
   const lines=[...new Set(all.map(r=>r.line))].sort((a,b)=>procOrderCmp(a,b));
   const chips=$('#hbLineChips');
-  if(chips) chips.innerHTML=`<span class="line-chip ${HB.line?'':'on'}" style="cursor:pointer" onclick="hbLineFilter('')">전체 ${all.length}</span>`
+  if(chips) chips.innerHTML=`<button class="rf-chip ${HB.line?'':'on'}" onclick="hbLineFilter('')">전체<b>${all.length}</b></button>`
     +lines.map(l=>{ const n=all.filter(r=>r.line===l).length;
-      return `<span class="line-chip ${HB.line===l?'on':''}" style="cursor:pointer" onclick="hbLineFilter('${l.replace(/'/g,"\\'")}')">${l} <b>${n}</b></span>`; }).join('');
+      return `<button class="rf-chip ${HB.line===l?'on':''}" onclick="hbLineFilter('${l.replace(/'/g,"\\'")}')">${l}<b>${n}</b></button>`; }).join('');
   let rows=HB.line?all.filter(r=>r.line===HB.line):all;
   const cards=$('#hbCards');
   if(cards){
@@ -1477,11 +1478,19 @@ function hbPaint(){
     const minD=rows.length?Math.min(...rows.map(r=>Number(r.qty_kg||0))):0;
     const gap=maxD>0?((maxD-minD)/maxD*100):0;
     cards.innerHTML=`
-      <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(tRun/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(tRun))}분 · 호기 ${rows.length}대</div></div>
-      <div class="sc"><div class="l">총 생산량</div><div class="v mono">${(tQty/1000).toFixed(1)}<small>t</small></div><div class="sc-sub">${fmt(Math.round(tQty))}kg</div></div>
-      <div class="sc"><div class="l">시간당 평균</div><div class="v mono">${tRun>0?fmt(Math.round(tQty/(tRun/60))):'–'}<small>kg/hr</small></div><div class="sc-sub">전체 호기 합산 기준</div></div>
+      <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(tRun/60).toFixed(1)}<span class="u">hr</span></div><div class="sc-sub">${fmt(Math.round(tRun))}분 · 호기 ${rows.length}대</div></div>
+      <div class="sc"><div class="l">총 생산량</div><div class="v mono">${(tQty/1000).toFixed(1)}<span class="u">t</span></div><div class="sc-sub">${fmt(Math.round(tQty))}kg</div></div>
+      <div class="sc"><div class="l">시간당 평균</div><div class="v mono">${tRun>0?fmt(Math.round(tQty/(tRun/60))):'–'}<span class="u">kg/hr</span></div><div class="sc-sub">전체 호기 합산 기준</div></div>
       <div class="sc ${gap>=50?'r':''}"><div class="l">호기 편차</div><div class="v mono">${maxD>0?gap.toFixed(0)+'%':'–'}</div><div class="sc-sub" title="가장 많이 생산한 호기 대비 가장 적은 호기의 격차입니다. 클수록 물량이 한쪽에 쏠려 있습니다">최대 대비 최소 격차</div></div>
-      <div class="sc ${tStop>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(tStop/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(tStop))}분</div></div>`;
+      <div class="sc ${tStop>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(tStop/60).toFixed(1)}<span class="u">hr</span></div><div class="sc-sub">${fmt(Math.round(tStop))}분</div></div>`;
+    const noRun=rows.length&&rows.every(r=>Number(r.run_min||0)<=0);
+    const allRun=all.reduce((a,b)=>a+Number(b.run_min||0),0);
+    const warn=$('#hbWarn');
+    if(warn) warn.innerHTML=noRun
+      ? `<div class="pk-note" style="margin:0 0 12px">⚠ <b>${HB.line?HB.line+' 라인의 ':''}가동시간 기록이 없습니다</b>${HB.line&&allRun>0?` — <b>다른 라인에는 ${(allRun/60).toFixed(1)}hr 이 등록돼 있습니다.</b> 라인 칩에서 <b>전체</b>를 눌러 확인해 보세요.`:` — ⑤ 라인 가동/비가동에서 <b>호기를 지정해</b> 가동(run)을 등록해야 운영시간·시간당 생산량이 집계됩니다.`} 생산량·SKU는 MES 실적 기준이라 정상 표시됩니다.</div>` : '';
+    const ft=$('#hbFilterTag');
+    if(ft) ft.innerHTML=HB.line
+      ? ` · <span style="color:#f5a15f;font-weight:800">라인 필터: ${HB.line}</span>` : '';
   }
   const cols=[
     {k:'line',t:'라인',ty:'s',cls:'l'},
@@ -1546,12 +1555,12 @@ function hbDetailPaint(){
     <span class="desc">${HB.from} ~ ${HB.to}</span>
     <span class="sp" style="flex:1"></span><button class="tbtn" onclick="hbDetail('${line.replace(/'/g,"\\'")}','${hoki}')">닫기</button></div>
     <div class="sec-bd">
-      <div class="team-stat-grid" style="margin-bottom:12px">
-        <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(runMin/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">${fmt(Math.round(runMin))}분 · ${fmt(days)}일 가동</div></div>
-        <div class="sc"><div class="l">총 생산량</div><div class="v mono">${fmt(Math.round(tot))}<small>kg</small></div><div class="sc-sub">${d.length}품목</div></div>
-        <div class="sc"><div class="l">시간당 생산량</div><div class="v mono">${runMin>0?fmt(Math.round(avgHr)):'–'}<small>kg/hr</small></div><div class="sc-sub">이 호기 평균</div></div>
-        <div class="sc"><div class="l">일평균 운영</div><div class="v mono">${days>0?(runMin/days/60).toFixed(1):'–'}<small>hr</small></div><div class="sc-sub">${days>0?fmt(Math.round(tot/days))+'kg/일':'–'}</div></div>
-        <div class="sc ${Number(row.unplan_stop_min||0)>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(Number(row.unplan_stop_min||0)/60).toFixed(1)}<small>hr</small></div><div class="sc-sub">계획정지 ${(Number(row.plan_stop_min||0)/60).toFixed(1)}hr</div></div>
+      <div class="score-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">
+        <div class="sc b"><div class="l">총 운영시간</div><div class="v mono">${(runMin/60).toFixed(1)}<span class="u">hr</span></div><div class="sc-sub">${fmt(Math.round(runMin))}분 · ${fmt(days)}일 가동</div></div>
+        <div class="sc"><div class="l">총 생산량</div><div class="v mono">${fmt(Math.round(tot))}<span class="u">kg</span></div><div class="sc-sub">${d.length}품목</div></div>
+        <div class="sc"><div class="l">시간당 생산량</div><div class="v mono">${runMin>0?fmt(Math.round(avgHr)):'–'}<span class="u">kg/hr</span></div><div class="sc-sub">이 호기 평균</div></div>
+        <div class="sc"><div class="l">일평균 운영</div><div class="v mono">${days>0?(runMin/days/60).toFixed(1):'–'}<span class="u">hr</span></div><div class="sc-sub">${days>0?fmt(Math.round(tot/days))+'kg/일':'–'}</div></div>
+        <div class="sc ${Number(row.unplan_stop_min||0)>0?'r':''}"><div class="l">비계획정지</div><div class="v mono">${(Number(row.unplan_stop_min||0)/60).toFixed(1)}<span class="u">hr</span></div><div class="sc-sub">계획정지 ${(Number(row.plan_stop_min||0)/60).toFixed(1)}hr</div></div>
       </div>
       <div style="overflow-x:auto"><table class="tdd-table">
       <thead><tr><th>제품코드</th><th>제품명</th><th>생산일수</th><th>기간</th><th>생산량</th><th>비중</th><th>배분 운영시간</th><th>시간당</th><th>일자별</th></tr></thead>
@@ -4871,7 +4880,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13h';
+const APP_VERSION='v2026.08.13j';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
