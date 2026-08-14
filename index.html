@@ -408,6 +408,17 @@ tfoot td{padding:11px 10px;border-top:2px solid var(--navy3)}
 /* 24시간제 시각 입력 — 폭 고정 + 숫자 정렬 */
 input.t24{font-family:ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:.5px;min-width:74px}
 input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
+/* 드릴다운 표 — 세로 스크롤 + 헤더 고정 + 정렬 가능 헤더 */
+.tdd-scroll{max-height:calc(100vh - 300px);min-height:280px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.tdd-table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
+.tdd-table thead th{position:sticky;top:0;z-index:3;background:#2954a0;color:#fff;font-size:11.5px;font-weight:700;
+  text-align:center;padding:9px 8px;white-space:nowrap;cursor:pointer;user-select:none;border-bottom:2px solid #1d3f7d}
+.tdd-table thead th.on{background:#1d3f7d;box-shadow:inset 0 -3px 0 #f5a15f}
+.tdd-table thead th:hover{background:#345fae}
+.tdd-table td{padding:8px;border-bottom:1px solid #eef1f6;font-size:12.5px;text-align:center}
+.tdd-table td.l{text-align:left}
+.tdd-table tbody tr:nth-child(even){background:#fafbfd}
+.tdd-table tbody tr:hover{background:#eef4ff}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
 .t2-table th.th-hl span{color:#a2652a !important}
 .pk-done{margin-top:3px;font-size:9.5px;font-weight:800;color:#0d8a4f;background:#eaf8f0;border:1px solid #a7e3c4;border-radius:4px;padding:1px 5px;display:inline-block;cursor:help}
@@ -887,7 +898,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -924,7 +935,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.13d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2260,54 +2271,106 @@ async function loadTDTab(){
       </table></div></div>`;
   }
 }
-/* 전체보기 → 오더별/제품별 드릴다운 전체화면 */
+/* ═══════════════════════════════════════════════════════════════════
+   전체보기 → 오더별/제품별 드릴다운
+   ── 스크롤(헤더 고정) · 검색 필터 · 컬럼 정렬 지원
+   ── 데이터는 TDD 에 보관하고 표만 다시 그린다 (재조회 없음 = 즉시 반응)
+   ═══════════════════════════════════════════════════════════════════ */
+let TDD={kind:null, rows:[], q:'', sk:null, sd:-1};
+const TDD_COLS={
+  order:[
+    {k:'prod_code', t:'제품코드', ty:'s', cls:'mono'},
+    {k:'prod_name', t:'제품명',   ty:'s', cls:'l'},
+    {k:'line',      t:'라인',     ty:'s', cls:'sub'},
+    {k:'kind',      t:'구분',     ty:'s', cls:'tag'},
+    {k:'plan_sum',  t:'계획',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'actual_sum',t:'실적',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'achieve',   t:'달성률',   ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=100?'pos':'neg'},
+    {k:'productivity',t:'생산성', ty:'n', cls:'mono', f:v=>v>0?fmt(v):'–'},
+    {k:'scrap_rate',t:'스크랩률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'defect_rate',t:'불량률',  ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'unplan_min',t:'비계획정지',ty:'n', cls:'mono', f:v=>v>0?fmt(v)+'분':'–'},
+    {k:'net_loss',  t:'로스금액', ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
+  ],
+  product:[
+    {k:'prod_name', t:'제품명',   ty:'s', cls:'l'},
+    {k:'order_cnt', t:'오더수',   ty:'n', cls:'mono'},
+    {k:'plan_sum',  t:'계획',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'actual_sum',t:'실적',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'achieve',   t:'달성률',   ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=100?'pos':'neg'},
+    {k:'scrap_rate',t:'스크랩률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'defect_rate',t:'불량률',  ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'net_loss',  t:'로스금액', ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
+  ]
+};
 async function openTDDrill(kind){
   S.view='tddrill';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
   const p={p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null};
   try{
-    if(kind==='order'){
-      const {data}=await sb.rpc('team_order_detail',p);
-      const od=data||[];
-      $('#wrap').innerHTML=`
-      <div class="tr-hero"><div>
-        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
-        <h2>오더별 드릴다운</h2><div class="en">제품코드(오더) 단위 전체 · ${od.length}건 · ${TD.from} ~ ${TD.to}</div></div>
-        <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
-      <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품코드</th><th>제품명</th><th>라인</th><th>구분</th><th>계획</th><th>실적</th><th>달성률</th><th>생산성</th><th>스크랩률</th><th>불량률</th><th>비계획정지</th><th>로스금액</th></tr></thead>
-        <tbody>${od.map(o=>`<tr>
-          <td class="mono">${o.prod_code}</td><td class="l">${o.prod_name||'-'}</td>
-          <td style="font-size:12px;color:var(--sub)">${o.line}</td>
-          <td><span class="kind-tag ${o.kind==='완제품'?'fin':o.kind==='반제품'?'semi':''}">${o.kind}</span></td>
-          <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
-          <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
-          <td class="mono">${o.productivity>0?fmt(o.productivity):'–'}</td>
-          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
-          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
-          <td class="mono">${o.unplan_min>0?fmt(o.unplan_min)+'분':'–'}</td>
-          <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
-        </tr>`).join('')}</tbody></table></div></div>`;
-    }else{
-      const {data}=await sb.rpc('team_product_detail',p);
-      const pd=data||[];
-      $('#wrap').innerHTML=`
-      <div class="tr-hero"><div>
-        <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
-        <h2>제품별 드릴다운</h2><div class="en">제품명 단위 전체 · ${pd.length}건 · ${TD.from} ~ ${TD.to}</div></div>
-        <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
-      <div class="sec"><div class="sec-bd" style="overflow-x:auto"><table>
-        <thead><tr><th>제품명</th><th>오더수</th><th>계획</th><th>실적</th><th>달성률</th><th>스크랩률</th><th>불량률</th><th>로스금액</th></tr></thead>
-        <tbody>${pd.map(o=>`<tr>
-          <td class="l">${o.prod_name||'-'}</td><td class="mono">${o.order_cnt}</td>
-          <td class="mono">${fmt(Math.round(o.plan_sum))}</td><td class="mono">${fmt(Math.round(o.actual_sum))}</td>
-          <td class="mono ${o.achieve>=100?'pos':'neg'}">${o.achieve}%</td>
-          <td class="mono">${o.scrap_rate>0?o.scrap_rate+'%':'–'}</td>
-          <td class="mono">${o.defect_rate>0?o.defect_rate+'%':'–'}</td>
-          <td class="mono ${wonCls(o.net_loss)}">${fmtWon(o.net_loss)}</td>
-        </tr>`).join('')}</tbody></table></div></div>`;
-    }
+    const {data}=await sb.rpc(kind==='order'?'team_order_detail':'team_product_detail',p);
+    TDD={kind:(kind==='order'?'order':'product'), rows:data||[], q:'', sk:null, sd:-1};
+    $('#wrap').innerHTML=tddShell();
+    tddPaint();
   }catch(e){ toast('드릴다운 조회 실패: '+(e.message||e),'err'); }
+}
+function tddShell(){
+  const isOrd=TDD.kind==='order';
+  return `
+  <div class="tr-hero"><div>
+    <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
+    <h2>${isOrd?'오더별':'제품별'} 드릴다운</h2>
+    <div class="en">${isOrd?'제품코드(오더)':'제품명'} 단위 전체 · <span id="tddCnt">${TDD.rows.length}</span>건 · ${TD.from} ~ ${TD.to}</div></div>
+    <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
+  <div class="sec">
+    <div class="sec-hd" style="gap:8px;flex-wrap:wrap">
+      <input id="tddQ" placeholder="제품코드·제품명·라인 검색" oninput="tddFilter(this.value)" autocomplete="off"
+             style="flex:1;min-width:200px;max-width:340px;padding:7px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px">
+      <span id="tddSortInfo" style="font-size:11.5px;color:var(--mut)"></span>
+      <span class="sp" style="flex:1"></span>
+      <button class="tbtn" onclick="tddReset()" title="검색·정렬 초기화">↺ 초기화</button>
+    </div>
+    <div class="sec-bd" style="padding-top:0">
+      <div class="tdd-scroll"><table class="tdd-table" id="tddTable"></table></div>
+    </div>
+  </div>`;
+}
+function tddFilter(v){ TDD.q=String(v||''); tddPaint(); }
+function tddReset(){ TDD.q=''; TDD.sk=null; TDD.sd=-1; const q=$('#tddQ'); if(q)q.value=''; tddPaint(); }
+function tddSort(k){
+  if(TDD.sk===k) TDD.sd=-TDD.sd; else { TDD.sk=k; TDD.sd=-1; }   // 첫 클릭은 내림차순(큰 값 먼저)
+  tddPaint();
+}
+function tddPaint(){
+  const cols=TDD_COLS[TDD.kind]||[];
+  const q=TDD.q.trim().toLowerCase();
+  let rows=TDD.rows;
+  if(q) rows=rows.filter(r=>cols.some(c=>c.ty==='s'&&String(r[c.k]||'').toLowerCase().includes(q)));
+  if(TDD.sk){
+    const col=cols.find(c=>c.k===TDD.sk)||{ty:'s'};
+    rows=rows.slice().sort((a,b)=>{
+      if(col.ty==='n'){ const x=Number(a[TDD.sk])||0, y=Number(b[TDD.sk])||0; return (x-y)*TDD.sd; }
+      return String(a[TDD.sk]||'').localeCompare(String(b[TDD.sk]||''),'ko')*TDD.sd;
+    });
+  }
+  const th=cols.map(c=>{
+    const on=TDD.sk===c.k;
+    const ar=on?(TDD.sd<0?'▼':'▲'):'<span style="opacity:.3">↕</span>';
+    return `<th class="tdd-th${on?' on':''}" onclick="tddSort('${c.k}')" title="클릭하면 이 컬럼으로 정렬합니다">${c.t} ${ar}</th>`;
+  }).join('');
+  const body=rows.length?rows.map(o=>'<tr>'+cols.map(c=>{
+    const v=o[c.k];
+    const txt=c.f?c.f(v):(v==null?'–':(c.ty==='n'?fmt(v):v||'-'));
+    if(c.cls==='tag') return `<td><span class="kind-tag ${v==='완제품'?'fin':v==='반제품'?'semi':''}">${v||'-'}</span></td>`;
+    if(c.cls==='sub') return `<td style="font-size:12px;color:var(--sub)">${v||'-'}</td>`;
+    const extra=c.c?(' '+c.c(v)):'';
+    return `<td class="${c.cls||''}${extra}">${txt}</td>`;
+  }).join('')+'</tr>').join('')
+   :`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--mut);padding:30px">검색 결과가 없습니다</td></tr>`;
+  const t=$('#tddTable'); if(t) t.innerHTML=`<thead><tr>${th}</tr></thead><tbody>${body}</tbody>`;
+  const c=$('#tddCnt'); if(c) c.textContent=rows.length+(q?` / ${TDD.rows.length}`:'');
+  const si=$('#tddSortInfo');
+  if(si) si.textContent=TDD.sk?`${(cols.find(x=>x.k===TDD.sk)||{}).t} ${TDD.sd<0?'내림차순':'오름차순'}`:'헤더를 클릭하면 정렬됩니다';
 }
 
 /* 라인 상세 경영현황 */
@@ -4613,7 +4676,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.13c';
+const APP_VERSION='v2026.08.13d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5412,6 +5475,7 @@ function buildSection5(){
             <td class="mono" style="font-size:11px">${t.prod_code||'–'}</td>
             <td><span class="type-tag ${catCls}">${cat}</span></td>
             <td>${srcBadge}</td>
+            <td class="mono">${t.hoki?t.hoki+'호기':'–'}</td>
             <td>${t.reason_type||'–'}</td>
             <td class="mono">${t.start_time||'–'}</td><td class="mono">${t.end_time||'–'}${overnightBadge(t)}</td>
             <td class="mono"><b>${diffMin(t.start_time,t.end_time)}분</b></td>
@@ -5463,7 +5527,8 @@ function buildSection5(){
       <div class="blk-hd">➕ 새 비가동 추가 <span class="blk-sub">정지원인·조치내용·재발방지대책까지 기록</span></div>
       <div class="stop-form">
         <div class="sf-row">
-          <select id="stLine"><option value="">라인 *</option>${lineOpt}</select>
+          <select id="stLine" onchange="loadStopProds();fillHokiOptions('stLine','stHoki')"><option value="">라인 *</option>${lineOpt}</select>
+          <select id="stHoki" onchange="onHokiChange('stHoki')" style="min-width:96px"><option value="">호기 전체</option></select>
           <select id="stProd" onclick="loadStopProds()"><option value="">오더(선택)</option></select>
           <select id="stCat" onchange="refreshDtSelects();if($('#dtTypeMgr')&&$('#dtTypeMgr').style.display!=='none')renderDtMgr();"><option value="unplan">비계획정지</option><option value="plan">계획정지</option></select>
           <select id="stType"><option value="">유형 *</option>${dtypeOpt}</select>
@@ -5482,7 +5547,7 @@ function buildSection5(){
       <!-- [E] 등록된 비가동 리스트 -->
       <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.length}건</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
-        <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>출처</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
+        <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>출처</th><th>호기</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
         <tbody>${eRows||'<tr><td colspan="11" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
       </table></div>
 
@@ -6420,6 +6485,60 @@ function splitLine(ln){
   const s=String(ln||''); const i=s.indexOf('/');
   return i<0 ? [s,''] : [s.slice(0,i), s.slice(i+1)];
 }
+/* ═══════════════════════════════════════════════════════════════════
+   라인별 호기 선택
+   ── 주식/포장(1~4호기), 주식/EP(1~2호기)처럼 한 라인에 여러 호기가 있는
+      공정은 비가동을 호기 단위로 기록해야 ① 라인별 가동요약에서 호기별로
+      갈라 볼 수 있다.
+   ── 호기 후보는 ①당일 오더 ②CAPA 마스터에서 모아 만든다.
+      목록에 없는 호기는 직접 입력할 수 있게 datalist 로 제공한다.
+   ═══════════════════════════════════════════════════════════════════ */
+function hokiListOf(line){
+  const raw=String(line||'');
+  // dtLine 은 "sub1|sub2", stLine 은 "sub1/sub2" 형식을 쓴다
+  const [s1,s2]= raw.indexOf('|')>=0 ? [raw.slice(0,raw.indexOf('|')), raw.slice(raw.indexOf('|')+1)]
+                                     : splitLine(raw);
+  const set=new Set();
+  (CUR_DAY.orders||[]).forEach(o=>{
+    if((o.proc_sub1||'')===s1 && (o.proc_sub2||'')===s2){
+      const h=String(o.hoki||'').trim(); if(h) set.add(h);
+    }
+  });
+  (CUR_DAY.capa||[]).forEach(c=>{
+    if(String(c.line||'')===((s1?s1+'/':'')+s2)){
+      const h=String(c.hoki||'').trim(); if(h) set.add(h);
+    }
+  });
+  (CUR_DAY.downtime||[]).forEach(t=>{
+    if((t.proc_sub1||'')===s1 && (t.proc_sub2||'')===s2){
+      const h=String(t.hoki||'').trim(); if(h) set.add(h);
+    }
+  });
+  return [...set].sort((a,b)=>(Number(a)||99)-(Number(b)||99)||String(a).localeCompare(String(b)));
+}
+function fillHokiOptions(lineSelId,hokiSelId){
+  const ls=$('#'+lineSelId), hs=$('#'+hokiSelId);
+  if(!ls||!hs) return;
+  const list=hokiListOf(ls.value);
+  const keep=hs.value;
+  hs.innerHTML='<option value="">호기 전체</option>'
+    +list.map(h=>`<option value="${h}"${h===keep?' selected':''}>${h}호기</option>`).join('')
+    +'<option value="__etc">직접입력…</option>';
+  hs.title=list.length?`이 라인의 호기 ${list.length}개 — 호기를 지정하면 ① 라인별 가동요약에서 호기별로 나뉘어 집계됩니다`
+                      :'이 라인에 등록된 호기 정보가 없습니다. 직접입력으로 넣을 수 있습니다';
+}
+function onHokiChange(hokiSelId){
+  const hs=$('#'+hokiSelId); if(!hs) return;
+  if(hs.value!=='__etc') return;
+  const v=prompt('호기 번호를 입력하세요 (예: 3)');
+  const nv=String(v==null?'':v).trim();
+  if(!nv){ hs.value=''; return; }
+  if(![...hs.options].some(o=>o.value===nv)){
+    const op=document.createElement('option'); op.value=nv; op.textContent=nv+'호기';
+    hs.insertBefore(op, hs.options[hs.options.length-1]);
+  }
+  hs.value=nv;
+}
 function loadStopProds(){
   const ln=$('#stLine').value; if(!ln)return;
   const sel=$('#stProd');
@@ -6437,6 +6556,7 @@ async function saveStop2(){
   try{
     const {data,error}=await sb.from('t_cl_downtime').insert({
       work_date:date,team,proc_sub1:s1,proc_sub2:s2,prod_code:$('#stProd').value||null,
+      hoki:($('#stHoki')&&$('#stHoki').value!=='__etc'?($('#stHoki').value||null):null),
       category:$('#stCat').value,reason_type:type,start_time:st,end_time:en,
       memo:reason,action_taken:$('#stAction').value||'',prevention:$('#stPrevent').value||'',
       source:'manual'
@@ -7745,8 +7865,8 @@ function openDownForm(){
   <div class="sec" style="border:2px solid var(--navy);margin:16px 0 8px;box-shadow:var(--sh-lg)"><div class="sec-hd"><h3>비가동 등록</h3>
     <span class="sp"></span><button class="tbtn" onclick="$('#downFormSlot').innerHTML=''">닫기</button></div>
     <div class="sec-bd"><div class="work-grid">
-      <div class="work-field"><label>라인</label><select id="dtLine">${CUR_DAY._lineOpts}</select></div>
-      <div class="work-field"><label>호기</label><input id="dtHoki" placeholder="1"></div>
+      <div class="work-field"><label>라인</label><select id="dtLine" onchange="fillHokiOptions('dtLine','dtHoki')">${CUR_DAY._lineOpts}</select></div>
+      <div class="work-field"><label>호기</label><select id="dtHoki" onchange="onHokiChange('dtHoki')"><option value="">호기 전체</option></select></div>
       <div class="work-field"><label>근무형태</label><select id="dtShift">
         <option value="">미지정</option><option value="주간">주간</option><option value="야간">야간</option></select></div>
       <div class="work-field"><label>구분</label><select id="dtCat" onchange="onDtCatChange()">
@@ -7760,6 +7880,7 @@ function openDownForm(){
     <div id="dtTypeMgr" style="display:none"></div>
     <button class="tbtn save" style="margin-top:14px" onclick="saveDownNew()">저장</button></div>
   </div>`;
+  fillHokiOptions('dtLine','dtHoki');   // 라인 기본선택 기준 호기 목록 초기화
 }
 async function saveDownNew(){
   const {date,team}=CUR_DAY;
@@ -7767,7 +7888,7 @@ async function saveDownNew(){
   try{
     const {error}=await sb.from('t_cl_downtime').insert({
       work_date:date,team,proc_sub1:s1,proc_sub2:s2,
-      hoki:$('#dtHoki').value.trim(),
+      hoki:(($('#dtHoki').value||'').trim()==='__etc'?null:(($('#dtHoki').value||'').trim()||null)),
       shift:$('#dtShift').value||null,
       category:$('#dtCat').value,
       reason_type:$('#dtReason').value,start_time:normTime24($('#dtStart')),end_time:normTime24($('#dtEnd')),
@@ -7824,7 +7945,14 @@ function openDownEdit(id){
           수정 시 '수동' 데이터로 전환되어 이후 자동 업데이트에 덮이지 않습니다.
         </div>`:''}
         <div class="work-grid">
-          <div class="work-field"><label>호기</label><input id="edHoki" value="${esc(t.hoki)}" placeholder="1"></div>
+          <div class="work-field"><label>호기</label>
+            <select id="edHoki" onchange="onHokiChange('edHoki')">${
+              (function(){ const cur=String(t.hoki||'');
+                const list=hokiListOf((t.proc_sub1||'')+'/'+(t.proc_sub2||''));
+                return `<option value=""${cur?'':' selected'}>호기 전체</option>`
+                  +list.map(h=>`<option value="${h}"${h===cur?' selected':''}>${h}호기</option>`).join('')
+                  +(cur&&list.indexOf(cur)<0?`<option value="${cur}" selected>${cur}호기</option>`:'')
+                  +'<option value="__etc">직접입력…</option>'; })()}</select></div>
           <div class="work-field"><label>근무형태</label><select id="edShift">
             ${sOpt('')}${sOpt('주간')}${sOpt('야간')}</select></div>
           <div class="work-field"><label>구분</label><select id="edCat" onchange="refreshDtSelects()">
@@ -7858,6 +7986,7 @@ async function saveDownEdit(id){
     shift:$('#edShift').value||null,
     category:$('#edCat').value,
     reason_type:$('#edReason').value.trim(),
+    hoki:((($('#edHoki')&&$('#edHoki').value)||'').trim()==='__etc'?null:((($('#edHoki')&&$('#edHoki').value)||'').trim()||null)),
     start_time:normTime24($('#edStart')),
     end_time:normTime24($('#edEnd')),
     memo:$('#edMemo').value.trim(),
