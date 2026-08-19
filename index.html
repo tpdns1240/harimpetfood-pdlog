@@ -910,7 +910,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -947,7 +947,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1641,6 +1641,108 @@ async function hbDaily(prod){
 
 /* ================= 관리자: 계획 업로드 ================= */
 /* ============ 도움말 ============ */
+/* ═══════════════════════════════════════════════════════════════════
+   생산계획번호 추적 — 도움말 탭 안쪽에 배치 (필요한 사람만 사용)
+   ── 원본(db_plan_raw) 직접 조회라 라인 OFF·제외품목 설정과 무관하게 보인다
+   ═══════════════════════════════════════════════════════════════════ */
+let PTR={no:'', head:null, procs:[], open:null, mats:[]};
+async function ptSearch(){
+  const el=$('#ptNo'); if(!el) return;
+  const no=String(el.value||'').trim();
+  const box=$('#ptResult');
+  if(!no){ if(box) box.innerHTML=''; toast('생산계획번호를 입력하세요','err'); el.focus(); return; }
+  PTR={no, head:null, procs:[], open:null, mats:[]};
+  if(box) box.innerHTML='<div class="skel" style="height:180px;border-radius:12px"></div>';
+  try{
+    const [h,pr]=await Promise.all([
+      sb.rpc('plan_trace_head',{p_plan_no:no}),
+      sb.rpc('plan_trace_proc',{p_plan_no:no})
+    ]);
+    if(h.error) throw h.error;
+    if(pr.error) throw pr.error;
+    PTR.head=(h.data||[])[0]||null;
+    PTR.procs=pr.data||[];
+  }catch(e){ if(box) box.innerHTML=''; toast('조회 실패: '+(e.message||e),'err'); return; }
+  ptPaint();
+}
+function ptPaint(){
+  const box=$('#ptResult'); if(!box) return;
+  const h=PTR.head;
+  if(!h){ box.innerHTML=`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018;margin:0">⚠ <b>${PTR.no}</b> — 해당 생산계획번호의 데이터가 없습니다. 번호를 다시 확인해 주세요.</div>`; return; }
+  const rate=h.pack_rate==null?null:Number(h.pack_rate);
+  const done=(rate!=null&&rate>=95);
+  const unp=Number(h.unpacked)||0;
+  box.innerHTML=`
+  <div class="score-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
+    <div class="sc b"><div class="l">생산일자</div><div class="v mono" style="font-size:17px">${String(h.first_date).slice(5)}${h.last_date!==h.first_date?` ~ ${String(h.last_date).slice(5)}`:''}</div>
+      <div class="sc-sub">${h.team} · ${h.day_cnt}일 · 공정 ${h.proc_cnt}</div></div>
+    <div class="sc"><div class="l">완제품</div><div class="v mono" style="font-size:15px">${h.fin_code||'–'}</div>
+      <div class="sc-sub" title="${h.fin_name||''}">${(h.fin_name||'-').slice(0,22)}</div></div>
+    <div class="sc"><div class="l">반제품 산출</div><div class="v mono">${fmt(Math.round(h.base_qty||0))}<span class="u">kg</span></div>
+      <div class="sc-sub">${h.base_code||'-'}</div></div>
+    <div class="sc ${done?'g':''}"><div class="l">포장 실적</div><div class="v mono">${fmt(Math.round(h.pack_qty||0))}<span class="u">kg</span></div>
+      <div class="sc-sub">${h.pack_last?String(h.pack_last).slice(5)+' 최종':'포장 기록 없음'}</div></div>
+    <div class="sc ${done?'g':(unp>0?'r':'')}"><div class="l">포장 완결</div>
+      <div class="v mono">${rate==null?'–':rate.toFixed(1)+'%'}</div>
+      <div class="sc-sub">${unp>0?`<b style="color:#b42318">미포장 ${fmt(Math.round(unp))}kg</b>`:(done?'✓ 완결':'–')}</div></div>
+  </div>
+  ${unp>0?`<div class="pk-note" style="margin:0 0 12px">▷ <b>미포장 ${fmt(Math.round(unp))}kg</b> — 반제품은 만들어졌으나 아직 포장되지 않았습니다.
+    포장이 끝나면 이 수치가 0 이 되고 완결로 바뀝니다. 오래 남아 있으면 재고 확인이 필요합니다.</div>`:''}
+  <div style="overflow-x:auto"><table class="tdd-table">
+    <thead><tr><th>공정</th><th>호기</th><th>제품코드</th><th>제품명</th><th>일자</th><th>계획(KG)</th><th>실적(KG)</th><th>편차</th><th>달성률</th><th>자재수</th><th>로스금액</th><th>상세</th></tr></thead>
+    <tbody>${PTR.procs.length?PTR.procs.map(p=>{
+      const key=p.line+'|'+p.prod_code;
+      const op=PTR.open===key;
+      const df=Number(p.diff_qty)||0;
+      return `<tr${op?' style="background:#eef4ff"':''}>
+        <td class="l">${p.line}</td>
+        <td class="mono">${p.hoki?`<b>${p.hoki}</b>호기`:'–'}</td>
+        <td class="mono">${p.prod_code}</td>
+        <td class="l" style="font-size:12px">${p.prod_name||'-'}</td>
+        <td class="mono" style="font-size:11.5px;color:var(--sub)">${String(p.first_date).slice(5)}${p.last_date!==p.first_date?`~${String(p.last_date).slice(5)}`:''}</td>
+        <td class="mono">${fmt(Math.round(p.plan_qty||0))}</td>
+        <td class="mono"><b>${fmt(Math.round(p.actual_qty||0))}</b></td>
+        <td class="mono ${df>0?'neg':(df<0?'pos':'')}">${df>0?'+':''}${fmt(Math.round(df))}</td>
+        <td class="mono">${p.achieve==null?'–':`<b style="color:${p.achieve>=95&&p.achieve<=105?'var(--grn)':'#d97706'}">${Number(p.achieve).toFixed(1)}%</b>`}</td>
+        <td class="mono">${p.mat_cnt}</td>
+        <td class="mono ${Number(p.loss_amt)>0?'neg':''}">${Number(p.loss_amt)>0?fmt(p.loss_amt)+'원':'–'}</td>
+        <td><button class="rowbtn" onclick="ptMat('${key.replace(/'/g,"\\'")}')">${op?'닫기':'원자재 ▸'}</button></td>
+      </tr>${op?`<tr><td colspan="12" style="padding:0;background:#f7f9fc"><div id="ptMatBox" style="padding:12px 14px"></div></td></tr>`:''}`;
+    }).join(''):'<tr><td colspan="12" style="text-align:center;color:var(--mut);padding:24px">공정 데이터가 없습니다</td></tr>'}</tbody>
+  </table></div>
+  <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+    ※ 계획·실적은 <b>부자재(5번대) 제외</b> 합계입니다 · 편차 <b style="color:var(--red)">+</b>는 초과사용, <b style="color:var(--grn)">−</b>는 절감
+    · 설정에서 라인을 OFF 해도 여기서는 원본 그대로 보입니다.</div>`;
+}
+async function ptMat(key){
+  if(PTR.open===key){ PTR.open=null; ptPaint(); return; }
+  PTR.open=key; ptPaint();
+  const box=$('#ptMatBox'); if(box) box.innerHTML='<div class="skel" style="height:110px;border-radius:10px"></div>';
+  let rows=[];
+  try{
+    const {data,error}=await sb.rpc('plan_trace_mat',{p_plan_no:PTR.no,p_key:key});
+    if(error) throw error; rows=data||[];
+  }catch(e){ toast('원자재 조회 실패: '+(e.message||e),'err'); }
+  const b=$('#ptMatBox'); if(!b) return;
+  b.innerHTML=`
+    <div style="font-size:12.5px;font-weight:800;color:#243b63;margin-bottom:8px">${key.split('|')[0]} · ${key.split('|')[1]} — 원자재 ${rows.length}건</div>
+    <table class="tdd-table" style="min-width:0">
+      <thead><tr><th>일자</th><th>자재코드</th><th>자재명</th><th>구분</th><th>계획</th><th>실적</th><th>편차</th><th>단위</th><th>로스금액</th></tr></thead>
+      <tbody>${rows.length?rows.map(m=>{
+        const d=Number(m.diff_qty)||0;
+        return `<tr>
+          <td class="mono">${String(m.work_date).slice(5)}</td>
+          <td class="mono">${m.mat_code}</td>
+          <td class="l" style="font-size:12px">${m.mat_name||'-'}</td>
+          <td><span class="kind-tag ${String(m.mat_type||'').includes('반제품')?'semi':''}">${m.mat_type||'-'}</span></td>
+          <td class="mono">${fmt1(m.plan_qty)}</td>
+          <td class="mono"><b>${fmt1(m.actual_qty)}</b></td>
+          <td class="mono ${d>0?'neg':(d<0?'pos':'')}">${d>0?'+':''}${fmt1(d)}</td>
+          <td class="mono" style="font-size:11px;color:var(--sub)">${m.mat_unit||'-'}</td>
+          <td class="mono ${Number(m.loss_amt)>0?'neg':''}">${Number(m.loss_amt)>0?fmt(m.loss_amt)+'원':'–'}</td>
+        </tr>`;}).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:18px">자재 내역이 없습니다</td></tr>'}</tbody>
+    </table>`;
+}
 function renderHelp(){
   $('#wrap').innerHTML=`
   <div class="help-hero">
@@ -1650,8 +1752,23 @@ function renderHelp(){
   </div>
 
   <div class="help-toc">
-    ${[['시작하기','h_start'],['메뉴 안내','h_nav'],['마감 작성','h_write'],['결재 흐름','h_appr'],['분석 화면','h_analysis'],['자주 묻는 질문','h_faq']]
+    ${[['시작하기','h_start'],['메뉴 안내','h_nav'],['마감 작성','h_write'],['결재 흐름','h_appr'],['분석 화면','h_analysis'],['자주 묻는 질문','h_faq'],['🔎 계획번호 추적','h_trace']]
       .map(([t,id])=>`<button class="help-chip" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth',block:'start'})">${t}</button>`).join('')}
+  </div>
+
+  <div class="sec" id="h_trace" style="border:2px solid #cfd8e6">
+    <div class="sec-hd"><span class="no c2">🔎</span><h3>생산계획번호 추적</h3>
+      <span class="desc">계획번호 하나로 공정 흐름·원자재·로스·포장 완결까지 한 번에</span></div>
+    <div class="sec-bd">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="ptNo" placeholder="생산계획번호 (예: 20260812001)" autocomplete="off"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();ptSearch();}"
+               style="flex:1;min-width:230px;max-width:320px;padding:9px 13px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;font-family:ui-monospace,monospace">
+        <button class="tbtn save" onclick="ptSearch()">조회</button>
+        <span style="font-size:11.5px;color:var(--mut)">② 오더별·③ 로스관리 표의 계획번호를 그대로 붙여넣으세요</span>
+      </div>
+      <div id="ptResult"></div>
+    </div>
   </div>
 
   <div class="sec" id="h_start"><div class="sec-hd"><span class="no c1">1</span><h3>시작하기</h3></div>
@@ -4898,7 +5015,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.14c';
+const APP_VERSION='v2026.08.14d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
