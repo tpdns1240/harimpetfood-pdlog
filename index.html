@@ -426,6 +426,17 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .t2-note{transition:width .12s ease, box-shadow .12s ease}
 .t2-note:focus{position:relative;z-index:20;width:340px !important;min-width:340px;
   box-shadow:0 6px 18px rgba(20,40,80,.18);background:#fff !important;border-color:var(--navy3) !important}
+/* 개선접수 첨부 이미지 — 썸네일 그리드 + 라이트박스 */
+.im-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+.im-thumbs img{width:104px;height:104px;object-fit:cover;border-radius:9px;border:1.5px solid var(--line);
+  cursor:zoom-in;background:#f4f6fa;transition:transform .12s,box-shadow .12s}
+.im-thumbs img:hover{transform:scale(1.04);box-shadow:0 6px 16px rgba(20,40,80,.18)}
+.im-lb{position:fixed;inset:0;z-index:9999;background:rgba(12,20,34,.88);display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px}
+.im-lb img{max-width:94vw;max-height:82vh;object-fit:contain;border-radius:8px;background:#fff}
+.im-lb-bar{display:flex;gap:14px;align-items:center;color:#e8eefb;font-size:12.5px;font-weight:700}
+.im-lb-bar a{color:#9dc4ff;text-decoration:underline}
+.im-lb-bar button{padding:5px 12px;border-radius:7px;border:1px solid #4a5c7a;background:#1e2b42;color:#e8eefb;font-weight:700;cursor:pointer}
 .hk-tag{display:inline-block;font-size:10px;font-weight:800;color:#1d4ed8;background:#eaf4ff;border:1px solid #b9d4f5;border-radius:4px;padding:0 5px;vertical-align:1px}
 .idle-tag{display:inline-block;font-size:10px;font-weight:800;color:#8a94a6;background:#f1f4f9;border:1px solid #d8e0ec;border-radius:4px;padding:0 5px;vertical-align:1px}
 .hoki-badge{display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:8px;
@@ -910,7 +921,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14g</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -947,7 +958,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14g</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1838,6 +1849,163 @@ function renderHelp(){
   </div>`;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   개선접수 이미지 첨부
+   ── 성능 설계
+      ① 업로드 전 캔버스로 리사이즈 (긴 변 1600px · JPEG 0.82)
+         3MB 스크린샷 → 보통 150~300KB. 업로드·다운로드 모두 가벼워짐
+      ② 목록에는 DB 에 넣은 썸네일(320px · base64 ~8KB)만 렌더
+         원본은 클릭할 때만 Storage 에서 받아온다 → 첫 로딩 부담 0
+      ③ <img loading="lazy" decoding="async"> 로 화면 밖 이미지는 디코딩도 안 함
+      ④ 미리보기 objectURL 은 반드시 revoke (메모리 누수 방지)
+   ═══════════════════════════════════════════════════════════════════ */
+const IMG_MAX_SIDE=1600, IMG_Q=0.82, THUMB_SIDE=320, THUMB_Q=0.6;
+const IMG_MAX_CNT=5, IMG_MAX_SRC=12*1024*1024;
+let IM_FILES=[];        // {file, url, name, w, h, blob, thumb}
+let IM_IMGS={};         // improve_id -> [{id,path,thumb,w,h}]
+let IM_BUSY=false;
+
+function imgBucketUrl(path){
+  const base=(typeof SUPABASE_URL!=='undefined'&&SUPABASE_URL)?SUPABASE_URL:((sb&&sb.supabaseUrl)||'');
+  return `${base}/storage/v1/object/public/improve/${path}`;
+}
+/* 캔버스 리사이즈 — 원본 Bitmap 은 즉시 close 해서 메모리를 붙잡지 않는다 */
+async function shrinkImage(file, maxSide, quality){
+  const bmp=await createImageBitmap(file);
+  const scale=Math.min(1, maxSide/Math.max(bmp.width,bmp.height));
+  const w=Math.max(1,Math.round(bmp.width*scale)), h=Math.max(1,Math.round(bmp.height*scale));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const cx=cv.getContext('2d',{alpha:false});
+  cx.imageSmoothingQuality='high';
+  cx.drawImage(bmp,0,0,w,h);
+  bmp.close&&bmp.close();
+  const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',quality));
+  const dataUrl=cv.toDataURL('image/jpeg',quality);
+  cv.width=cv.height=0;                     // 캔버스 버퍼 즉시 해제
+  return {blob, dataUrl, w, h};
+}
+async function imPick(files){
+  if(!files||!files.length) return;
+  const room=IMG_MAX_CNT-IM_FILES.length;
+  if(room<=0){ toast(`이미지는 최대 ${IMG_MAX_CNT}장까지 첨부할 수 있습니다`,'err'); return; }
+  const arr=[...files].filter(f=>/^image\//.test(f.type)).slice(0,room);
+  if(!arr.length){ toast('이미지 파일만 첨부할 수 있습니다','err'); return; }
+  for(const f of arr){
+    if(f.size>IMG_MAX_SRC){ toast(`${f.name||'이미지'} 가 너무 큽니다 (12MB 초과)`,'err'); continue; }
+    try{
+      const big=await shrinkImage(f, IMG_MAX_SIDE, IMG_Q);
+      const th =await shrinkImage(f, THUMB_SIDE, THUMB_Q);
+      IM_FILES.push({name:f.name||'capture.jpg', blob:big.blob, w:big.w, h:big.h,
+                     thumb:th.dataUrl, url:URL.createObjectURL(big.blob), bytes:big.blob.size});
+    }catch(e){ toast('이미지 처리 실패: '+(e.message||e),'err'); }
+  }
+  imPreview();
+}
+function imPreview(){
+  const box=$('#imPrev'); if(!box) return;
+  const tot=IM_FILES.reduce((a,b)=>a+b.bytes,0);
+  box.innerHTML=IM_FILES.length?`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:10px">
+      ${IM_FILES.map((f,i)=>`<div style="position:relative;width:96px">
+        <img src="${f.url}" loading="lazy" decoding="async" style="width:96px;height:96px;object-fit:cover;border-radius:8px;border:1.5px solid var(--line)">
+        <button onclick="imDrop(${i})" title="제거" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:1.5px solid #fda29b;background:#fff;color:#b42318;font-weight:900;cursor:pointer;line-height:1">×</button>
+        <div style="font-size:9.5px;color:var(--mut);text-align:center;margin-top:2px">${f.w}×${f.h} · ${(f.bytes/1024).toFixed(0)}KB</div>
+      </div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--mut);margin-top:6px">${IM_FILES.length}/${IMG_MAX_CNT}장 · 합계 ${(tot/1024).toFixed(0)}KB (업로드용으로 자동 축소됨)</div>`:'';
+}
+function imDrop(i){
+  const f=IM_FILES[i]; if(f&&f.url) URL.revokeObjectURL(f.url);
+  IM_FILES.splice(i,1); imPreview();
+}
+function imClear(){
+  IM_FILES.forEach(f=>{ if(f.url) URL.revokeObjectURL(f.url); });
+  IM_FILES=[]; imPreview();
+}
+/* 스크린샷 붙여넣기 (Ctrl+V) — 캡처 등록의 핵심 경로 */
+function imPaste(e){
+  const items=(e.clipboardData||{}).items||[];
+  const files=[...items].filter(x=>x.kind==='file'&&/^image\//.test(x.type)).map(x=>x.getAsFile()).filter(Boolean);
+  if(files.length){ e.preventDefault(); imPick(files); toast(`캡처 ${files.length}장 첨부됨`,'ok'); }
+}
+/* 새로 등록한 글의 id 확정
+   ── ① add_improvement 가 id 를 돌려주면 그대로 사용
+   ── ② 아니면 목록 RPC 를 다시 읽어 '내가 쓴 같은 제목의 최신 글' 을 찾는다
+        (테이블명을 몰라도 되고, RPC 만 있으면 동작한다) */
+async function resolveNewImproveId(data, title){
+  let nid=0;
+  try{
+    if(data!=null){
+      if(typeof data==='number') nid=data;
+      else if(Array.isArray(data)) nid=Number((data[0]&&(data[0].id??data[0]))||0);
+      else if(typeof data==='object') nid=Number(data.id??0);
+      else nid=Number(data)||0;
+    }
+  }catch(_){}
+  if(nid>0) return nid;
+  try{
+    const {data:list}=await sb.rpc('get_improvements',{p_status:null});
+    const mine=(list||[]).filter(x=>x.writer===S.user.name && x.title===title);
+    if(mine.length) nid=Number(mine.sort((a,b)=>Number(b.id)-Number(a.id))[0].id)||0;
+    if(!nid){
+      const any=(list||[]).filter(x=>x.writer===S.user.name);
+      if(any.length) nid=Number(any.sort((a,b)=>Number(b.id)-Number(a.id))[0].id)||0;
+    }
+  }catch(e){ console.warn('[개선접수] id 조회 실패', e); }
+  return nid||0;
+}
+async function imUpload(improveId){
+  if(!IM_FILES.length) return 0;
+  let ok=0;
+  for(const f of IM_FILES){
+    try{
+      const path=`${improveId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+      const up=await sb.storage.from('improve').upload(path, f.blob, {contentType:'image/jpeg', upsert:false});
+      if(up.error) throw up.error;
+      const ins=await sb.from('t_improve_img').insert({
+        improve_id:improveId, path, thumb:f.thumb, w:f.w, h:f.h, bytes:f.bytes, created_by:S.user.name
+      });
+      if(ins.error) throw ins.error;
+      ok++;
+    }catch(e){
+      console.error('[개선접수] 이미지 업로드 실패', e);
+      toast('이미지 업로드 실패: '+(e.message||e.error_description||JSON.stringify(e)),'err');
+    }
+  }
+  return ok;
+}
+async function loadImproveImgs(list){
+  IM_IMGS={};
+  const ids=(list||[]).map(x=>Number(x.id)).filter(Boolean);
+  if(!ids.length) return;
+  try{
+    const {data,error}=await sb.rpc('get_improve_imgs',{p_ids:ids});
+    if(error) throw error;
+    (data||[]).forEach(r=>{ (IM_IMGS[r.improve_id]=IM_IMGS[r.improve_id]||[]).push(r); });
+    console.log('[개선접수] 첨부 조회', ids.length, '건 중 이미지', (data||[]).length, '장');
+  }catch(e){ console.warn('[개선접수] 첨부 조회 실패', e); }
+}
+function imThumbs(id){
+  const arr=IM_IMGS[id]||[];
+  if(!arr.length) return '';
+  return `<div class="im-thumbs">${arr.map((x,i)=>`
+    <img src="${x.thumb||imgBucketUrl(x.path)}" loading="lazy" decoding="async"
+         onclick="imLightbox('${String(id)}',${i})" title="클릭하면 원본 크기로 봅니다"
+         alt="첨부 이미지 ${i+1}">`).join('')}</div>`;
+}
+function imLightbox(id,i){
+  const arr=IM_IMGS[id]||[]; const x=arr[i]; if(!x) return;
+  const o=document.createElement('div');
+  o.className='im-lb';
+  o.innerHTML=`<div class="im-lb-bar">
+      <span>${i+1} / ${arr.length} · ${x.w}×${x.h}</span>
+      <a href="${imgBucketUrl(x.path)}" target="_blank" rel="noopener">새 탭에서 열기</a>
+      <button onclick="this.closest('.im-lb').remove()">닫기 ✕</button>
+    </div>
+    <img src="${imgBucketUrl(x.path)}" decoding="async" alt="첨부 원본">`;
+  o.onclick=ev=>{ if(ev.target===o) o.remove(); };
+  document.body.appendChild(o);
+}
 /* ============ 개선접수 게시판 ============ */
 let IMPROVE_FILTER=null;
 let IMPROVE_CACHE=[];
@@ -1856,6 +2024,7 @@ async function loadImprove(){
     stats=st.data||{}; list=lst.data||[];
   }catch(e){ toast('개선접수 조회 실패: '+(e.message||e),'err'); }
   IMPROVE_CACHE=list;
+  await loadImproveImgs(list);   // 썸네일만 함께 가져온다 (원본은 클릭 시)
 
   const statusMeta={
     received:{ko:'접수',cls:'st-received'},
@@ -1886,6 +2055,7 @@ async function loadImprove(){
       </div>
       <div class="im-meta">작성자 ${im.writer||'-'}${im.writer_team?' · '+im.writer_team:''} · ${dt}${isMine?' · <b style="color:var(--blue)">내 글</b>':''}</div>
       <div class="im-body">${(im.content||'').replace(/\n/g,'<br>')}</div>
+      ${imThumbs(im.id)}
       ${answerBox}
       ${btns}
     </div>`;
@@ -1911,8 +2081,14 @@ async function loadImprove(){
     <span class="desc">작성자: ${S.user.name}</span></div>
     <div class="sec-bd">
       <input id="imTitle" placeholder="제목" style="width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;margin-bottom:10px;box-sizing:border-box">
-      <textarea id="imContent" placeholder="요청 내용" style="width:100%;min-height:110px;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
-      <div style="text-align:right;margin-top:12px"><button class="tbtn submit" onclick="addImprove()">등록</button></div>
+      <textarea id="imContent" placeholder="요청 내용 · 캡처 이미지를 여기에 Ctrl+V 로 붙여넣을 수 있습니다" onpaste="imPaste(event)" style="width:100%;min-height:110px;padding:11px 13px;border:1.5px solid var(--line);border-radius:9px;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <input type="file" id="imFile" accept="image/*" multiple style="display:none" onchange="imPick(this.files);this.value='';">
+        <button class="rowbtn" onclick="document.getElementById('imFile').click()" title="사진 또는 캡처 이미지를 첨부합니다">📎 이미지 첨부</button>
+        <span style="font-size:11.5px;color:var(--mut)">최대 ${IMG_MAX_CNT}장 · 스크린샷은 내용칸에 <b>Ctrl+V</b> · 업로드 시 자동으로 축소되어 빠릅니다</span>
+      </div>
+      <div id="imPrev"></div>
+      <div style="text-align:right;margin-top:12px"><button class="tbtn submit" id="imSubmit" onclick="addImprove()">등록</button></div>
     </div>
   </div>
 
@@ -1926,11 +2102,26 @@ async function loadImprove(){
 }
 function filterImprove(status){ IMPROVE_FILTER=status; loadImprove(); }
 async function addImprove(){
+  if(IM_BUSY) return;
   const title=$('#imTitle').value.trim(), content=$('#imContent').value.trim();
   if(!title){ toast('제목을 입력하세요','err'); return; }
+  const btn=$('#imSubmit');
+  IM_BUSY=true; if(btn){ btn.disabled=true; btn.textContent=IM_FILES.length?'이미지 업로드 중…':'등록 중…'; }
   try{
-    const {error}=await sb.rpc('add_improvement',{p_title:title,p_content:content,p_writer:S.user.name,p_team:S.user.team});
+    const {data,error}=await sb.rpc('add_improvement',{p_title:title,p_content:content,p_writer:S.user.name,p_team:S.user.team});
     if(error)throw error;
+    // 첨부가 있으면 새 글의 id 를 확보해 업로드한다
+    if(IM_FILES.length){
+      const nid=await resolveNewImproveId(data, title);
+      console.log('[개선접수] add_improvement 반환:', data, '→ 확정 id:', nid);
+      if(nid){
+        const n=await imUpload(nid);
+        toast(n?`이미지 ${n}장 첨부 완료`:'이미지 업로드에 실패했습니다','ok');
+      }else{
+        toast('글은 등록됐으나 글 번호를 찾지 못해 이미지가 첨부되지 않았습니다','err');
+      }
+    }
+    imClear();
     toast('개선요청 등록완료','ok');
     // 관리자 전체에게 등록 알림 메일
     getAdminEmails().then(emails=>{
@@ -1940,6 +2131,7 @@ async function addImprove(){
     });
     loadImprove();
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
+  finally{ IM_BUSY=false; const b=$('#imSubmit'); if(b){ b.disabled=false; b.textContent='등록'; } }
 }
 function openAnswer(id){
   const im=(IMPROVE_CACHE||[]).find(x=>String(x.id)===String(id))||{};
@@ -1994,7 +2186,15 @@ async function submitAnswer(id){
 }
 async function delImprove(id){
   if(!confirm('이 개선요청을 삭제할까요?'))return;
-  try{ await sb.rpc('del_improvement',{p_id:id});
+  try{
+    // 첨부 이미지도 함께 정리 (스토리지 잔여 파일 방지)
+    try{
+      const q=await sb.from('t_improve_img').select('id,path').eq('improve_id',id);
+      const paths=(q.data||[]).map(x=>x.path).filter(Boolean);
+      if(paths.length){ await sb.storage.from('improve').remove(paths); }
+      await sb.from('t_improve_img').delete().eq('improve_id',id);
+    }catch(_){ }
+    await sb.rpc('del_improvement',{p_id:id});
     toast('삭제완료','ok'); loadImprove();
   }catch(e){ toast('삭제 실패','err'); }
 }
@@ -2615,101 +2815,204 @@ async function loadTDTab(){
    ── 스크롤(헤더 고정) · 검색 필터 · 컬럼 정렬 지원
    ── 데이터는 TDD 에 보관하고 표만 다시 그린다 (재조회 없음 = 즉시 반응)
    ═══════════════════════════════════════════════════════════════════ */
-let TDD={kind:null, rows:[], q:'', sk:null, sd:-1};
+let TDD={kind:null, rows:[], q:'', sk:null, sd:-1, kind2:'', score:null, ph:[], open:null, chain:[]};
 const TDD_COLS={
   order:[
-    {k:'prod_code', t:'제품코드', ty:'s', cls:'mono'},
-    {k:'prod_name', t:'제품명',   ty:'s', cls:'l'},
-    {k:'line',      t:'라인',     ty:'s', cls:'sub'},
-    {k:'kind',      t:'구분',     ty:'s', cls:'tag'},
-    {k:'plan_sum',  t:'계획',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
-    {k:'actual_sum',t:'실적',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
-    {k:'achieve',   t:'달성률',   ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=100?'pos':'neg'},
-    {k:'productivity',t:'생산성', ty:'n', cls:'mono', f:v=>v>0?fmt(v):'–'},
-    {k:'scrap_rate',t:'스크랩률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
-    {k:'defect_rate',t:'불량률',  ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
-    {k:'unplan_min',t:'비계획정지',ty:'n', cls:'mono', f:v=>v>0?fmt(v)+'분':'–'},
-    {k:'net_loss',  t:'로스금액', ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
+    {k:'plan_no',   t:'생산계획번호', ty:'s', cls:'mono'},
+    {k:'kind',      t:'구분',        ty:'s', cls:'tag'},
+    {k:'line',      t:'공정',        ty:'s', cls:'sub'},
+    {k:'hoki',      t:'호기',        ty:'s', cls:'mono', f:v=>v?`<b>${v}</b>호기`:'–'},
+    {k:'prod_code', t:'품번',        ty:'s', cls:'mono'},
+    {k:'prod_name', t:'제품명',      ty:'s', cls:'l'},
+    {k:'first_date',t:'일자',        ty:'s', cls:'mono', f:(v,r)=>String(v).slice(5)+(r.last_date!==v?`~${String(r.last_date).slice(5)}`:'')},
+    {k:'plan_qty',  t:'계획(KG)',    ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'actual_qty',t:'실적(KG)',    ty:'n', cls:'mono', f:v=>`<b>${fmt(Math.round(v||0))}</b>`},
+    {k:'diff_qty',  t:'편차',        ty:'n', cls:'mono', f:v=>(Number(v)>0?'+':'')+fmt(Math.round(v||0)), c:v=>Number(v)>0?'neg':(Number(v)<0?'pos':'')},
+    {k:'achieve',   t:'달성률',      ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=95?'pos':'neg'},
+    {k:'pack_rate', t:'포장수율',    ty:'n', cls:'mono', f:(v,r)=>v==null?'–':`<b style="color:${v>=95?'var(--grn)':'#d97706'}">${v}%</b>${Number(r.pack_base)-Number(r.pack_done)>1?`<div style="font-size:9.5px;font-weight:800;color:#5a3fb8">미포장 ${fmt(Math.round(r.pack_base-r.pack_done))}</div>`:''}`},
+    {k:'loss_amt',  t:'로스금액',    ty:'n', cls:'mono', f:v=>Number(v)>0?fmt(v)+'원':'–', c:v=>Number(v)>0?'neg':''}
   ],
   product:[
-    {k:'prod_name', t:'제품명',   ty:'s', cls:'l'},
-    {k:'order_cnt', t:'오더수',   ty:'n', cls:'mono'},
-    {k:'plan_sum',  t:'계획',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
-    {k:'actual_sum',t:'실적',     ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
-    {k:'achieve',   t:'달성률',   ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=100?'pos':'neg'},
-    {k:'scrap_rate',t:'스크랩률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
-    {k:'defect_rate',t:'불량률',  ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
-    {k:'net_loss',  t:'로스금액', ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
+    {k:'prod_code', t:'품번',   ty:'s', cls:'mono'},
+    {k:'prod_name', t:'제품명', ty:'s', cls:'l'},
+    {k:'order_cnt', t:'오더수', ty:'n', cls:'mono'},
+    {k:'plan_sum',  t:'계획',   ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
+    {k:'actual_sum',t:'실적',   ty:'n', cls:'mono', f:v=>`<b>${fmt(Math.round(v||0))}</b>`},
+    {k:'achieve',   t:'달성률', ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=95?'pos':'neg'},
+    {k:'scrap_rate',t:'스크랩률',ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'defect_rate',t:'불량률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
+    {k:'net_loss',  t:'로스금액',ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
   ]
 };
 async function openTDDrill(kind){
   S.view='tddrill';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
-  const p={p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null};
+  TDD={kind:(kind==='order'?'order':'product'), rows:[], q:'', sk:null, sd:-1,
+       kind2:'', score:null, ph:[], open:null, chain:[]};
   try{
-    const {data}=await sb.rpc(kind==='order'?'team_order_detail':'team_product_detail',p);
-    TDD={kind:(kind==='order'?'order':'product'), rows:data||[], q:'', sk:null, sd:-1};
+    if(TDD.kind==='order'){
+      const [dr,sc,ph]=await Promise.all([
+        sb.rpc('team_plan_drill',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null}),
+        sb.rpc('team_plan_score',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
+        sb.rpc('team_proc_hoki', {p_team:TD.team,p_from:TD.from,p_to:TD.to})
+      ]);
+      TDD.rows=dr.data||[]; TDD.score=(sc.data||[])[0]||null; TDD.ph=ph.data||[];
+    }else{
+      const {data}=await sb.rpc('team_product_detail',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null});
+      TDD.rows=data||[];
+    }
     $('#wrap').innerHTML=tddShell();
     tddPaint();
   }catch(e){ toast('드릴다운 조회 실패: '+(e.message||e),'err'); }
 }
 function tddShell(){
   const isOrd=TDD.kind==='order';
+  const kseg=isOrd?`<div class="seg"><span class="seg-label">구분</span>
+      ${[['','합산'],['fin','완제품'],['semi','반제품']].map(([k,l])=>`<button class="seg-btn ${TDD.kind2===k?'on':''}" onclick="tddKind('${k}')">${l}</button>`).join('')}
+    </div>`:'';
   return `
   <div class="tr-hero"><div>
     <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
-    <h2>${isOrd?'오더별':'제품별'} 드릴다운</h2>
-    <div class="en">${isOrd?'제품코드(오더)':'제품명'} 단위 전체 · <span id="tddCnt">${TDD.rows.length}</span>건 · ${TD.from} ~ ${TD.to}</div></div>
+    <h2>${isOrd?'생산계획번호별 드릴다운':'제품별 드릴다운'}</h2>
+    <div class="en">${isOrd?'생산계획번호 · 공정 · 호기 단위':'품번 단위'} · <span id="tddCnt">${TDD.rows.length}</span>건 · ${TD.from} ~ ${TD.to}</div></div>
     <div class="tr-nav"><button class="tr-cal" onclick="go('cal')">캘린더</button></div></div>
+  ${isOrd?'<div id="tddScore"></div><div id="tddPH"></div>':''}
   <div class="sec">
     <div class="sec-hd" style="gap:8px;flex-wrap:wrap">
-      <input id="tddQ" placeholder="제품코드·제품명·라인 검색" oninput="tddFilter(this.value)" autocomplete="off"
-             style="flex:1;min-width:200px;max-width:340px;padding:7px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px">
+      <input id="tddQ" placeholder="${isOrd?'계획번호·품번·제품명·공정 검색':'품번·제품명 검색'}" oninput="tddFilter(this.value)" autocomplete="off"
+             style="flex:1;min-width:200px;max-width:320px;padding:7px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px">
+      ${kseg}
       <span id="tddSortInfo" style="font-size:11.5px;color:var(--mut)"></span>
       <span class="sp" style="flex:1"></span>
-      <button class="tbtn" onclick="tddReset()" title="검색·정렬 초기화">↺ 초기화</button>
+      <button class="tbtn" onclick="tddReset()">↺ 초기화</button>
     </div>
     <div class="sec-bd" style="padding-top:0">
       <div class="tdd-scroll"><table class="tdd-table" id="tddTable"></table></div>
+      <div id="tddChain" style="margin-top:14px"></div>
     </div>
   </div>`;
 }
 function tddFilter(v){ TDD.q=String(v||''); tddPaint(); }
-function tddReset(){ TDD.q=''; TDD.sk=null; TDD.sd=-1; const q=$('#tddQ'); if(q)q.value=''; tddPaint(); }
-function tddSort(k){
-  if(TDD.sk===k) TDD.sd=-TDD.sd; else { TDD.sk=k; TDD.sd=-1; }   // 첫 클릭은 내림차순(큰 값 먼저)
-  tddPaint();
-}
+function tddKind(k){ TDD.kind2=k; TDD.open=null; tddPaint(); }
+function tddReset(){ TDD.q=''; TDD.sk=null; TDD.sd=-1; TDD.kind2=''; TDD.open=null;
+  const q=$('#tddQ'); if(q)q.value=''; const c=$('#tddChain'); if(c)c.innerHTML='';
+  $('#wrap').innerHTML=tddShell(); tddPaint(); }
+function tddSort(k){ if(TDD.sk===k) TDD.sd=-TDD.sd; else { TDD.sk=k; TDD.sd=-1; } tddPaint(); }
+const KIND_KO={fin:'완제품',semi:'반제품',etc:'기타'};
 function tddPaint(){
+  const isOrd=TDD.kind==='order';
   const cols=TDD_COLS[TDD.kind]||[];
   const q=TDD.q.trim().toLowerCase();
   let rows=TDD.rows;
+  if(isOrd&&TDD.kind2) rows=rows.filter(r=>r.kind===TDD.kind2);
   if(q) rows=rows.filter(r=>cols.some(c=>c.ty==='s'&&String(r[c.k]||'').toLowerCase().includes(q)));
+  if(isOrd) tddScore(rows);
   if(TDD.sk){
     const col=cols.find(c=>c.k===TDD.sk)||{ty:'s'};
     rows=rows.slice().sort((a,b)=>{
-      if(col.ty==='n'){ const x=Number(a[TDD.sk])||0, y=Number(b[TDD.sk])||0; return (x-y)*TDD.sd; }
+      if(col.ty==='n'){ return ((Number(a[TDD.sk])||0)-(Number(b[TDD.sk])||0))*TDD.sd; }
       return String(a[TDD.sk]||'').localeCompare(String(b[TDD.sk]||''),'ko')*TDD.sd;
     });
   }
   const th=cols.map(c=>{
     const on=TDD.sk===c.k;
     const ar=on?(TDD.sd<0?'▼':'▲'):'<span style="opacity:.3">↕</span>';
-    return `<th class="tdd-th${on?' on':''}" onclick="tddSort('${c.k}')" title="클릭하면 이 컬럼으로 정렬합니다">${c.t} ${ar}</th>`;
-  }).join('');
-  const body=rows.length?rows.map(o=>'<tr>'+cols.map(c=>{
-    const v=o[c.k];
-    const txt=c.f?c.f(v):(v==null?'–':(c.ty==='n'?fmt(v):v||'-'));
-    if(c.cls==='tag') return `<td><span class="kind-tag ${v==='완제품'?'fin':v==='반제품'?'semi':''}">${v||'-'}</span></td>`;
-    if(c.cls==='sub') return `<td style="font-size:12px;color:var(--sub)">${v||'-'}</td>`;
-    const extra=c.c?(' '+c.c(v)):'';
-    return `<td class="${c.cls||''}${extra}">${txt}</td>`;
-  }).join('')+'</tr>').join('')
-   :`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--mut);padding:30px">검색 결과가 없습니다</td></tr>`;
+    return `<th class="tdd-th${on?' on':''}" onclick="tddSort('${c.k}')">${c.t} ${ar}</th>`;
+  }).join('')+(isOrd?'':'<th>반제품</th>');
+  const body=rows.length?rows.map(o=>{
+    const tds=cols.map(c=>{
+      const v=o[c.k];
+      const txt=c.f?c.f(v,o):(v==null?'–':(c.ty==='n'?fmt(v):v||'-'));
+      if(c.cls==='tag') return `<td><span class="kind-tag ${v==='fin'?'fin':'semi'}">${KIND_KO[v]||v||'-'}</span></td>`;
+      if(c.cls==='sub') return `<td style="font-size:12px;color:var(--sub)">${v||'-'}</td>`;
+      return `<td class="${c.cls||''}${c.c?' '+c.c(v):''}">${txt}</td>`;
+    }).join('');
+    if(isOrd) return `<tr>${tds}</tr>`;
+    const isFin=/^[23]/.test(String(o.prod_code||''));
+    return `<tr>${tds}<td>${isFin?`<button class="rowbtn" onclick="tddChain('${String(o.prod_code).replace(/'/g,"\\'")}')">${TDD.open===o.prod_code?'닫기':'반제품 ▸'}</button>`:'<span style="color:#c4ccd8">–</span>'}</td></tr>`;
+  }).join('')
+   :`<tr><td colspan="${cols.length+(isOrd?0:1)}" style="text-align:center;color:var(--mut);padding:30px">검색 결과가 없습니다</td></tr>`;
   const t=$('#tddTable'); if(t) t.innerHTML=`<thead><tr>${th}</tr></thead><tbody>${body}</tbody>`;
-  const c=$('#tddCnt'); if(c) c.textContent=rows.length+(q?` / ${TDD.rows.length}`:'');
+  const c=$('#tddCnt'); if(c) c.textContent=rows.length+(rows.length!==TDD.rows.length?` / ${TDD.rows.length}`:'');
   const si=$('#tddSortInfo');
-  if(si) si.textContent=TDD.sk?`${(cols.find(x=>x.k===TDD.sk)||{}).t} ${TDD.sd<0?'내림차순':'오름차순'}`:'헤더를 클릭하면 정렬됩니다';
+  if(si) si.textContent=TDD.sk?`${(cols.find(x=>x.k===TDD.sk)||{}).t} ${TDD.sd<0?'내림차순':'오름차순'}`:'헤더 클릭 시 정렬';
+}
+function tddScore(rows){
+  const s=TDD.score, box=$('#tddScore');
+  if(box&&s){
+    const rate=s.pack_rate==null?null:Number(s.pack_rate);
+    box.innerHTML=`<div class="score-row" style="grid-template-columns:repeat(6,1fr)">
+      <div class="sc b"><div class="l">생산계획번호</div><div class="v mono">${fmt(s.plan_cnt)}<span class="u">건</span></div>
+        <div class="sc-sub">완 ${fmt(s.fin_cnt)} · 반 ${fmt(s.semi_cnt)} 품목</div></div>
+      <div class="sc"><div class="l">완제품 실적</div><div class="v mono">${(Number(s.fin_actual)/1000).toFixed(1)}<span class="u">t</span></div>
+        <div class="sc-sub">${fmt(s.fin_actual)}kg</div></div>
+      <div class="sc"><div class="l">반제품 실적</div><div class="v mono">${(Number(s.semi_actual)/1000).toFixed(1)}<span class="u">t</span></div>
+        <div class="sc-sub" title="반제품은 공정마다 재집계되어 중복이 포함된 참고값입니다">공정 재집계 포함</div></div>
+      <div class="sc ${rate!=null&&rate>=95?'g':''}"><div class="l">포장수율</div><div class="v mono">${rate==null?'–':rate.toFixed(1)+'%'}</div>
+        <div class="sc-sub">${fmt(s.pack_done)} ÷ ${fmt(s.pack_base)}kg</div></div>
+      <div class="sc ${Number(s.unpacked)>0?'r':''}"><div class="l">미포장</div><div class="v mono">${fmt(Math.round(s.unpacked))}<span class="u">kg</span></div>
+        <div class="sc-sub">${fmt(s.unpacked_cnt)}건 진행중</div></div>
+      <div class="sc ${Number(s.loss_amt)>0?'r':''}"><div class="l">로스금액</div><div class="v mono">${(Number(s.loss_amt)/10000).toFixed(0)}<span class="u">만원</span></div>
+        <div class="sc-sub">공정 ${s.proc_cnt} · 호기 ${s.hoki_cnt}</div></div>
+    </div>`;
+  }
+  const pbox=$('#tddPH');
+  if(pbox&&TDD.ph.length){
+    const ph=TDD.kind2?TDD.ph.filter(x=>x.kind===TDD.kind2):TDD.ph;
+    pbox.innerHTML=`<div class="sec" style="margin-bottom:14px"><div class="sec-hd"><span class="no c2">◆</span><h3>공정·호기별 생산실적</h3>
+      <span class="desc">계획번호 기준 · 수율 = 산출 ÷ 반제품 투입</span></div>
+      <div class="sec-bd" style="overflow-x:auto"><table class="tdd-table">
+      <thead><tr><th>공정</th><th>호기</th><th>구분</th><th>계획번호</th><th>품목</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>반제품 투입</th><th>수율</th></tr></thead>
+      <tbody>${ph.map(x=>`<tr>
+        <td class="l">${x.line}</td>
+        <td class="mono">${x.hoki?`<b>${x.hoki}</b>호기`:'–'}</td>
+        <td><span class="kind-tag ${x.kind==='fin'?'fin':'semi'}">${KIND_KO[x.kind]||x.kind}</span></td>
+        <td class="mono">${fmt(x.plan_cnt)}</td>
+        <td class="mono">${fmt(x.sku_cnt)}</td>
+        <td class="mono">${fmt(x.plan_qty)}</td>
+        <td class="mono"><b>${fmt(x.actual_qty)}</b></td>
+        <td class="mono ${x.achieve>=95?'pos':'neg'}">${x.achieve==null?'–':x.achieve+'%'}</td>
+        <td class="mono">${Number(x.in_qty)>0?fmt(x.in_qty):'–'}</td>
+        <td class="mono">${x.yield_rate==null?'–':`<b style="color:${x.yield_rate>=70&&x.yield_rate<=105?'var(--grn)':'#d97706'}">${x.yield_rate}%</b>`}</td>
+      </tr>`).join('')}</tbody></table></div></div>`;
+  }
+}
+async function tddChain(code){
+  const box=$('#tddChain');
+  if(TDD.open===code){ TDD.open=null; if(box) box.innerHTML=''; tddPaint(); return; }
+  TDD.open=code; tddPaint();
+  if(box) box.innerHTML='<div class="skel" style="height:140px;border-radius:12px"></div>';
+  let rows=[];
+  try{
+    const {data,error}=await sb.rpc('product_semi_chain',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_prod:code});
+    if(error) throw error; rows=data||[];
+  }catch(e){ toast('반제품 조회 실패: '+(e.message||e),'err'); }
+  if(!box) return;
+  const nm=(TDD.rows.find(x=>x.prod_code===code)||{}).prod_name||'';
+  box.innerHTML=`
+  <div class="sec" style="border:2px solid var(--navy);margin:0"><div class="sec-hd">
+    <span class="no c1">▸</span><h3>${code} · 하위 반제품 수율</h3>
+    <span class="desc">${nm}</span><span class="sp" style="flex:1"></span>
+    <button class="tbtn" onclick="tddChain('${String(code).replace(/'/g,"\\'")}')">닫기</button></div>
+    <div class="sec-bd" style="overflow-x:auto"><table class="tdd-table">
+      <thead><tr><th>단계</th><th>공정</th><th>반제품 품번</th><th>반제품명</th><th>투입(KG)</th><th>산출(KG)</th><th>수율</th><th>계획번호</th></tr></thead>
+      <tbody>${rows.length?rows.map(x=>`<tr>
+        <td class="mono">${x.step===1?'<b>1차</b> 포장투입':'<b>2차</b> 건조투입'}</td>
+        <td class="l" style="font-size:12px">${x.line||'-'}</td>
+        <td class="mono">${x.base_code}</td>
+        <td class="l" style="font-size:12px">${x.base_name||'-'}</td>
+        <td class="mono">${Number(x.in_qty)>0?fmt(Math.round(x.in_qty)):'–'}</td>
+        <td class="mono"><b>${fmt(Math.round(x.out_qty))}</b></td>
+        <td class="mono">${x.yield_rate==null?'–':`<b style="color:${x.yield_rate>=70?'var(--grn)':'#d97706'}">${x.yield_rate}%</b>`}</td>
+        <td class="mono">${x.plan_cnt>0?fmt(x.plan_cnt)+'건':'–'}</td>
+      </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--mut);padding:24px">하위 반제품 내역이 없습니다</td></tr>'}</tbody>
+    </table>
+    <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+      ※ <b>1차</b> = 이 완제품이 포장에서 소비한 반제품(코터·오븐 산출 대비 포장수율) ·
+      <b>2차</b> = 그 반제품을 만들 때 투입된 상위 반제품(EP 등, 건조수율)</div>
+    </div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 /* 라인 상세 경영현황 */
@@ -5015,7 +5318,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.14d';
+const APP_VERSION='v2026.08.14g';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
