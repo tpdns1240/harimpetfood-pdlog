@@ -425,6 +425,21 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .tdd-table tbody tr:nth-child(even){background:#fafbfd}
 .tdd-table tbody tr:hover{background:#eef4ff}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
+/* ③ 로스관리 정렬 가능한 헤더 */
+#lossTable thead th.ls-th{cursor:pointer;user-select:none;white-space:nowrap;transition:background .12s}
+#lossTable thead th.ls-th:hover{background:#3565b8}
+#lossTable thead th.ls-th .ls-ar{font-size:9px;margin-left:3px;opacity:.42;font-weight:700;letter-spacing:0}
+#lossTable thead th.ls-th.on{background:#1c3f7d;box-shadow:inset 0 -3px 0 #ffd166}
+#lossTable thead th.ls-th.on .ls-ar{opacity:1;color:#ffd166}
+/* ③ ↔ 스코어카드 정합성 검증 바 */
+.ls-recon{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 16px 8px;padding:7px 12px;border-radius:10px;font-size:11.5px;font-weight:700;line-height:1.5}
+.ls-recon.ok{background:#eefaf3;border:1.5px solid #b7e6cd;color:#0d6b42}
+.ls-recon.ng{background:#fff7ed;border:1.5px solid #fed7aa;color:#9a3412}
+.ls-recon b{font-weight:800}
+.ls-recon .ls-r-i{font-variant-numeric:tabular-nums;cursor:help}
+.ls-recon .ls-r-eq{font-size:13px;font-weight:800;opacity:.6}
+.ls-recon .ls-r-gap{background:#fee4e2;color:#912018;padding:1px 7px;border-radius:6px}
+.ls-recon .ls-r-n{color:#6b7280;font-weight:600;font-size:10.5px;cursor:help;border-left:1px solid #d8dee7;padding-left:8px}
 .t2-table th.th-hl span{color:#a2652a !important}
 /* 호기 자동표기 배지 */
 /* 특이사항 : 좁은 칸이라 글이 잘린다 → 마우스오버 툴팁 + 포커스 시 확장 */
@@ -926,7 +941,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25e</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -963,7 +978,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25e</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5340,7 +5355,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25c';
+const APP_VERSION='v2026.08.25e';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7114,6 +7129,7 @@ function renderMore2(){
       <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
       <div class="type-panel" id="typePanel_loss" style="display:none"></div>
       ${lossOverBanner()}
+    ${lossReconBar()}
       ${(()=>{
         const byLine={},byType={}; let cnt=0; let tot=0;
         (losses||[]).forEach(l=>{
@@ -7146,7 +7162,7 @@ function renderMore2(){
         <span class="fold-cnt loss-fold-cnt">${(losses||[]).length}</span><span class="fold-hint">클릭하여 접기</span></div>
       <div class="fold-body open" id="foldBody_loss2">
       <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-        <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>편차율</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
+        ${lossThead()}
         <tbody id="lossBody2">${lossRows2||'<tr><td colspan="12" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
       </table></div>
       <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
@@ -7758,6 +7774,123 @@ function applyLossFilters(){
     ? `${parts.join(' · ')} 숨김 · 표시 ${shown}건 · 숨긴 로스금액 ${fmtWon(hidAmt)}`
     : `전체 ${shown}건 표시 · 편차0 ${zeroTot}건 포함`)+zeroNote;
   const em=$('#lossEmptyMsg'); if(em) em.style.display=shown?'none':'block';
+  applyLossSort();   // 필터 후에도 선택한 정렬 유지
+}
+/* ════════════════════════════════════════════════════════════════════
+   ③ 로스관리 — 컬럼 정렬 (클릭 3단계 : 오름 → 내림 → 해제)
+   ── DOM 행만 재배치한다. 재렌더가 아니므로 입력값·필터·저장상태가 유지되고
+      수백 행에서도 리플로우 1회로 끝난다(DocumentFragment).
+   ── 라인(공정)은 가나다순이 아니라 공정 흐름순(procOrderCmp)으로 정렬한다.
+   ── 값은 화면 표시값이 아니라 planOf/diffOf/devRate/lossOf 를 그대로 써서
+      MES·BOM 기준 전환에 자동으로 따라간다.
+   ════════════════════════════════════════════════════════════════════ */
+const LOSS_COLS=[
+  {k:'line', t:'라인',    ty:'t', tip:'공정 흐름순으로 정렬합니다 (생육 → 계량/배합 → EP → 분체배합 → 진공코터 → 포장)'},
+  {k:'prod', t:'제품',    ty:'t', tip:'제품명 가나다순 · 같은 제품의 자재를 모아서 봅니다'},
+  {k:'mat',  t:'자재명',  ty:'t', tip:'자재명 가나다순'},
+  {k:'plan', t:'계획',    ty:'n', tip:'계획 투입량 큰 순 · 현재 기준(MES/BOM)이 적용됩니다'},
+  {k:'act',  t:'실적',    ty:'n', tip:'실제 투입량 큰 순'},
+  {k:'diff', t:'편차',    ty:'n', tip:'실적 − 계획. 초과사용(+)이 큰 순부터 봅니다'},
+  {k:'dr',   t:'편차율',  ty:'n', tip:'|편차| ÷ 계획. 물량은 작아도 관리가 흔들린 자재를 찾습니다'},
+  {k:'price',t:'단가',    ty:'n', tip:'단가 높은 순 · 고가 자재 우선 점검'},
+  {k:'loss', t:'로스금액',ty:'n', tip:'손실금액 큰 순 — 금액 임팩트 기준 우선순위'}
+];
+let LOSS_SORT={key:'', dir:-1, d0:-1};
+function lossSortVal(s,k){
+  switch(k){
+    case 'line' : return (s.proc_sub1||'')+'/'+(s.proc_sub2||'');
+    case 'prod' : return s.prod_name||'';
+    case 'mat'  : return s.mat_name||'';
+    case 'plan' : return planOf(s);
+    case 'act'  : return Number(s.actual_qty)||0;
+    case 'diff' : return diffOf(s);
+    case 'dr'   : { const v=devRate(s); return v==null?-1:v; }
+    case 'price': return Number(s.unit_price)||0;
+    case 'loss' : return lossOf(s);
+  }
+  return 0;
+}
+function lossThead(){
+  return `<thead><tr>${LOSS_COLS.map(c=>{
+    const on=(LOSS_SORT.key===c.k);
+    const ar=on?(LOSS_SORT.dir>0?'▲':'▼'):'⇅';
+    return `<th class="ls-th${on?' on':''}" data-k="${c.k}" onclick="sortLoss('${c.k}')" title="${c.tip} — 클릭 시 정렬, 다시 클릭 역순, 한 번 더 해제">${c.t}<span class="ls-ar">${ar}</span></th>`;
+  }).join('')}<th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>`;
+}
+function sortLoss(k){
+  const col=LOSS_COLS.find(c=>c.k===k); if(!col)return;
+  if(LOSS_SORT.key===k){
+    if(LOSS_SORT.dir===LOSS_SORT.d0) LOSS_SORT.dir=-LOSS_SORT.dir;   // 2회차 : 역순
+    else LOSS_SORT.key='';                                            // 3회차 : 해제
+  }else{
+    LOSS_SORT.key=k;
+    LOSS_SORT.d0=(col.ty==='t')?1:-1;   // 문자는 오름차순, 숫자는 큰 값부터
+    LOSS_SORT.dir=LOSS_SORT.d0;
+  }
+  applyLossSort(); updateLossTh();
+}
+function applyLossSort(){
+  const k=LOSS_SORT.key, L=CUR_DAY.losses||[];
+  ['#lossBody1','#lossBody2'].forEach(sel=>{
+    const tb=document.querySelector(sel); if(!tb)return;
+    const rows=[...tb.querySelectorAll('tr[data-loss]')]; if(rows.length<2)return;
+    rows.sort((ra,rb)=>{
+      const ia=Number(ra.dataset.loss), ib=Number(rb.dataset.loss);
+      if(!k) return ia-ib;                                   // 해제 = 원래 순서
+      const a=L[ia], b=L[ib]; if(!a||!b) return 0;
+      let r;
+      if(k==='line')      r=procOrderCmp(lossSortVal(a,k), lossSortVal(b,k));
+      else if(k==='prod'||k==='mat') r=String(lossSortVal(a,k)).localeCompare(String(lossSortVal(b,k)),'ko');
+      else                r=(Number(lossSortVal(a,k))||0)-(Number(lossSortVal(b,k))||0);
+      if(r===0) return ia-ib;                                // 동점은 원래 순서 유지
+      return r*LOSS_SORT.dir;
+    });
+    const fr=document.createDocumentFragment();
+    rows.forEach(r=>fr.appendChild(r));
+    tb.appendChild(fr);
+  });
+}
+function updateLossTh(){
+  document.querySelectorAll('#lossTable thead .ls-th').forEach(th=>{
+    const on=(LOSS_SORT.key===th.dataset.k);
+    th.classList.toggle('on',on);
+    const ar=th.querySelector('.ls-ar');
+    if(ar) ar.textContent=on?(LOSS_SORT.dir>0?'▲':'▼'):'⇅';
+  });
+}
+/* ════════════════════════════════════════════════════════════════════
+   ③ ↔ 스코어카드 정합성 검증 바
+   ── 스코어카드 '당일 실적 − 당일 계획' 은 자재코드 1번대(원료)만 집계한다.
+   ── ③ 로스관리는 원료 + 부자재(5번대)를 모두 담는다.
+      따라서 "③ 전체 편차 합 = 스코어카드 차이" 는 성립하지 않고,
+      "③ 의 원료(1번대) 편차 합" 만 스코어카드 차이와 같아야 한다.
+   ── 화면 기준이 BOM 이면 계획이 배합률로 대체되므로 MES 원본으로 대조한다.
+   ════════════════════════════════════════════════════════════════════ */
+function lossReconBar(){
+  const DR=CUR_DAY.dayRaw||{}, L=CUR_DAY.losses||[];
+  if(!L.length || DR.raw_plan==null) return '';
+  let rp=0, ra=0, sp=0, sa=0, sub=0;
+  L.forEach(s=>{
+    const p=Number(s.plan_qty)||0, a=Number(s.actual_qty)||0;   // MES 원본 기준
+    if(String(s.mat_code||'').charAt(0)==='1'){ rp+=p; ra+=a; }
+    else { sp+=p; sa+=a; sub++; }
+  });
+  const rawDiff=ra-rp;                                           // ③ 원료 편차 합
+  const scDiff=Number(DR.raw_actual||0)-Number(DR.raw_plan||0);  // 스코어카드 차이
+  const gap=rawDiff-scDiff;
+  const tol=Math.max(1, Math.abs(scDiff)*0.01);
+  const ok=Math.abs(gap)<=tol;
+  const sg=v=>(v>0?'+':'')+fmt1(v);
+  return `<div class="ls-recon ${ok?'ok':'ng'}">
+    <b>${ok?'✓ 정합':'⚠ 불일치'}</b>
+    <span class="ls-r-i" title="③ 목록 중 자재코드 1번대(원료)만 · MES 원본 계획 기준&#10;계획 ${fmt1(rp)} → 실적 ${fmt1(ra)}">③ 원료 편차 Σ <b>${sg(rawDiff)}kg</b></span>
+    <span class="ls-r-eq">${ok?'=':'≠'}</span>
+    <span class="ls-r-i" title="스코어카드 당일 실적 ${fmt1(DR.raw_actual)} − 당일 계획 ${fmt1(DR.raw_plan)}">스코어카드 실적−계획 <b>${sg(scDiff)}kg</b></span>
+    ${ok?'':`<span class="ls-r-gap">차이 ${sg(gap)}kg</span>`}
+    ${ok?'':`<span class="ls-r-n" title="① 이월 계획번호 — get_loss_detail 은 작업일자 기준, day_raw_summary 는 계획번호 앞 8자리 기준입니다. 전일 계획번호의 자재를 오늘 투입했다면 ③에만 잡힙니다.&#10;② 로스 제외품목 — 설정에서 제외 등록한 자재는 ③ 목록에서 아예 빠지지만 스코어카드에는 남아 있습니다.&#10;③ 반제품 제외 — ③은 6번대를 빼지만 스코어카드가 반제품 투입을 원료로 잡고 있을 수 있습니다.">불일치 원인 3가지 — 마우스를 올려보세요</span>`}
+    ${sub?`<span class="ls-r-n" title="부자재(자재코드 5번대 등)는 스코어카드 원재료 집계에 들어가지 않습니다. 로스금액에는 포함됩니다.">부자재 ${sub}건 편차 ${sg(sa-sp)}kg — 스코어카드 집계 제외</span>`:''}
+    ${LOSS_BASIS==='bom'?`<span class="ls-r-n" title="화면의 편차·로스금액은 BOM 배합률 기준입니다. 위 대조는 MES 원본 계획으로 계산했습니다.">화면은 BOM 기준 · 대조는 MES 원본</span>`:''}
+  </div>`;
 }
 /* 1kg 미만 미량 자재 표시 토글 */
 let SHOW_TINY=false;
@@ -8500,6 +8633,7 @@ function renderClosing(){
     <button class="tbtn" onclick="toggleTypePanel('loss')">▲ 로스유형 관리</button></div>
     <div class="type-panel" id="typePanel_loss" style="display:none"></div>
     ${lossOverBanner()}
+    ${lossReconBar()}
     ${(()=>{
       const byLine={},byType={}; let over=0,save=0,cnt=0,totLoss2=0;
       (CUR_DAY.losses||[]).forEach(l=>{
@@ -8537,7 +8671,7 @@ function renderClosing(){
     </div>
     <div class="fold-body open" id="foldBody_loss">
     <div class="sec-bd"><div class="table-scroll"><table id="lossTable" class="sticky-head t2-table">
-      <thead><tr><th>라인</th><th>제품</th><th>자재명</th><th>계획</th><th>실적</th><th>편차</th><th>편차율</th><th>단가</th><th>로스금액</th><th>로스유형</th><th>사유</th><th>저장/변경</th></tr></thead>
+      ${lossThead()}
       <tbody id="lossBody1">${lossRows||'<tr><td colspan="12" style="color:var(--mut);padding:16px">편차 없음</td></tr>'}</tbody>
     </table></div>
     <div id="lossEmptyMsg" style="display:none;padding:18px;text-align:center;color:var(--mut);font-size:13px">선택한 라인에 데이터가 없습니다.</div>
@@ -9557,7 +9691,7 @@ function rerenderClosing(){
   // 비가동·로스 등록처럼 화면 중간에서 일어나는 작업은 위치가 유지돼야 한다.
   const y=window.scrollY||document.documentElement.scrollTop||0;
   if(CUR_DAY.team==='생산2팀') renderClosing2(); else renderClosing();
-  requestAnimationFrame(()=>{ window.scrollTo(0,y); });
+  requestAnimationFrame(()=>{ window.scrollTo(0,y); try{ applyLossSort(); }catch(_){} });
 }
 /* 로스 행 삭제 */
 async function delLossRow(i){
