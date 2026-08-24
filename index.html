@@ -921,7 +921,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14g</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.18b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -958,7 +958,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.14g</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.18b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5318,7 +5318,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.14g';
+const APP_VERSION='v2026.08.18b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5646,6 +5646,13 @@ async function openDay(date, team){
     });
     // 설계수율(기준 건조수율) : 품번 → %
     CUR_DAY.dtTypes={};
+    // ②-1 수율요약 (계획번호 전체 기간 기준 · 이월 포함)
+    CUR_DAY.yieldSum=[];
+    sb.rpc('plan_yield_summary',{p_date:date,p_team:team}).then(({data,error})=>{
+      if(error){ console.warn('[수율요약] 조회 실패', error); return; }
+      CUR_DAY.yieldSum=data||[];
+      try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+    },e=>console.warn('[수율요약] 조회 실패', e));
     // 품명 폴백 맵 — 설정에서 라인을 OFF 하면 db_plan 뷰에서 빠져 오더 목록에 없다.
     //   그 품목의 가동/비가동 기록은 남아 있어 화면에 '–' 로 뜨므로, 원본에서 이름만 별도로 채운다.
     CUR_DAY.nameMap={};
@@ -6554,7 +6561,10 @@ function skuPlanEdited(code){
    ※ ①은 수정한 적이 있을 때만 발동하므로, 손대지 않은 묶음은 ②를 그대로 따른다. */
 function packPlanOf(g){
   const skus=g.skus||[];
-  const edited=skus.some(s=>skuPlanEdited(s.sku_code));
+  // [중요] 코터·오븐 산출이 계획인 묶음(생산1팀)은 계획 수정 대상이 아니다.
+  //   과거 override 기록이 남아 있어도 무시해야 한다.
+  //   당일 기준 수정값이 분모가 되면, 이월 누계가 분자인 포장수율이 200%대로 튄다.
+  const edited=packPlanEditable(g) && skus.some(s=>skuPlanEdited(s.sku_code));
   if(edited){
     let p=0; skus.forEach(s=>{ p+=skuMesPlan(s.sku_code); });
     if(p>0) return {plan:p, src:'edit'};
@@ -6701,6 +6711,53 @@ function dryEpBasis(o){
   return v>0?v:null;
 }
 function isDryProcKey(k){ return /진공코터|오븐/.test(String(k||'')); }
+/* ②-1 당일 생산계획별 제품 수율요약
+   ── 코터수율 = 코터 산출 ÷ EP 실적 (오븐은 계량이 없어 '-')
+   ── 포장수율 = 포장 실적 ÷ 코터·오븐 산출
+   ── 최종완료수율 = 포장 실적 ÷ 투입 원자재 총량 (원료 대비 완제품) */
+function buildYieldSummary(){
+  const rows=CUR_DAY.yieldSum||[];
+  const cell=(v,band)=>{
+    if(v==null) return '<span style="color:var(--mut)">–</span>';
+    const n=Number(v);
+    const col=(n>=band[0]&&n<=band[1])?'var(--grn)':(n>band[1]?'#d97706':'#e8918c');
+    return `<b style="color:${col}">${n.toFixed(1)}%</b>`;
+  };
+  const body=rows.length?rows.map(r=>`<tr>
+      <td class="mono">${r.plan_no}</td>
+      <td class="mono">${r.prod_code}</td>
+      <td class="l">${r.prod_name||'-'}</td>
+      <td><span class="pk-type ${r.base_type==='오븐'?'pk-oven':'pk-coat'}">${r.base_type}</span></td>
+      <td class="mono" title="${r.base_type==='오븐'?'오븐은 중간 계량이 없어 코터수율을 낼 수 없습니다':`코터 산출 ${fmt1(r.dry_qty)} ÷ EP 투입 ${fmt1(r.ep_qty)}\n코터는 오일·분체를 입히는 증량 공정이라 100% 를 넘는 것이 정상입니다`}">${r.base_type==='오븐'?'<span style="color:var(--mut)">–</span>':cell(r.dry_rate,[100,110])}</td>
+      <td class="mono" title="포장 실적 ÷ 코터·오븐 산출 ${fmt1(r.dry_qty)}kg (계획번호 전체 누계 기준)">${cell(r.pack_rate,[95,105])}</td>
+      <td class="mono" style="background:#fdead3" title="포장 실적 ÷ 투입 원자재 ${fmt1(r.raw_qty)}kg — 원료를 넣어 완제품이 얼마나 나왔는지">${cell(r.final_rate,[60,110])}</td>
+      <td class="mono">${fmt(Math.round(r.raw_qty||0))}</td>
+      <td class="mono"><b>${fmt(Math.round(r.pack_qty||0))}</b></td>
+      <td class="mono" style="font-size:11.5px;color:var(--sub)">${r.pack_last?String(r.pack_last).slice(5):'-'}${r.day_cnt>1?` · ${r.day_cnt}일`:''}</td>
+    </tr>`).join('')
+    :'<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:22px">당일 포장 실적이 있는 생산계획번호가 없습니다</td></tr>';
+  return `
+  <div class="sec"><div class="sec-hd"><span class="no c2">2-1</span><h3>당일 생산계획별 제품 수율요약</h3>
+    <span class="desc">계획번호 전체 기간 기준 · 이월 포장 포함</span></div>
+    <div class="sec-bd" style="overflow-x:auto">
+      <table class="t2-table">
+        <thead><tr>
+          <th>생산계획번호</th><th>제품번호</th><th>제품명</th><th>구분</th>
+          <th>코터 증량률<br><span style="font-weight:600;font-size:9.5px">산출÷EP투입</span></th>
+          <th>포장수율<br><span style="font-weight:600;font-size:9.5px">포장÷산출</span></th>
+          <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷원료</span></th>
+          <th>투입원료(KG)</th><th>포장실적(KG)</th><th>최종포장</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+        ※ <b>코터 증량률</b> 100~110% · <b>포장수율</b> 95~105% · <b>최종완료수율</b> 60~110% 를 정상 구간으로 봅니다.<br>
+        ※ <b>코터는 건조 공정이 아니라 오일·분체를 입히는 증량 공정</b>이라 EP 투입보다 산출이 많은 것이 정상입니다(수분 증발은 EP 압출 단계에서 일어남).<br>
+        ※ 오븐 제품은 중간 계량 설비가 없어 증량률을 산출하지 않습니다. 투입 원료는 자재코드 1번대(원부재료)만 집계하며 반제품·부자재는 제외합니다.
+      </div>
+    </div>
+  </div>`;
+}
 function buildSection2(){
   const orders=CUR_DAY.orders||[], mhMap=CUR_DAY.mhMap||{};
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
@@ -6888,6 +6945,9 @@ function renderMore2(){
   $('#sec2More').innerHTML=`
   <!-- ② 오더별 실적 + 투입공수 입력 (공용 함수) -->
   ${buildSection2()}
+
+  <!-- ②-1 당일 생산계획별 제품 수율요약 -->
+  ${buildYieldSummary()}
 
   <!-- ③ 원부자재 로스 (생산1팀과 동일한 온전한 입력 로직) -->
   ${(()=>{
@@ -8315,6 +8375,9 @@ function renderClosing(){
 
   <!-- ② 오더별 생산실적 · 투입공수 (2팀과 동일 · 공용 함수) -->
   ${buildSection2()}
+
+  <!-- ②-1 당일 생산계획별 제품 수율요약 -->
+  ${buildYieldSummary()}
 
   <!-- ③ 로스관리 -->
   <div class="sec"><div class="sec-hd"><span class="no c3">3</span><h3>원부자재 로스관리</h3>
