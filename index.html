@@ -926,7 +926,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -963,7 +963,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5340,7 +5340,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25b';
+const APP_VERSION='v2026.08.25c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6782,22 +6782,73 @@ function buildYieldSummary(){
     const col=(n>=band[0]&&n<=band[1])?'var(--grn)':(n>band[1]?'#d97706':'#e8918c');
     return `<b style="color:${col}">${n.toFixed(1)}%</b>`;
   };
-  const body=rows.length?rows.map(r=>`<tr>
+  /* ── 포장실적 정합 : ② 포장 실적 표와 같은 소스(packGroups)를 쓴다 ──
+     최종완료수율(포장÷원료)의 분자는 "그 계획번호로 최종 포장된 SKU 전량"이어야 한다.
+     당일분만 잡히면 이월 포장분이 빠져 수율이 실제보다 낮게 나온다.
+     키 = 계획번호|반제품품번 (②의 묶음 키와 동일). 매칭 실패 시 SQL 값 폴백. */
+  const gmap={};
+  try{ packGroups().forEach(g=>{
+    gmap[(g.plan_no||'')+'|'+g.base_code]={
+      cum:Number(g.grp_cum)||0, day:Number(g.grp_actual)||0,
+      plan:Number(packPlanOf(g).plan)||0, n:(g.skus||[]).length };
+  }); }catch(_){}
+
+  const R=rows.map(r=>{
+    const g=gmap[(r.plan_no||'')+'|'+r.prod_code]||null;
+    const packCum = g ? g.cum : (Number(r.pack_qty)||0);      // SKU 포장 총합계(누계)
+    const packDay = g ? g.day : null;                          // 그중 당일분
+    const dry     = (g&&g.plan>0) ? g.plan : (Number(r.dry_qty)||0);
+    const raw     = Number(r.raw_qty)||0;
+    const pRate   = dry>0 ? packCum/dry*100 : (r.pack_rate==null?null:Number(r.pack_rate));
+    const fRate   = raw>0 ? packCum/raw*100 : (r.final_rate==null?null:Number(r.final_rate));
+    const going   = (pRate!=null && pRate<PK_DONE);
+    return {r, g, packCum, packDay, dry, raw, pRate, fRate, going,
+            rest:Math.max(dry-packCum,0), skuN:g?g.n:0};
+  });
+
+  /* 합계 : 투입원료는 계획번호 단위 값이 행마다 반복될 수 있어 중복 제거 */
+  const byPlan={};
+  R.forEach(x=>{ const k=x.r.plan_no||'-'; (byPlan[k]=byPlan[k]||[]).push(x); });
+  let totRaw=0;
+  Object.keys(byPlan).forEach(k=>{
+    const list=byPlan[k];
+    const uniq=[...new Set(list.map(x=>Math.round(x.raw)))];
+    totRaw += (uniq.length===1) ? list[0].raw : list.reduce((a,x)=>a+x.raw,0);
+  });
+  const totPack=R.reduce((a,x)=>a+x.packCum,0);
+  const totDay =R.reduce((a,x)=>a+(x.packDay||0),0);
+  const totRest=R.reduce((a,x)=>a+x.rest,0);
+  const totFinal=totRaw>0?totPack/totRaw*100:null;
+  const goingN=R.filter(x=>x.going).length;
+
+  const body=R.length?R.map(x=>{
+    const r=x.r;
+    return `<tr>
       <td class="mono">${r.plan_no}</td>
       <td class="mono">${r.prod_code}</td>
       <td class="l">${r.prod_name||'-'}</td>
       <td><span class="pk-type ${r.base_type==='오븐'?'pk-oven':'pk-coat'}">${r.base_type}</span></td>
-      <td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}\n압출·건조에서 수분이 증발하는 구간입니다. 이 시스템의 실질 건조수율입니다.">${cell(r.ep_rate,[60,80])}</td>
-      <td class="mono" title="포장 실적 ÷ 코터·오븐 산출 ${fmt1(r.dry_qty)}kg (계획번호 전체 누계 기준)">${cell(r.pack_rate,[95,105])}</td>
-      <td class="mono" style="background:#fdead3" title="포장 실적 ÷ 투입 원자재 ${fmt1(r.raw_qty)}kg — 원료를 넣어 완제품이 얼마나 나왔는지">${cell(r.final_rate,[60,110])}</td>
-      <td class="mono">${fmt(Math.round(r.raw_qty||0))}</td>
-      <td class="mono"><b>${fmt(Math.round(r.pack_qty||0))}</b></td>
+      <td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}&#10;압출·건조에서 수분이 증발하는 구간입니다. 이 시스템의 실질 건조수율입니다.">${cell(r.ep_rate,[60,80])}</td>
+      <td class="mono" title="포장 누계 ${fmt1(x.packCum)} ÷ 코터·오븐 산출 ${fmt1(x.dry)}kg&#10;② 포장 실적 표의 포장수율과 같은 값입니다.">${cell(x.pRate,[95,105])}</td>
+      <td class="mono" style="background:#fdead3" title="포장 누계 ${fmt1(x.packCum)} ÷ 투입 원자재 ${fmt1(x.raw)}kg — 원료를 넣어 완제품이 얼마나 나왔는지&#10;${x.going?`아직 ${fmt1(x.rest)}kg 이 포장 전이라 실제보다 낮게 보입니다.`:'포장 완결 기준이라 확정값에 가깝습니다.'}">${cell(x.fRate,[60,110])}${x.going?'<div style="font-size:9px;font-weight:800;color:#6d47c9">진행중</div>':''}</td>
+      <td class="mono">${fmt(Math.round(x.raw))}</td>
+      <td class="mono" title="${x.skuN?`SKU ${x.skuN}종 포장 합계`:'SQL 집계값'}"><b>${fmt(Math.round(x.packCum))}</b>
+        ${x.packDay!=null&&x.packDay<x.packCum?`<div style="font-size:9.5px;font-weight:700;color:#8b7bbd">당일 ${fmt(Math.round(x.packDay))}</div>`:''}
+        ${x.going&&x.rest>1?`<div style="font-size:9px;font-weight:700;color:#98a2b3">미포장 ${fmt(Math.round(x.rest))}</div>`:''}</td>
       <td class="mono" style="font-size:11.5px;color:var(--sub)">${r.pack_last?String(r.pack_last).slice(5):'-'}${r.day_cnt>1?` · ${r.day_cnt}일`:''}</td>
-    </tr>`).join('')
+    </tr>`;}).join('')
     :'<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:22px">당일 포장 실적이 있는 생산계획번호가 없습니다</td></tr>';
+
+  const foot=R.length?`<tfoot><tr style="background:#f4f7fc;font-weight:800">
+      <td colspan="6" class="l">합계 · 계획번호 ${Object.keys(byPlan).length}건${goingN?` <span style="font-weight:700;color:#6d47c9">(진행중 ${goingN}건 포함)</span>`:''}</td>
+      <td class="mono" style="background:#fdead3" title="총 포장 ${fmt1(totPack)} ÷ 총 투입원료 ${fmt1(totRaw)}kg${totRest>1?`&#10;미포장 ${fmt1(totRest)}kg 이 남아 있어 확정 시 더 올라갑니다.`:''}">${cell(totFinal,[60,110])}</td>
+      <td class="mono">${fmt(Math.round(totRaw))}</td>
+      <td class="mono" title="당일 포장 ${fmt(Math.round(totDay))}kg 포함">${fmt(Math.round(totPack))}</td>
+      <td></td></tr></tfoot>`:'';
+
   return `
   <div class="sec"><div class="sec-hd"><span class="no c2">2-1</span><h3>당일 생산계획별 제품 수율요약</h3>
-    <span class="desc">계획번호 전체 기간 기준 · 이월 포장 포함</span></div>
+    <span class="desc">계획번호 전체 기간 기준 · 이월 포장 포함 · 포장실적=SKU 포장 누계 합</span></div>
     <div class="sec-bd" style="overflow-x:auto">
       <table class="t2-table">
         <thead><tr>
@@ -6805,15 +6856,18 @@ function buildYieldSummary(){
           <th class="th-hl">EP 수율<br><span style="font-weight:600;font-size:9.5px">EP산출÷EP투입</span></th>
           <th>포장수율<br><span style="font-weight:600;font-size:9.5px">포장÷산출</span></th>
           <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷원료</span></th>
-          <th>투입원료(KG)</th><th>포장실적(KG)</th><th>최종포장</th>
+          <th>투입원료(KG)</th><th>포장실적(KG)<br><span style="font-weight:600;font-size:9.5px">SKU 누계 합</span></th><th>최종포장</th>
         </tr></thead>
         <tbody>${body}</tbody>
+        ${foot}
       </table>
       <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
         ※ 공정 흐름 : <b>원료 → EP(수분 증발·손실) → 코터/오븐(오일·분체 증량) → 포장</b><br>
+        ※ <b>포장실적</b> = 그 계획번호로 최종 포장된 <b>SKU 전량의 누계 합</b>(이월 포장 포함) — ② 포장 실적 표의 '누계'와 같은 값입니다.<br>
         ※ <b>EP 수율</b> 60~80% (수분이 빠지는 구간 · 손실의 대부분이 여기서 발생) ·
            <b>포장수율</b> 95~105% (②오더별 완제품의 포장수율과 동일) ·
            <b>최종완료수율</b> 60~110% (투입 원재료 대비 포장 산출)<br>
+        ※ <b style="color:#6d47c9">진행중</b> 표시는 아직 포장이 끝나지 않은 계획번호입니다. 미포장 잔량이 분자에서 빠져 있어 <b>최종완료수율이 실제보다 낮게</b> 보이며, 익일 포장이 이어지면 올라갑니다. 채산성 판단은 완결된 계획번호로 하세요.<br>
         ※ 오븐 제품은 중간 계량 설비가 없어 증량률을 산출하지 않습니다. 투입 원료는 자재코드 1번대(원부재료)만 집계하며 반제품·부자재는 제외합니다.
       </div>
     </div>
