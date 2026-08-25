@@ -481,10 +481,25 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .ls-recon .ls-r-n{color:#6b7280;font-weight:600;font-size:10.5px;cursor:help;border-left:1px solid #d8dee7;padding-left:8px}
 .t2-table th.th-hl span{color:#a2652a !important}
 /* 호기 자동표기 배지 */
-/* 특이사항 : 좁은 칸이라 글이 잘린다 → 마우스오버 툴팁 + 포커스 시 확장 */
-.t2-note{transition:width .12s ease, box-shadow .12s ease}
-.t2-note:focus{position:relative;z-index:20;width:340px !important;min-width:340px;
-  box-shadow:0 6px 18px rgba(20,40,80,.18);background:#fff !important;border-color:var(--navy3) !important}
+/* 특이사항 : 칸 안에서 넓히면 표 전체가 리플로우되어(제품명 줄바꿈 → 행 높이 폭증)
+   클릭한 위치가 화면 밖으로 밀린다. 그래서 칸 크기는 고정하고 별도 팝오버에서 읽고 쓴다. */
+.t2-note{text-overflow:ellipsis;cursor:text;transition:box-shadow .12s ease,border-color .12s ease}
+.t2-note:hover{border-color:var(--navy3)}
+.t2-note.has{background:#fff6d9 !important;font-weight:600}
+.t2-note.np-open{box-shadow:0 0 0 3px rgba(53,101,184,.28);border-color:var(--navy3) !important}
+.np-pop{position:fixed;z-index:9500;width:min(460px,calc(100vw - 28px));background:#fff;
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 44px rgba(16,26,42,.26);overflow:hidden}
+.np-hd{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#1c3f7d;color:#fff;font-size:12px;font-weight:700}
+.np-hd .np-code{font-family:ui-monospace,monospace;background:rgba(255,255,255,.16);padding:1px 6px;border-radius:5px;font-size:11px}
+.np-hd .np-x{margin-left:auto;cursor:pointer;opacity:.75;font-size:14px;line-height:1}
+.np-hd .np-x:hover{opacity:1}
+.np-bd{padding:10px 12px}
+.np-bd textarea{width:100%;min-height:96px;max-height:44vh;resize:vertical;padding:9px 10px;font-size:13px;
+  font-family:inherit;line-height:1.6;border:1px solid var(--line);border-radius:8px;background:#fffdf5}
+.np-bd textarea:focus{outline:none;border-color:#3565b8;box-shadow:0 0 0 3px rgba(53,101,184,.13)}
+.np-ft{display:flex;align-items:center;gap:7px;padding:8px 12px;background:#f8fafc;border-top:1px solid var(--line)}
+.np-ft .np-tip{flex:1;font-size:10.5px;color:var(--mut)}
+.np-ft .np-len{font-size:10.5px;color:var(--mut);font-variant-numeric:tabular-nums}
 /* 개선접수 첨부 이미지 — 썸네일 그리드 + 라이트박스 */
 .im-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
 .im-thumbs img{width:104px;height:104px;object-fit:cover;border-radius:9px;border:1.5px solid var(--line);
@@ -983,7 +998,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25n</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25o</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1020,7 +1035,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25n</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25o</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5413,7 +5428,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25n';
+const APP_VERSION='v2026.08.25o';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7019,6 +7034,80 @@ async function saveDefectQuick(code, name){
     rerenderClosing();
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
 }
+/* ════════════════════════════════════════════════════════════════════
+   특이사항 팝오버 편집기
+   ── 칸 안에서 input 을 넓히면 <td> 폭이 바뀌고 제품명이 줄바꿈되면서
+      행 높이가 폭증한다. 그 결과 방금 클릭한 행이 화면 밖으로 밀려난다.
+   ── 그래서 칸은 고정 폭으로 두고, position:fixed 팝오버에서 읽고 쓴다.
+      표 레이아웃이 1px 도 안 바뀌므로 스크롤이 절대 튀지 않는다.
+   ── 저장 경로는 그대로다. 팝오버는 원래 input 의 value 만 갱신하고,
+      저장은 기존 saveMH 가 .t2-note 를 훑는 방식을 그대로 쓴다.
+   ════════════════════════════════════════════════════════════════════ */
+let NP_EL=null;
+function npSync(el){
+  const v=String(el.value||'');
+  el.title=v; el.classList.toggle('has', v.trim().length>0);
+}
+function openNotePop(el){
+  if(NP_EL===el) return;
+  closeNotePop(true);
+  NP_EL=el; el.classList.add('np-open');
+  const code=el.dataset.code||'';
+  const pop=document.createElement('div');
+  pop.className='np-pop'; pop.id='npPop';
+  pop.innerHTML=`<div class="np-hd">특이사항 <span class="np-code">${code}</span>
+      <span class="np-x" onclick="closeNotePop(true)">✕</span></div>
+    <div class="np-bd"><textarea id="npTa" placeholder="특이사항을 입력하세요 (줄바꿈 가능)"></textarea></div>
+    <div class="np-ft"><span class="np-tip">Ctrl+Enter 저장 · Esc 취소 · 바깥 클릭 시 저장</span>
+      <span class="np-len" id="npLen">0자</span>
+      <button class="tbtn" onclick="closeNotePop(false)">취소</button>
+      <button class="rowbtn save" onclick="closeNotePop(true)">확인</button></div>`;
+  document.body.appendChild(pop);
+  const ta=document.getElementById('npTa');
+  ta.value=el.value||'';
+  const len=document.getElementById('npLen');
+  const upd=()=>{ len.textContent=`${ta.value.length}자`; };
+  upd(); ta.addEventListener('input',upd);
+  ta.addEventListener('keydown',(e)=>{
+    if(e.key==='Escape'){ e.preventDefault(); closeNotePop(false); }
+    else if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); closeNotePop(true); }
+  });
+  npPlace();
+  setTimeout(()=>{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); },20);
+  setTimeout(()=>document.addEventListener('mousedown', npOutside, true), 0);
+  window.addEventListener('scroll', npPlace, true);
+  window.addEventListener('resize', npPlace);
+}
+function npPlace(){
+  const pop=document.getElementById('npPop'); if(!pop||!NP_EL) return;
+  const r=NP_EL.getBoundingClientRect();
+  // 앵커가 화면 밖으로 나가면 팝오버도 닫는다(스크롤로 표를 크게 움직인 경우)
+  if(r.bottom<0||r.top>window.innerHeight){ closeNotePop(true); return; }
+  const w=pop.offsetWidth, h=pop.offsetHeight, m=10;
+  let left=Math.min(Math.max(r.right-w, m), window.innerWidth-w-m);
+  let top=r.bottom+6;
+  if(top+h > window.innerHeight-m) top=Math.max(r.top-h-6, m);
+  pop.style.left=left+'px'; pop.style.top=top+'px';
+}
+function npOutside(e){
+  const pop=document.getElementById('npPop');
+  if(!pop) return;
+  if(pop.contains(e.target) || e.target===NP_EL) return;
+  closeNotePop(true);
+}
+function closeNotePop(save){
+  const pop=document.getElementById('npPop');
+  if(pop&&NP_EL&&save){
+    const ta=document.getElementById('npTa');
+    if(ta){ NP_EL.value=ta.value; npSync(NP_EL); }
+  }
+  if(pop) pop.remove();
+  if(NP_EL) NP_EL.classList.remove('np-open');
+  NP_EL=null;
+  document.removeEventListener('mousedown', npOutside, true);
+  window.removeEventListener('scroll', npPlace, true);
+  window.removeEventListener('resize', npPlace);
+}
 function buildPackSection(){
   const G=packGroups();
   if(!G.length) return '';
@@ -7111,7 +7200,7 @@ function buildPackSection(){
              <td class="mono" style="color:#98a2b3;font-size:11px">↑ 동일품번</td>`
           : `<td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
              <td class="mono">${prod?prod.toFixed(1):'–'}</td>
-             <td><div class="pk-notew"><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="text-align:left;background:#fffbe8">
+             <td><div class="pk-notew"><input class="inp-cell t2-note${(mh.note||'').trim()?' has':''}" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" readonly placeholder="특이사항" style="text-align:left;background:#fffbe8" onfocus="openNotePop(this)" onclick="openNotePop(this)">
                <button class="pk-dfbtn" onclick="openDefectQuick('${s.sku_code}','${String(s.sku_name||'').replace(/['"<>]/g,'')}','${(s.sku_unit||'')}')" title="이 제품의 완제품 불량을 바로 등록합니다 → ④ 완제품 불량관리">불량</button></div></td>`}
       </tr>`;
     }).join('');
@@ -7365,7 +7454,7 @@ function buildSection2(){
         ${dySt?`<b style="color:${dySt.col};font-size:14px">${dyGap>=0?'+':'−'}${Math.abs(dyGap).toFixed(1)}<span style="font-size:10px;font-weight:700">%p</span></b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
-      <td><input class="inp-cell t2-note" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8"></td>
+      <td><input class="inp-cell t2-note${(mh.note||'').trim()?' has':''}" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" readonly placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8" onfocus="openNotePop(this)" onclick="openNotePop(this)"></td>
     </tr>`;
   }).join('');
   const curIsDry=/진공코터|오븐/.test(String(T2_PROC||''));   // 현재 공정탭이 건조공정인지
@@ -10053,6 +10142,7 @@ function rerenderClosing(){
   // 재렌더는 innerHTML 전체 교체라 스크롤이 최상단으로 튄다.
   // 비가동·로스 등록처럼 화면 중간에서 일어나는 작업은 위치가 유지돼야 한다.
   const y=window.scrollY||document.documentElement.scrollTop||0;
+  try{ closeNotePop(false); }catch(_){}   // 재렌더 전 팝오버 정리 (앵커 노드가 사라진다)
   if(CUR_DAY.team==='생산2팀') renderClosing2(); else renderClosing();
   requestAnimationFrame(()=>{ window.scrollTo(0,y); try{ applyLossSort(); }catch(_){} });
 }
