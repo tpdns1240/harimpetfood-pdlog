@@ -425,6 +425,34 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .tdd-table tbody tr:nth-child(even){background:#fafbfd}
 .tdd-table tbody tr:hover{background:#eef4ff}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
+/* ② 생산완료 처리 버튼 · 불량 즉시등록 버튼 */
+.pk-dbtn{margin-top:4px;padding:2px 8px;font-size:10px;font-weight:800;border-radius:6px;cursor:pointer;
+  border:1px solid #c7d2e6;background:#fff;color:#3565b8;white-space:nowrap}
+.pk-dbtn:hover{background:#eef3fb;border-color:#3565b8}
+.pk-dbtn.off{border-color:#e5c9a8;color:#9a6b1f;background:#fffaf0}
+.pk-dbtn.off:hover{background:#fdf0dc}
+.pk-notew{display:flex;align-items:center;gap:5px}
+.pk-notew .inp-cell{flex:1;min-width:70px}
+.pk-dfbtn{flex:0 0 auto;padding:3px 8px;font-size:10.5px;font-weight:800;border-radius:6px;cursor:pointer;
+  border:1px solid #fda29b;background:#fff5f4;color:#b42318;white-space:nowrap}
+.pk-dfbtn:hover{background:#fee4e2;border-color:#b42318}
+/* 완제품 불량 즉시등록 모달 */
+.dq-back{position:fixed;inset:0;background:rgba(16,26,42,.46);z-index:9000;
+  display:flex;align-items:center;justify-content:center;padding:18px;animation:dqIn .13s ease-out}
+@keyframes dqIn{from{opacity:0}to{opacity:1}}
+.dq-box{background:#fff;border-radius:14px;width:min(430px,100%);box-shadow:0 18px 48px rgba(16,26,42,.28);overflow:hidden}
+.dq-hd{display:flex;align-items:center;padding:13px 16px;background:#1c3f7d;color:#fff;font-size:14px}
+.dq-hd .dq-x{margin-left:auto;cursor:pointer;opacity:.75;font-size:15px;line-height:1}
+.dq-hd .dq-x:hover{opacity:1}
+.dq-prod{padding:10px 16px;background:#f4f7fc;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:700;color:#1c3f7d}
+.dq-prod .dq-code{font-family:ui-monospace,monospace;background:#e3ecf9;padding:1px 6px;border-radius:5px;margin-right:6px}
+.dq-grid{display:grid;grid-template-columns:64px 1fr;gap:9px 10px;padding:14px 16px;align-items:center}
+.dq-grid label{font-size:11.5px;font-weight:800;color:var(--sub)}
+.dq-grid select,.dq-grid input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit}
+.dq-grid select:focus,.dq-grid input:focus{outline:none;border-color:#3565b8;box-shadow:0 0 0 3px rgba(53,101,184,.13)}
+.dq-qty{display:flex;gap:7px}
+.dq-ft{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#f8fafc;border-top:1px solid var(--line)}
+.dq-ft .dq-note{flex:1;font-size:10.5px;color:var(--mut);line-height:1.4}
 /* ③ 로스관리 정렬 가능한 헤더 */
 #lossTable thead th.ls-th{cursor:pointer;user-select:none;white-space:nowrap;transition:background .12s}
 #lossTable thead th.ls-th:hover{background:#3565b8}
@@ -941,7 +969,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25h</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -978,7 +1006,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25h</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5270,21 +5298,37 @@ function renderUpload(){
 
   <div class="panel">
     <div class="panel-hd"><h2>생산계획 업로드 (관리자)</h2>
-      <div class="en">기간 붙여넣기 · 일자+팀+공정 단위 부분 교체</div></div>
+      <div class="en">기간 붙여넣기 · 일자+팀 단위 전체 교체</div></div>
     <div class="panel-bd">
       <div class="lock-banner" style="background:var(--blue-soft);border-color:#c7dbff;color:var(--blue)">
         ℹ <b>14개 컬럼 전부</b>(작업일자·생산계획번호 포함) 붙여넣으세요. 여러 날짜·팀을 한번에 처리할 수 있습니다.<br>
-        붙여넣은 데이터의 <b>일자+팀+공정 조합만</b> 교체됩니다(나머지는 보존). 결재·사유가 있으면 경고합니다.
+        붙여넣은 데이터의 <b>일자+팀 전체</b>가 교체됩니다. MES에서 삭제된 오더는 흔적 없이 사라집니다. 결재·사유가 있으면 경고합니다.
       </div>
       <div class="pick"><label>붙여넣기 (엑셀·구글시트에서 14개 컬럼 복사 → 붙여넣기)</label>
         <textarea id="upPaste" class="paste-area" placeholder="작업일자 → 팀구분 → 공정명 → 생산계획번호 → 제품코드 → 제품명 → 호기 → 원료코드 → 원료명 → 원료타입 → 계획량 → 원료사용량 → 편차 → 원료단위&#10;(엑셀에서 이 14개 열 전체를 복사해서 붙여넣으세요. 헤더 포함 가능)"></textarea>
         <div class="hint">※ 컬럼 순서: 작업일자·팀구분·공정명·<b>생산계획번호</b>·제품코드·제품명·호기·원료코드·원료명·원료타입·계획량·원료사용량·편차·원료단위<br>
         ※ 공정세부(대/소분류)는 <b>공정명에서 자동 분리</b>됩니다. 예: 주식_진공코터 공정 → 주식/진공코터<br>
         ※ 구양식(15열, 생산계획번호 없음)도 그대로 인식하지만 계획번호 묶음 기능은 쓸 수 없습니다.<br>
-        ※ 붙여넣은 <b>일자+팀+공정 조합만</b> 지워지고 교체됩니다. 다른 공정·다른 팀 데이터는 그대로 보존됩니다.</div>
+        ※ 붙여넣은 <b>일자+팀</b>의 기존 데이터를 전부 지우고 새로 넣습니다. 다른 일자·다른 팀은 보존됩니다.<br>※ <b style="color:#b42318">그 팀의 하루치를 빠짐없이 복사</b>하세요. 일부만 붙여넣으면 나머지가 삭제됩니다(확인창에서 감소율을 경고합니다).</div>
       </div>
       <button class="btn-lg" onclick="checkUpload()">데이터 확인 후 업로드</button>
       <div class="upload-result" id="upResult"></div>
+
+      <div style="margin-top:16px;padding:12px 14px;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px">
+        <div style="font-size:13px;font-weight:800;color:#9a3412;margin-bottom:4px">🗑 특정 일자 비우기 (휴일·취소일)</div>
+        <div style="font-size:11.5px;color:#a16207;line-height:1.6;margin-bottom:9px">
+          MES에서 그 날 오더를 <b>전부</b> 지우면 붙여넣을 데이터가 없어 업로드로는 삭제되지 않습니다. 휴일 테스트분처럼 통째로 없애야 할 때 쓰세요.<br>
+          <b>계획·로스·불량·비가동·투입인원·마감문서를 모두 삭제</b>합니다. 결재 진행중·완료 문서는 거부됩니다.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="pgDate" type="date" style="padding:8px 11px;border:1px solid var(--bd);border-radius:8px;font-size:13px">
+          <select id="pgTeam" style="padding:8px 11px;border:1px solid var(--bd);border-radius:8px;font-size:13px">
+            <option value="생산1팀">생산1팀</option><option value="생산2팀">생산2팀</option>
+          </select>
+          <button class="tbtn" style="border-color:#fda29b;color:#b42318" onclick="purgeDay()">이 날짜 비우기</button>
+        </div>
+        <div class="upload-result" id="pgResult"></div>
+      </div>
     </div>
   </div>
 
@@ -5355,7 +5399,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25e';
+const APP_VERSION='v2026.08.25h';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -5428,10 +5472,52 @@ async function checkUpload(){
     if(data.done_count>0) warn+=`🔴 결재 완료된 마감 ${data.done_count}건이 포함됩니다: ${data.done_dates}\n   → 덮어쓰면 완료된 계획·실적이 변경됩니다. 작성한 로스·불량·비가동·인원은 유지됩니다.\n\n`;
     if(data.submitted_count>0) warn+=`🟡 결재 진행중 마감 ${data.submitted_count}건이 포함됩니다.\n   → 계획·실적이 변경됩니다.\n\n`;
     if(data.scrap_count>0) warn+=`ℹ 기존 로스 사유 ${data.scrap_count}건 범위입니다. 편차가 사라진 자재의 사유는 자동 정리됩니다.\n\n`;
+    // ── 전체 교체 방식 안내 : 붙여넣은 (일자+팀) 의 기존 데이터를 통째로 갈아끼운다 ──
+    if(data.will_delete_count>0){
+      warn+=`🔁 전체 교체 — 이 일자·팀의 기존 ${fmt(data.will_delete_count)}행을 모두 삭제하고 ${fmt(rows.length)}행을 넣습니다.\n`
+          + `   → MES에서 삭제된 오더는 흔적 없이 사라집니다.\n\n`;
+    }
+    if(data.lost_process){
+      warn+=`🟡 이번 데이터에 없어서 사라지는 공정: ${data.lost_process}\n`
+          + `   → MES에서 없앤 공정이면 정상입니다.\n`
+          + `   → 아니라면 취소하고, 그 팀의 하루치를 빠짐없이 복사해 다시 붙여넣으세요.\n\n`;
+    }
+    if(data.gap_count>0){
+      warn+=`🗑 붙여넣은 기간 안에 <이번 데이터에 없는 날>이 ${data.gap_count}일 있습니다 (총 ${fmt(data.gap_rows)}행):\n`
+          + `   ${data.gap_days}\n`
+          + `   → 휴일이거나 MES에서 오더를 전부 지운 날입니다. 업로드 후 삭제 여부를 다시 묻습니다.\n\n`;
+    }
+    if(data.shrink_pct>=30){
+      warn+=`🔴 행수가 ${data.shrink_pct}% 줄어듭니다 (${fmt(data.will_delete_count)} → ${fmt(rows.length)}).\n`
+          + `   → 일부만 복사한 것은 아닌지 반드시 확인하세요. 진행하면 나머지는 삭제됩니다.\n\n`;
+    }
+    LAST_GAP={gap_count:Number(data.gap_count)||0, gap_days:data.gap_days||'', gap_rows:Number(data.gap_rows)||0};
     const msg=`[업로드 대상]\n· ${rows.length}행\n· 날짜: ${data.dates}\n\n${warn||'✓ 결재·사유 충돌 없음\n\n'}진행할까요?`;
     if(confirm(msg)){ doUpload(rows); }
     else { res.className='upload-result';res.style.background='#f1f4fa';res.style.color='var(--sub)';res.textContent='취소되었습니다.'; }
   }catch(e){ res.className='upload-result err';res.textContent='확인 실패: '+(e.message||e); }
+}
+/* 특정 일자 통째 비우기 — 휴일·취소일 정리용.
+   업로드는 "붙여넣은 데이터가 있는 날"만 건드리므로, 오더가 0건인 날은 이 경로로만 지울 수 있다. */
+async function purgeDay(){
+  const d=($('#pgDate')||{}).value||'';
+  const t=($('#pgTeam')||{}).value||'';
+  const res=$('#pgResult');
+  if(!d){ toast('날짜를 선택하세요','err'); return; }
+  if(!confirm(`${d} · ${t} 의 마감 데이터를 전부 삭제합니다.\n\n· 생산계획(원본 행)\n· 로스 사유 / 완제품 불량 / 라인 비가동 / 투입인원\n· 마감 문서 자체\n\n되돌릴 수 없습니다. 진행할까요?`)) return;
+  res.className='upload-result'; res.style.display='block';
+  res.style.background='#eff6ff'; res.style.color='#2563eb'; res.textContent='삭제 중…';
+  try{
+    const {data,error}=await sb.rpc('purge_plan_day',{p_date:d,p_team:t});
+    if(error)throw error;
+    if(data && data.ok===false){
+      res.className='upload-result err'; res.textContent='삭제 불가 — '+(data.msg||'결재 상태를 확인하세요'); return;
+    }
+    res.className='upload-result ok';
+    res.textContent=`✓ ${d} ${t} 삭제 완료 · 계획 ${fmt(data.plan)}행 · 로스 ${data.scrap} · 불량 ${data.defect} · 비가동 ${data.downtime} · 인원 ${data.manpower} · 공수 ${data.mh} · 마감문서 ${data.closing}`;
+    toast('일자 비우기 완료','ok');
+    Promise.resolve(calInvalidate(String(d).slice(0,7))).then(()=>calWarm(String(d).slice(0,7))).catch(()=>{});
+  }catch(e){ res.className='upload-result err'; res.textContent='삭제 실패: '+(e.message||e); }
 }
 async function doUpload(rows){
   const res=$('#upResult');
@@ -5444,6 +5530,21 @@ async function doUpload(rows){
     res.textContent=`✓ 교체 완료 · 기존 ${data.deleted}행 삭제 → 새 ${data.inserted}행 삽입`
       + (data.scrap_cleaned>0?` · 편차 사라진 로스사유 ${data.scrap_cleaned}건 자동정리`:'');
     toast('업로드 완료','ok');
+    // ── 기간 내 공백일 정리 : 붙여넣은 기간에 있으나 이번 데이터에 없는 (일자+팀) ──
+    //    MES에서 오더를 전부 지운 날(휴일·취소일)은 붙여넣기에 아예 안 담기므로
+    //    전체 교체만으로는 지워지지 않는다. 그래서 업로드 직후 별도로 묻는다.
+    if(LAST_GAP && LAST_GAP.gap_count>0){
+      const ok=confirm(`업로드는 끝났습니다.\n\n붙여넣은 기간 안에 <이번 데이터에 없는 날>이 ${LAST_GAP.gap_count}일 남아 있습니다:\n${LAST_GAP.gap_days}\n\n휴일이거나 MES에서 오더를 전부 삭제한 날이면 지워야 캘린더에서 사라집니다.\n계획 데이터만 지웁니다 (로스·불량·비가동 기록은 남습니다).\n\n지금 삭제할까요?`);
+      if(ok){
+        try{
+          const {data:pg,error:pe}=await sb.rpc('purge_plan_gap',{p_rows:rows});
+          if(pe)throw pe;
+          res.textContent+=` · 공백일 ${pg.deleted}행 삭제(${pg.days||'-'})`;
+          toast(`공백일 ${pg.deleted}행 삭제`,'ok');
+        }catch(e){ toast('공백일 삭제 실패: '+(e.message||e),'err'); }
+      }
+      LAST_GAP=null;
+    }
     // 계획 교체 → 브라우저·서버 전 월 캐시 폐기 후, 당월·전월을 미리 데운다
     // ※ 반드시 무효화 완료를 기다린 뒤 워밍업할 것.
     //   동시에 쏘면 warm 이 먼저 끝나고 invalidate 가 뒤늦게 dirty 로 되돌려 헛일이 된다.
@@ -5467,6 +5568,7 @@ async function doUpload(rows){
 /* 붙여넣기 파싱: 탭 구분 15컬럼 (작업일자 포함) → JSON 배열 */
 /* 업로드 파싱 중 발견된 공정(proc_sub1/proc_sub2) 이상 행 기록 — checkUpload에서 표시 */
 let LAST_PARSE_ISSUES={fixed:[],blank:[]};
+let LAST_GAP=null;   // 직전 업로드 확인에서 잡힌 "기간 내 공백일" 정보
 function parsePaste(text){
   LAST_PARSE_ISSUES={fixed:[],blank:[]};
   const num=v=>{const n=Number(String(v).replace(/,/g,'').trim());return isNaN(n)?0:n;};
@@ -5697,6 +5799,13 @@ async function openDay(date, team){
       CUR_DAY.yieldSum=data||[];
       try{ if(S.view==='day') rerenderClosing(); }catch(_){}
     },e=>console.warn('[수율요약] 조회 실패', e));
+    // 생산완료 수동 처리 — 계획번호 단위. 실패해도 화면은 그대로 뜬다(fail-open)
+    PLAN_DONE=new Set();
+    sb.from('t_plan_done').select('plan_no,base_code').eq('team',team).then(({data,error})=>{
+      if(error){ console.warn('[생산완료] 조회 실패', error); return; }
+      PLAN_DONE=new Set((data||[]).map(r=>(r.plan_no||'')+'|'+(r.base_code||'')));
+      try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+    },e=>console.warn('[생산완료] 조회 실패', e));
     // 품명 폴백 맵 — 설정에서 라인을 OFF 하면 db_plan 뷰에서 빠져 오더 목록에 없다.
     //   그 품목의 가동/비가동 기록은 남아 있어 화면에 '–' 로 뜨므로, 원본에서 이름만 별도로 채운다.
     CUR_DAY.nameMap={};
@@ -5883,24 +5992,7 @@ function renderClosing2(){
   <div class="closing-body ${CUR_DAY.locked?'locked':''}">
 
   <!-- 스코어카드 (생산1팀과 동일) -->
-  <div class="score-row">
-    <div class="sc b" title="생산계획번호 앞 8자리가 이 날짜인 계획의 원부재료(자재코드 1번대) 실제 사용량 합계입니다. 반제품·부자재는 제외합니다. 우측 %는 계획 대비 달성률입니다."><div class="l">당일 실적</div>${scTonRate(DR.raw_actual, DR.raw_rate, DR.plan_cnt)}</div>
-    <div class="sc" title="같은 계획번호들의 원부재료 계획량 합계입니다."><div class="l">당일 계획</div>${scTonNote(DR.raw_plan, 'MES 원부재료')}</div>
-    ${scPackCard(DR)}
-    ${(()=>{
-      const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
-      const y=cy?cy.pct:null;
-      // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
-      const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
-      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (건조 평균수율)</span></div>
-      <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCnt}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCnt}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
-    })()}
-    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(scLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${scScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
-  </div>
+  ${scoreRow(DR, scLoss, scScrap)}
 
   <!-- ① 완제품 라인별 가동 요약 -->
   <div class="sec sec2"><div class="sec-hd sec2-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
@@ -6444,14 +6536,23 @@ function procOrderCmp(a,b){
   if(ia!==ib) return ia-ib;
   return String(a).localeCompare(String(b),'ko');
 }
-/* ③ 로스: 계획 > 실적(초과) 건 진단 배너 — 기존 데이터 정정 안내 */
+/* ③ 로스: 계획 미등록(계획 0 · 실적만 있음) 진단 배너
+   ※ 계획 < 실적(초과사용)은 정상 로스이므로 더 이상 경고하지 않습니다.
+     경고해야 할 것은 "계획 자체가 0" 인 건입니다 — 편차 전액이 로스로 잡혀 금액이 부풀려집니다. */
 function lossOverBanner(){
-  const rows=(CUR_DAY.losses||[]).filter(l=>Math.round(Number(l.plan_qty))<Math.round(Number(l.actual_qty)));
+  const rows=(CUR_DAY.losses||[]).filter(l=>Math.round(Number(l.plan_qty))<=0 && Math.round(Number(l.actual_qty))>0);
   if(!rows.length) return '';
-  const top=rows.slice(0,4).map(l=>`${l.mat_name||l.mat_code} <b>${fmt0(l.plan_qty)}</b>&lt;<b>${fmt0(l.actual_qty)}</b>`).join(' · ');
-  return `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fda29b;background:#fef3f2;border-radius:8px;font-size:12px;color:#912018;line-height:1.6">
-    ⚠ <b>계획이 실적보다 적은 원료·부자재 ${rows.length}건</b> — 계획(투입 소요량)은 실적(실투입량) 이상이어야 합니다.
-    해당 행의 계획을 실적 이상으로 정정해 주세요. ${top}${rows.length>4?` 외 ${rows.length-4}건`:''}
+  const by={}; let amt=0;
+  rows.forEach(l=>{
+    const k=(l.proc_sub1||'')+'/'+(l.proc_sub2||'');
+    by[k]=(by[k]||0)+1;
+    amt+=Math.abs(Number(l.actual_qty)||0)*Number(l.unit_price||0);
+  });
+  const top=Object.keys(by).sort((a,b)=>by[b]-by[a]).slice(0,4).map(k=>`${k} <b>${by[k]}</b>건`).join(' · ');
+  return `<div style="margin:0 16px 10px;padding:9px 12px;border:1px solid #fdba74;background:#fff7ed;border-radius:8px;font-size:12px;color:#9a3412;line-height:1.6">
+    ⚠ <b>계획이 0인데 실적만 있는 자재 ${rows.length}건</b> — MES에 계획이 등록되지 않은 건입니다.
+    편차 전액이 초과사용으로 잡혀 <b>로스금액 약 ${fmt0(Math.round(amt))}원</b>이 부풀려져 있습니다. ${top}
+    <br><span style="color:#a16207">→ 계획을 직접 입력하거나 <b>⚡계획 제안</b> · <b>BOM 계획</b>으로 채우세요. 초과사용(실적&gt;계획)은 정상이므로 경고하지 않습니다.</span>
   </div>`;
 }
 /* ⚡ 계획 제안값 채우기 — 공정 흐름 기준으로 계획 입력칸을 채움(저장 전까지 DB 무변경)
@@ -6531,8 +6632,13 @@ function coaterYieldTip(cy){
    ════════════════════════════════════════════════════════════════════ */
 /* 포장 완결 판정 임계값(%) — 누계 포장수율이 이 값 이상이면 완결로 본다 */
 const PK_DONE=95;
+/* 렌더 1회당 packGroups() 가 3~5회 호출된다(② 표 / 스코어카드 / ②-1 수율요약 / 드릴다운).
+   결과는 CUR_DAY.pack 이 바뀌지 않는 한 동일하므로 배열 참조를 키로 메모이즈한다.
+   pack 배열은 데이터 재조회 시에만 새 참조가 되므로 무효화 로직이 따로 필요 없다. */
+let _PKG_SRC=null, _PKG_VAL=null;
 function packGroups(){
   const rows=CUR_DAY.pack||[];
+  if(_PKG_SRC===rows && _PKG_VAL) return _PKG_VAL;
   const g=new Map();
   rows.forEach(r=>{
     const k=(r.plan_no||'-')+'|'+r.base_code;
@@ -6554,6 +6660,7 @@ function packGroups(){
   arr.forEach(x=>x.skus.sort((a,b)=>Number(b.sku_actual)-Number(a.sku_actual)));
   // 이월(전일 생산분) 먼저 → 눈에 띄게
   arr.sort((a,b)=>String(a.plan_no).localeCompare(String(b.plan_no)));
+  _PKG_SRC=rows; _PKG_VAL=arr;
   return arr;
 }
 /* ════════════════════════════════════════════════════════════════════
@@ -6626,7 +6733,7 @@ function packDayTotals(){
     const cm=Number(g.grp_cum)||0;
     qty+=a; cum+=cm; plan+=pl;
     if(g.base_date&&g.base_date!==date){ carry+=a; carryCnt++; }
-    if(pl>0 && cm/pl*100>=PK_DONE) done++;
+    if((pl>0 && cm/pl*100>=PK_DONE) || isPlanDone(g.plan_no,g.base_code)) done++;
   });
   return {qty, cum, plan, cnt:G.length, carry, carryCnt, done,
           rate:(plan>0? cum/plan*100 : null)};
@@ -6652,6 +6759,174 @@ function scPackCard(DR){
       <div class="v mono" title="${tip.replace(/"/g,'&quot;')}">${fmt(Math.round(qty))}<span class="u">kg</span></div>
       <div class="sc-sub" title="${tip.replace(/"/g,'&quot;')}">${sub}</div></div>`;
 }
+/* ════════════════════════════════════════════════════════════════════
+   스코어카드 : 원료 사용실적을 건조경로(코터 / 오븐)로 나눠 본다
+   ── 두 경로는 계측 구조가 달라 하나로 묶으면 수율이 왜곡된다.
+        코터 : EP 산출을 실측한다 → 코터 산출 ÷ 원료 실적 = 실측 산출률
+        오븐 : EP 산출 계량 설비가 없다 → 실측 불가.
+               그래서 포장까지 내려가 완제품 달성률(포장 누계 ÷ 원료 실적)로 본다.
+   ── 데이터 원천은 ②-1 수율요약(plan_yield_summary) + ② 포장 묶음(packGroups).
+      같은 소스를 쓰므로 스코어카드와 하위 표의 숫자가 어긋날 수 없다.
+   ════════════════════════════════════════════════════════════════════ */
+const OVEN_BASE_YIELD=80.7;   // 오븐 제품 기본(가상) 최종완료수율 — 설계수율 마스터 등록 전 임시 기준
+function rawRouteTotals(){
+  const rows=CUR_DAY.yieldSum||[];
+  if(!rows.length) return null;
+  const gmap={};
+  try{ packGroups().forEach(g=>{
+    gmap[(g.plan_no||'')+'|'+g.base_code]={cum:Number(g.grp_cum)||0, plan:Number(packPlanOf(g).plan)||0};
+  }); }catch(_){}
+  const R={coat:{raw:0,dry:0,pack:0,n:0}, oven:{raw:0,dry:0,pack:0,n:0}};
+  rows.forEach(r=>{
+    const k=(r.base_type==='오븐')?'oven':'coat';
+    const g=gmap[(r.plan_no||'')+'|'+r.prod_code];
+    R[k].raw += Number(r.raw_qty)||0;
+    R[k].dry += g ? g.plan : (Number(r.dry_qty)||0);
+    R[k].pack+= g ? g.cum  : (Number(r.pack_qty)||0);
+    R[k].n++;
+  });
+  R.coat.rate = R.coat.raw>0 ? R.coat.dry /R.coat.raw*100 : null;   // 코터 산출 ÷ 원료
+  R.oven.rate = R.oven.raw>0 ? R.oven.pack/R.oven.raw*100 : null;   // 포장 누계 ÷ 원료
+  R.coat.packRate = R.coat.raw>0 ? R.coat.pack/R.coat.raw*100 : null;
+  return R;
+}
+/* 원료 실적 카드 1개 (코터경로 / 오븐경로 공용) */
+function scRawRouteCard(kind, R){
+  const on=(kind==='coat');
+  const d=R?(on?R.coat:R.oven):null;
+  const label=on?'당일 원료사용실적':'당일 원료사용실적';
+  const sub2 =on?'EP·코터 실적반영':'오븐 · 기본수율 반영';
+  const rate=d?d.rate:null;
+  const band=on?[60,85]:[OVEN_BASE_YIELD-8, OVEN_BASE_YIELD+8];
+  const col=(rate==null)?'var(--mut)':((rate>=band[0]&&rate<=band[1])?'var(--grn)':(rate>band[1]?'#7fc99a':'#e8918c'));
+  const v=d?d.raw:0, t=v/1000;
+  const tip=!d||!d.n
+    ? (on?'당일 코터 경로 계획번호가 없습니다':'당일 오븐 경로 계획번호가 없습니다')
+    : (on
+      ? `코터 경로 계획번호 ${d.n}건\n원료 투입 ${fmt1(d.raw)}kg → 코터 산출 ${fmt1(d.dry)}kg\n달성률 = 코터 산출 ÷ 원료 실적 (EP 수분증발 + 오일·분체 증량 반영된 실측치)\n포장까지 내려가면 ${d.packRate==null?'–':d.packRate.toFixed(1)+'%'} 입니다.`
+      : `오븐 경로 계획번호 ${d.n}건\n원료 투입 ${fmt1(d.raw)}kg → 포장 누계 ${fmt1(d.pack)}kg\n오븐은 EP 산출 계량 설비가 없어 실측 수율을 낼 수 없습니다.\n그래서 포장까지의 완제품 달성률로 봅니다. 기본수율 ${OVEN_BASE_YIELD}% 대비 ${rate==null?'–':((rate-OVEN_BASE_YIELD>=0?'+':'')+(rate-OVEN_BASE_YIELD).toFixed(1)+'%p')}`);
+  return `<div class="sc ${on?'b':''}" title="${tip.replace(/"/g,'&quot;')}">
+    <div class="l">${label}<span style="font-size:9px;color:#98a2b3;font-weight:700"> (${sub2})</span></div>
+    <div class="v mono sc-dual">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
+      <span class="sc-slash">/</span>
+      <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
+    <div class="sub">원료 ${fmt(Math.round(v))}<span class="u">kg</span><span class="sc-dot">·</span>${d&&d.n?`계획 ${d.n}건`:'해당 없음'}</div></div>`;
+}
+/* 스코어카드 6종 한 줄 — 생산1팀/2팀 공용 */
+function scoreRow(DR, totLoss, totScrap){
+  const R=rawRouteTotals();
+  return `<div class="score-row">
+    <div class="sc" title="생산계획번호 앞 8자리가 이 날짜인 계획의 원부재료(자재코드 1번대) 계획량 합계입니다. 반제품·부자재는 제외합니다."><div class="l">당일 원료사용계획</div>${scTonNote(DR.raw_plan, `계획 ${fmt(Number(DR.plan_cnt)||0)}건`)}</div>
+    ${scRawRouteCard('coat', R)}
+    ${scRawRouteCard('oven', R)}
+    ${scPackCard(DR)}
+    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
+  </div>`;
+}
+/* ════════════════════════════════════════════════════════════════════
+   생산완료 수동 처리 (계획번호 단위)
+   ── 포장수율이 95% 미만이어도 "더 포장할 물량이 없다"는 경우가 있다.
+      잔량이 불량 폐기됐거나, 오더가 조기 종료된 경우다.
+      그대로 두면 매일 '진행중'으로 남아 익일 일보를 오염시킨다.
+   ── 그래서 현장이 직접 완료를 찍을 수 있게 한다. 날짜가 아니라 계획번호에 붙는다.
+   ════════════════════════════════════════════════════════════════════ */
+let PLAN_DONE=new Set();
+const pdKey=(planNo,baseCode)=>String(planNo||'')+'|'+String(baseCode||'');
+function isPlanDone(planNo,baseCode){ return PLAN_DONE.has(pdKey(planNo,baseCode)); }
+async function togglePlanDone(planNo, baseCode){
+  if(CUR_DAY.locked){ toast('결재 진행중이라 수정할 수 없습니다','err'); return; }
+  const k=pdKey(planNo,baseCode), on=PLAN_DONE.has(k);
+  const {date,team}=CUR_DAY;
+  try{
+    if(on){
+      const {error}=await sb.from('t_plan_done').delete()
+        .eq('plan_no',planNo).eq('base_code',baseCode).eq('team',team);
+      if(error)throw error;
+      PLAN_DONE.delete(k); toast('생산완료 해제','ok');
+    }else{
+      if(!confirm(`계획번호 ${planNo} 를 생산완료로 처리합니다.\n\n· 잔여 물량은 더 이상 포장하지 않는 것으로 봅니다\n· 진행중 목록과 미포장 잔량 집계에서 빠집니다\n· 불량으로 폐기한 물량이 있으면 ④ 완제품 불량관리에 먼저 등록하세요\n\n진행할까요?`)) return;
+      const {error}=await sb.from('t_plan_done').insert({
+        work_date:date, team, plan_no:planNo, base_code:baseCode,
+        done_by:(S.user&&S.user.name)||'-'
+      });
+      if(error)throw error;
+      PLAN_DONE.add(k); toast('생산완료 처리','ok');
+    }
+    rerenderClosing();
+  }catch(e){ toast('처리 실패: '+(e.message||e),'err'); }
+}
+/* ════════════════════════════════════════════════════════════════════
+   ② 포장 실적 → 완제품 불량 즉시 등록 모달
+   ── 포장수율이 낮은 SKU를 발견한 그 자리에서 ④ 불량관리로 넘긴다.
+      화면을 옮겨 라인·제품을 다시 고르는 동선이 사라진다.
+   ── 저장처는 ④ 와 동일한 t_cl_defect. 등록 후 ④ 목록에 즉시 반영한다.
+   ════════════════════════════════════════════════════════════════════ */
+function openDefectQuick(code, name, unit){
+  if(CUR_DAY.locked){ toast('결재 진행중이라 등록할 수 없습니다','err'); return; }
+  const lines=CUR_DAY.lines||[];
+  // 이 품번이 실제로 돌아간 포장 라인을 먼저 추린다
+  const packLine=(CUR_DAY.orders||[]).filter(o=>String(o.prod_code)===String(code)
+      && /포장/.test(String(o.proc_sub2||'')))[0];
+  const lineOpts=lines.map(l=>{
+    const v=`${l.proc_sub1}|${l.proc_sub2}`;
+    const sel=(packLine && v===`${packLine.proc_sub1}|${packLine.proc_sub2}`)?' selected':'';
+    return `<option value="${v}"${sel}>${l.line_name}</option>`;
+  }).join('');
+  const typeOpts=(CUR_DAY.defectTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('');
+  const u=unit||prodUnitOf(code)||'EA';
+  const el=document.createElement('div');
+  el.className='dq-back'; el.id='dqBack';
+  el.onclick=(ev)=>{ if(ev.target===el) closeDefectQuick(); };
+  el.innerHTML=`<div class="dq-box" role="dialog" aria-label="완제품 불량 등록">
+    <div class="dq-hd"><b>완제품 불량 등록</b><span class="dq-x" onclick="closeDefectQuick()">✕</span></div>
+    <div class="dq-prod"><span class="dq-code">${code}</span> ${name||''}</div>
+    <div class="dq-grid">
+      <label>라인</label>
+      <select id="dqLine">${lineOpts||'<option value="">라인 없음</option>'}</select>
+      <label>불량유형</label>
+      <select id="dqType"><option value="">유형선택</option>${typeOpts}</select>
+      <label>수량</label>
+      <div class="dq-qty"><input id="dqQty" type="number" min="0" step="any" placeholder="0"
+        oninput="if(Number(this.value)<0){this.value='';toast('불량 수량은 음수로 입력할 수 없습니다','err');}">
+        <input id="dqUnit" value="${u}" style="width:64px"></div>
+      <label>사유</label>
+      <input id="dqReason" placeholder="사유 (선택)">
+    </div>
+    <div class="dq-ft">
+      <span class="dq-note">등록하면 ④ 완제품 불량관리 목록에 바로 들어갑니다.</span>
+      <button class="tbtn" onclick="closeDefectQuick()">취소</button>
+      <button class="rowbtn save" onclick="saveDefectQuick('${String(code).replace(/'/g,"")}','${String(name||'').replace(/['"<>]/g,'')}')">+ 등록</button>
+    </div></div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>{ const t=document.getElementById('dqType'); if(t)t.focus(); },30);
+}
+function closeDefectQuick(){ const b=document.getElementById('dqBack'); if(b) b.remove(); }
+async function saveDefectQuick(code, name){
+  const {date,team}=CUR_DAY;
+  const lineV=(document.getElementById('dqLine')||{}).value||'';
+  const typeName=(document.getElementById('dqType')||{}).value||'';
+  const qty=Number((document.getElementById('dqQty')||{}).value)||0;
+  const unit=String((document.getElementById('dqUnit')||{}).value||'EA').trim().toUpperCase();
+  const reason=(document.getElementById('dqReason')||{}).value||'';
+  if(!lineV){ toast('라인을 선택하세요','err'); return; }
+  if(!typeName){ toast('불량유형을 선택해야 집계·개선분석이 가능합니다','err'); return; }
+  if(!(qty>0)){ toast('수량을 입력하세요','err'); return; }
+  const [s1,s2]=lineV.split('|');
+  try{
+    const {data,error}=await sb.from('t_cl_defect').insert({
+      work_date:date, team, proc_sub1:s1, proc_sub2:s2,
+      prod_code:code, prod_name:name, defect_type:typeName, qty, unit, reason
+    }).select();
+    if(error)throw error;
+    const row=(data&&data[0])||{id:Date.now(),proc_sub1:s1,proc_sub2:s2,prod_code:code,prod_name:name,defect_type:typeName,qty,unit,reason};
+    CUR_DAY.defects=CUR_DAY.defects||[]; CUR_DAY.defects.push(row);
+    closeDefectQuick();
+    toast(`불량 ${fmt(qty)}${unit} 등록 · ④ 목록 반영`,'ok');
+    rerenderClosing();
+  }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
+}
 function buildPackSection(){
   const G=packGroups();
   if(!G.length) return '';
@@ -6671,7 +6946,8 @@ function buildPackSection(){
   const carry=G.filter(x=>x.base_date&&x.base_date!==date).length;
   const noBase=G.filter(x=>!(x.base_actual>0)&&packPlanOf(x).plan<=0).length;   // 계획을 아예 못 잡는 건
   const mesCnt=G.filter(x=>!(x.base_actual>0)&&packPlanOf(x).plan>0).length;     // MES 계획으로 대체한 건
-  const going=G.filter(x=>x.base_actual>0&&x.ach_cum!=null&&x.ach_cum<PK_DONE).length;
+  const going=G.filter(x=>x.base_actual>0&&x.ach_cum!=null&&x.ach_cum<PK_DONE
+                         &&!isPlanDone(x.plan_no,x.base_code)).length;
   const guess=G.filter(x=>x.base_actual>0&&x.base_match==='code').length;
 
   // 완결 판정 : 누계 포장수율이 PK_DONE 이상이면 더 이상 추적할 필요가 없다
@@ -6685,7 +6961,8 @@ function buildPackSection(){
     const achC=(pb.src==='dry')?g.ach_cum:(pb.plan>0?(Number(g.grp_cum)||0)/pb.plan*100:null);
     const achCol=(achC==null)?'var(--mut)':(achC>=PK_DONE?'var(--grn)':(achC>=90?'#d97706':'#e8918c'));
     const rest=Math.max(pb.plan-(Number(g.grp_cum)||0),0);
-    const done=(achC!=null&&achC>=PK_DONE);
+    const manDone=isPlanDone(g.plan_no, g.base_code);           // 현장이 직접 찍은 생산완료
+    const done=manDone||(achC!=null&&achC>=PK_DONE);
     const multi=(g.cum_days>1);
     const typeCls=g.base_type==='오븐'?'pk-oven':(g.base_type==='코터'?'pk-coat':'pk-etc');
     return g.skus.map((s,i)=>{
@@ -6698,9 +6975,13 @@ function buildPackSection(){
         ${first?`<td rowspan="${n}" class="pk-grp">
             <div class="pk-no">${g.plan_no||'-'}</div>
             <span class="pk-type ${typeCls}">${g.base_type}</span>
-            ${achC==null?'':(done
-              ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
-              : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?g.base_type+' 투입':'코터·오븐 산출'))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>`)}
+            ${manDone
+              ? `<div class="pk-done" title="현장에서 생산완료로 처리한 계획번호입니다. 누계 포장수율 ${achC==null?'–':achC.toFixed(1)+'%'} · 잔여 ${fmt1(rest)}kg 은 더 포장하지 않는 것으로 봅니다.">✓ 생산완료</div>
+                 <button class="pk-dbtn off" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="생산완료를 해제하고 다시 진행중으로 돌립니다">해제</button>`
+              : (achC==null?'':(done
+                ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
+                : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?g.base_type+' 투입':'코터·오븐 산출'))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>
+                   <button class="pk-dbtn" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="더 포장할 물량이 없으면 생산완료로 처리하세요. 진행중 목록과 미포장 잔량에서 빠집니다.">생산완료 처리</button>`))}
             ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
             <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
           </td>
@@ -6728,7 +7009,8 @@ function buildPackSection(){
              <td class="mono" style="color:#98a2b3;font-size:11px">↑ 동일품번</td>`
           : `<td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
              <td class="mono">${prod?prod.toFixed(1):'–'}</td>
-             <td><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="text-align:left;background:#fffbe8"></td>`}
+             <td><div class="pk-notew"><input class="inp-cell t2-note" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" oninput="this.title=this.value" placeholder="특이사항" style="text-align:left;background:#fffbe8">
+               <button class="pk-dfbtn" onclick="openDefectQuick('${s.sku_code}','${String(s.sku_name||'').replace(/['"<>]/g,'')}','${(s.sku_unit||'')}')" title="이 제품의 완제품 불량을 바로 등록합니다 → ④ 완제품 불량관리">불량</button></div></td>`}
       </tr>`;
     }).join('');
   }).join('');
@@ -6816,7 +7098,8 @@ function buildYieldSummary(){
     const raw     = Number(r.raw_qty)||0;
     const pRate   = dry>0 ? packCum/dry*100 : (r.pack_rate==null?null:Number(r.pack_rate));
     const fRate   = raw>0 ? packCum/raw*100 : (r.final_rate==null?null:Number(r.final_rate));
-    const going   = (pRate!=null && pRate<PK_DONE);
+    const manDone = isPlanDone(r.plan_no, r.prod_code);
+    const going   = !manDone && (pRate!=null && pRate<PK_DONE);
     return {r, g, packCum, packDay, dry, raw, pRate, fRate, going,
             rest:Math.max(dry-packCum,0), skuN:g?g.n:0};
   });
@@ -7106,7 +7389,7 @@ function renderMore2(){
       <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
       <td class="l">${s.prod_name}</td>
       <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
+      <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 실적이 계획을 넘으면 초과사용(로스)으로 계상됩니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
       <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
       <td class="mono ${_diff>0?'neg':_diff<0?'pos':''}">${_diff===0?'0':(_diff>0?'+':'')+fmt0(_diff)}</td>
       <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
@@ -8522,7 +8805,7 @@ function renderClosing(){
     <td class="l">${s.proc_sub1}/${s.proc_sub2}</td>
     <td class="l">${s.prod_name}</td>
     <td class="l">${s.mat_name}${s.is_edited?' <span class="edit-badge" title="MES값에서 수정됨">✎수정</span>':''}</td>
-    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 계획은 실적 이상이어야 합니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
+    <td><input class="inp-cell pe-plan" data-i="${i}" value="${fmt0(_bp)}" inputmode="numeric" ${_isBom?'readonly tabindex="-1" title="BOM 기준 계획 — 코터 실적 × 배합률 (수정 불가)"':''} data-act="${Math.round(Number(s.actual_qty))}" title="정수만 입력 · 실적이 계획을 넘으면 초과사용(로스)으로 계상됩니다" style="width:100%;text-align:right;background:#fff8e8" oninput="onPlanInput(${i})" onkeydown="if(event.key==='Enter'){event.preventDefault();savePlanOverride(${i});}"></td>
     <td><input class="inp-cell pe-act" data-i="${i}" value="${fmt0(s.actual_qty)}" readonly tabindex="-1" title="실적은 MES 원본값입니다. 수정할 수 없습니다." style="width:100%;text-align:right;background:#f1f3f7;color:#5b6474;border-color:#e3e8f0;cursor:not-allowed"></td>
     <td class="mono ${_diff>0?'neg':_diff<0?'pos':''}">${_diff===0?'0':(_diff>0?'+':'')+fmt0(_diff)}</td>
     <td class="mono ${drCls(dr)}">${dr==null?'–':dr.toFixed(1)+'%'}</td>
@@ -8578,24 +8861,7 @@ function renderClosing(){
   <div class="closing-body t2-theme ${isLocked?'locked':''}">
 
   <!-- 스코어카드 -->
-  <div class="score-row">
-    <div class="sc b" title="생산계획번호 앞 8자리가 이 날짜인 계획의 원부재료(자재코드 1번대) 실제 사용량 합계입니다. 반제품·부자재는 제외합니다. 우측 %는 계획 대비 달성률입니다."><div class="l">당일 실적</div>${scTonRate(DR.raw_actual, DR.raw_rate, DR.plan_cnt)}</div>
-    <div class="sc" title="같은 계획번호들의 원부재료 계획량 합계입니다."><div class="l">당일 계획</div>${scTonNote(DR.raw_plan, 'MES 원부재료')}</div>
-    ${scPackCard(DR)}
-    ${(()=>{
-      const cy=coaterYield();               // 건조 평균수율 = (코터+오븐) 산출 ÷ EP 실적
-      const y=cy?cy.pct:null;
-      // 기준 70~80% (원료 수분율에 따라 정상폭이 달라져 신호등만 표시)
-      const col=(y==null)?'':(y>=70&&y<=80?'var(--grn)':(y>80?'#7fc99a':'#e8918c'));
-      const yTxt=(y==null)?'':` <span style="font-size:12.5px;font-weight:800;color:${col}">(${y.toFixed(1)}%)</span>`;
-      return `<div class="sc"><div class="l">완제품 SKU<span style="font-size:9px;color:#98a2b3;font-weight:700"> (건조 평균수율)</span></div>
-      <div class="v mono" title="${y==null?'건조수율 산출 불가 — 당일 EP 실적이 없습니다(전일 EP분 건조 등)':coaterYieldTip(cy)}">${finCount}${yTxt}</div>
-      <div class="sc-sub">반제품 ${semiCount}종${y!=null?` · 건조 ${cy.n}품목${cy.items[0].pct<70?` · 최저 ${cy.items[0].pct.toFixed(0)}%`:''}`:''}</div></div>`;
-    })()}
-    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
-  </div>
+  ${scoreRow(DR, totLoss, totScrap)}
 
   <!-- ① 라인별 요약 -->
   <div class="sec"><div class="sec-hd"><span class="no c1">1</span><h3>완제품 라인별 가동 요약</h3>
@@ -9530,10 +9796,11 @@ function onPlanInput(i){
   const tds=tr.querySelectorAll('td');
   const diff=act-plan;
   const dr=plan>0?Math.abs(diff)/plan*100:null;
-  const bad=plan<act;   // 계획이 실적보다 작으면 저장 불가
-  el.style.border=bad?'2px solid #b42318':'2px solid #d97706';
-  el.style.background=bad?'#fef3f2':'#fff3dd';
-  el.title=bad?`계획이 실적(${fmt0(act)})보다 적습니다 — 저장할 수 없습니다`:'정수만 입력 · 계획은 실적 이상이어야 합니다';
+  // 계획 < 실적(초과사용)은 정상 로스입니다. 부자재는 계획 100 → 실투입 105 가 실제로 발생합니다.
+  const over=plan<act;
+  el.style.border='2px solid #d97706';
+  el.style.background=over?'#fff1e6':'#fff3dd';
+  el.title=over?`초과사용 ${fmt0(act-plan)} — 로스로 계상됩니다 (정상 입력)`:'정수만 입력 · 계획 미만 실적은 절감으로 계상됩니다';
   if(tds[5]){ const dc=diff>0?'neg':diff<0?'pos':'';
     tds[5].className='mono '+dc; tds[5].textContent=diff===0?'0':(diff>0?'+':'')+fmt0(diff); }
   if(tds[6]){ tds[6].className='mono '+drCls(dr); tds[6].textContent=(dr==null?'–':dr.toFixed(1)+'%'); }
@@ -9552,13 +9819,7 @@ async function savePlanOverride(i){
   const actual=Math.round(Number(s.actual_qty));
   if(plan===null){ toast('계획 값을 확인하세요','err'); return; }
   if(plan<0){ toast('계획은 0 미만일 수 없습니다','err'); if(planEl)planEl.focus(); return; }
-  // ── 계획 ≥ 실적 검증 : 계획을 실적보다 낮게 넣으면 로스가 부풀려지므로 거부 ──
-  if(plan<actual){
-    const short=actual-plan;
-    toast(`등록 불가 — 계획(${fmt0(plan)})이 실적(${fmt0(actual)})보다 ${fmt0(short)} 적습니다. 계획은 실적 이상이어야 합니다.`,'err');
-    if(planEl){ planEl.style.border='2px solid #b42318'; planEl.style.background='#fef3f2'; planEl.focus(); planEl.select(); }
-    return;
-  }
+  // 계획 < 실적(초과사용)은 차단하지 않습니다 — 부자재는 계획 100 → 실투입 105 가 정상 발생합니다.
   if(planEl){ planEl.style.border=''; planEl.style.background='#fff8e8'; }
   try{
     const {error}=await sb.rpc('set_plan_override',{
