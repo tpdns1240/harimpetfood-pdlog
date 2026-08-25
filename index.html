@@ -510,6 +510,9 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .pk-sum{background:#f2f7fb;font-weight:800;font-size:14px;color:#1c5fb0;vertical-align:middle!important;border-left:1.5px solid #e3e8f2}
 .pk-ach{background:#f8fafc;vertical-align:middle!important;text-align:center}
 .pk-ach b{font-size:15px}
+.pk-std{margin-top:3px;font-size:9.5px;font-weight:700;color:#8a6d1f;background:#fff8e8;border:1px solid #f0dfb8;border-radius:5px;padding:1px 4px;display:inline-block;cursor:help;line-height:1.4}
+.pk-std b{font-size:10px;margin-left:3px}
+.pk-std.none{color:#98a2b3;background:#f4f6fa;border-color:#e3e8ef}
 .pk-warn{font-size:11px;font-weight:800;color:#92600a;background:#fff7e6;border:1px solid #f0c060;border-radius:5px;padding:2px 8px;margin-right:7px}
 .pk-note{margin:0 16px 10px;padding:9px 12px;background:#fff7e6;border:1px solid #f0c060;border-radius:9px;font-size:11.5px;color:#92600a;line-height:1.6}
 .dev-bar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 16px 10px;padding:9px 12px;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px}
@@ -980,7 +983,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25m</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25n</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1017,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25m</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25n</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5410,7 +5413,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25m';
+const APP_VERSION='v2026.08.25n';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6643,6 +6646,7 @@ function coaterYieldTip(cy){
    ════════════════════════════════════════════════════════════════════ */
 /* 포장 완결 판정 임계값(%) — 누계 포장수율이 이 값 이상이면 완결로 본다 */
 const PK_DONE=95;
+const PK_SHOW=98;   // 생산완료 처리 버튼 노출선 — 이 값 미만이면 완결로 잡혀도 버튼을 띄운다
 /* 렌더 1회당 packGroups() 가 3~5회 호출된다(② 표 / 스코어카드 / ②-1 수율요약 / 드릴다운).
    결과는 CUR_DAY.pack 이 바뀌지 않는 한 동일하므로 배열 참조를 키로 메모이즈한다.
    pack 배열은 데이터 재조회 시에만 새 참조가 되므로 무효화 로직이 따로 필요 없다. */
@@ -7051,6 +7055,12 @@ function buildPackSection(){
     const rest=Math.max(pb.plan-(Number(g.grp_cum)||0),0);
     const manDone=isPlanDone(g.plan_no, g.base_code);           // 현장이 직접 찍은 생산완료
     const done=manDone||(achC!=null&&achC>=PK_DONE);
+    // 생산완료 버튼 노출 : 완결선(95%)이 아니라 PK_SHOW(98%) 미만이면 무조건 보인다.
+    // 96~98% 구간은 "완결로 잡히지만 잔량이 남은" 회색지대라 현장이 직접 닫을 수 있어야 한다.
+    const showDone=!manDone && achC!=null && achC<PK_SHOW;
+    // 오븐 전용 : 설계수율(기준 건조수율) 대비 편차
+    const ovStd=(g.base_type==='오븐') ? CUR_DAY.dy[g.base_code] : null;
+    const ovGap=(ovStd!=null&&achC!=null) ? (achC-Number(ovStd)) : null;
     const multi=(g.cum_days>1);
     const typeCls=g.base_type==='오븐'?'pk-oven':(g.base_type==='코터'?'pk-coat':'pk-etc');
     return g.skus.map((s,i)=>{
@@ -7066,10 +7076,10 @@ function buildPackSection(){
             ${manDone
               ? `<div class="pk-done" title="현장에서 생산완료로 처리한 계획번호입니다. 누계 포장수율 ${achC==null?'–':achC.toFixed(1)+'%'} · 잔여 ${fmt1(rest)}kg 은 더 포장하지 않는 것으로 봅니다.">✓ 생산완료</div>
                  <button class="pk-dbtn off" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="생산완료를 해제하고 다시 진행중으로 돌립니다">해제</button>`
-              : (achC==null?'':(done
+              : (achC==null?'':`${done
                 ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
-                : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?g.base_type+' 투입':'코터·오븐 산출'))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>
-                   <button class="pk-dbtn" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="더 포장할 물량이 없으면 생산완료로 처리하세요. 진행중 목록과 미포장 잔량에서 빠집니다.">생산완료 처리</button>`))}
+                : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?g.base_type+' 투입':'코터·오븐 산출'))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>`}
+                ${showDone?`<button class="pk-dbtn" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="누계 포장수율 ${achC.toFixed(1)}% · 잔여 ${fmt1(rest)}kg — 더 포장할 물량이 없으면 생산완료로 처리하세요. 진행중 목록과 미포장 잔량에서 빠집니다.&#10;입력·수정을 막지는 않습니다.">생산완료 처리</button>`:''}`)}
             ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
             <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
           </td>
@@ -7090,7 +7100,11 @@ function buildPackSection(){
         ${first?`<td rowspan="${n}" class="mono pk-sum">${t(g.grp_actual)}
             ${multi?`<div style="font-size:10px;font-weight:800;color:#6d47c9;letter-spacing:-.2px" title="계획번호 ${g.plan_no} 의 전체 포장 실적 (${g.first_pack||'-'} ~ ${g.last_pack||'-'} · ${g.cum_days}일)">누계 ${t(g.grp_cum)}</div>`:''}</td>
           <td rowspan="${n}" class="mono pk-ach"><b style="color:${achCol}">${achC==null?'–':achC.toFixed(1)+'%'}</b>
-            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?'누계÷계획':'합계÷계획'}</div></td>`:''}
+            <div style="font-size:9.5px;color:#98a2b3;font-weight:700">${multi?'누계÷계획':'합계÷계획'}</div>
+            ${g.base_type==='오븐'?(ovStd!=null
+              ? `<div class="pk-std" title="설계수율(기준 건조수율) ${Number(ovStd).toFixed(1)}% 대비 ${ovGap>=0?'+':''}${ovGap==null?'–':ovGap.toFixed(1)}%p&#10;오븐은 EP 산출 계량 설비가 없어 실측 건조수율을 낼 수 없습니다. 그래서 포장수율을 기준수율과 직접 비교합니다.&#10;설정 → 🎯 설계수율에서 기준값을 바꿀 수 있습니다.">기준 ${Number(ovStd).toFixed(1)}%
+                   <b style="color:${ovGap==null?'var(--mut)':(ovGap>=0?'#0d6b42':'#b42318')}">${ovGap==null?'':(ovGap>=0?'+':'')+ovGap.toFixed(1)+'%p'}</b></div>`
+              : `<div class="pk-std none" title="이 반제품(${g.base_code})의 설계수율이 등록되어 있지 않아 기준 대비를 낼 수 없습니다.&#10;설정 → 🎯 설계수율에서 입력하세요.">기준 미등록</div>`):''}</td>`:''}
         ${dupSku
           ? `<td class="mono" style="color:#98a2b3;font-size:11px" title="같은 품번이 위 계획번호에도 있습니다. 투입공수는 품번 단위로 저장되므로 입력칸은 한 곳에만 둡니다">↑ 동일품번</td>
              <td class="mono">${prod?prod.toFixed(1):'–'}</td>
