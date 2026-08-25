@@ -980,7 +980,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25j</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25k</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25j</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25k</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5410,7 +5410,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25j';
+const APP_VERSION='v2026.08.25k';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6823,8 +6823,21 @@ function rawRouteTotals(){
       R[k].n++;
     });
   });
-  R.coat.rate = R.coat.raw>0 ? R.coat.dry /R.coat.raw*100 : null;   // 코터 산출 ÷ 원료
-  R.oven.rate = R.oven.raw>0 ? R.oven.pack/R.oven.raw*100 : null;   // 포장 누계 ÷ 원료
+  /* ── 카드에 표시할 "실적" 값 ──
+     코터 : 당일 진공코터 공정 실적 합 (① 라인별 요약의 진공코터 실적과 같은 값)
+     오븐 : 당일 오븐 유형 제품의 SKU 포장 실적 합 (② 포장 실적 표의 당일 실적)
+     ※ 원료 투입량은 분모로만 쓰고 보조줄에 병기한다. */
+  R.coat.out=0;
+  (CUR_DAY.orders||[]).forEach(o=>{
+    if(/진공코터/.test(String(o.proc_sub2||''))) R.coat.out += Number(o.actual_sum??o.actual_qty??0);
+  });
+  R.oven.sku=0;
+  try{ packGroups().forEach(g=>{
+    if(g.base_type==='오븐') R.oven.sku += Number(g.grp_actual)||0;
+  }); }catch(_){}
+
+  R.coat.rate = R.coat.raw>0 ? R.coat.out /R.coat.raw*100 : null;   // 코터 산출 ÷ 코터경로 원료
+  R.oven.rate = R.oven.raw>0 ? R.oven.sku /R.oven.raw*100 : null;   // 오븐 SKU 실적 ÷ 오븐경로 원료
   R.coat.packRate = R.coat.raw>0 ? R.coat.pack/R.coat.raw*100 : null;
   R.oven.dryRate  = R.oven.raw>0 ? R.oven.dry /R.oven.raw*100 : null;
 
@@ -6845,21 +6858,23 @@ function scRawRouteCard(kind, R){
   const on=(kind==='coat');
   const d=R?(on?R.coat:R.oven):null;
   const sub2=on?'EP·코터 실적반영':'오븐 · 기본수율 반영';
+  const val=d?(on?d.out:d.sku):0;                 // 표시값 = 실적
+  const raw=d?d.raw:0;                            // 분모 = 원료 투입
   const rate=d?d.rate:null;
-  const band=on?[70,90]:[OVEN_BASE_YIELD-10, OVEN_BASE_YIELD+10];
+  const band=on?[70,90]:[OVEN_BASE_YIELD-12, OVEN_BASE_YIELD+12];
   const col=(rate==null)?'var(--mut)':((rate>=band[0]&&rate<=band[1])?'var(--grn)':(rate>band[1]?'#7fc99a':'#e8918c'));
-  const v=d?d.raw:0, t=v/1000;
+  const t=val/1000;
   const tip=!d||!d.n
     ? `당일(계획번호 앞 8자리 = ${CUR_DAY.date}) ${on?'코터':'오븐'} 경로 계획번호가 없습니다.\n포장만 진행한 날이면 0 이 정상입니다 — 원료는 그 계획번호를 만든 날에 이미 잡혔습니다.`
     : (on
-      ? `당일 코터 경로 계획번호 ${d.n}건\n원료 투입 ${fmt1(d.raw)}kg → 코터 산출 ${fmt1(d.dry)}kg\n달성률 = 코터 산출 ÷ 원료 실적 (EP 수분증발 + 오일·분체 증량이 반영된 실측치 · 정상 70~90%)\n포장까지 내려가면 ${d.packRate==null?'–':d.packRate.toFixed(1)+'%'} 입니다.`
-      : `당일 오븐 경로 계획번호 ${d.n}건\n원료 투입 ${fmt1(d.raw)}kg → 오븐 산출 ${fmt1(d.dry)}kg → 포장 누계 ${fmt1(d.pack)}kg\n오븐은 EP 산출 계량 설비가 없어 실측 EP수율을 낼 수 없습니다.\n그래서 포장까지의 완제품 달성률로 봅니다. 기본수율 ${OVEN_BASE_YIELD}% 대비 ${rate==null?'–':((rate-OVEN_BASE_YIELD>=0?'+':'')+(rate-OVEN_BASE_YIELD).toFixed(1)+'%p')}\n오븐 산출 기준으로는 ${d.dryRate==null?'–':d.dryRate.toFixed(1)+'%'} — 포장이 진행중이면 위 값이 더 낮게 보입니다.`);
+      ? `당일 진공코터 공정 실적 ${fmt1(d.out)}kg\n(① 라인별 요약의 진공코터 실적과 같은 값입니다)\n\n원료 투입 ${fmt1(d.raw)}kg → 코터 산출 ${fmt1(d.out)}kg\n달성률 = 코터 산출 ÷ 원료 실적 · 정상 70~90%\nEP에서 수분이 빠지고 코터에서 오일·분체로 증량된 결과입니다.\n계획번호 ${d.n}건 · 포장까지 내려가면 ${d.packRate==null?'–':d.packRate.toFixed(1)+'%'}`
+      : `당일 오븐 유형 제품의 SKU 포장 실적 ${fmt1(d.sku)}kg\n(② 포장 실적 표에서 오븐 묶음의 당일 실적 합입니다)\n\n원료 투입 ${fmt1(d.raw)}kg → SKU 실적 ${fmt1(d.sku)}kg\n오븐은 EP 산출 계량 설비가 없어 실측 EP수율을 낼 수 없습니다.\n그래서 완제품 SKU 실적까지 내려가 달성률을 봅니다.\n기본수율 ${OVEN_BASE_YIELD}% 대비 ${rate==null?'–':((rate-OVEN_BASE_YIELD>=0?'+':'')+(rate-OVEN_BASE_YIELD).toFixed(1)+'%p')}\n계획번호 ${d.n}건 · 오븐 산출 기준 ${d.dryRate==null?'–':d.dryRate.toFixed(1)+'%'}`);
   return `<div class="sc g2" title="${tip.replace(/"/g,'&quot;')}">
     <div class="l">당일 원료사용실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (${sub2})</span></div>
     <div class="v mono sc-dual">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
       <span class="sc-slash">/</span>
       <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
-    <div class="sub">원료 ${fmt(Math.round(v))}<span class="u">kg</span><span class="sc-dot">·</span>${d&&d.n?`계획 ${d.n}건`:'해당 없음'}
+    <div class="sub">${on?'코터산출':'SKU실적'} ${fmt(Math.round(val))}<span class="u">kg</span><span class="sc-dot">·</span>원료 ${fmt(Math.round(raw))}<span class="u">kg</span>
       ${on&&R&&!R.ok?`<span class="sc-dot">·</span><span style="color:#b42318" title="두 경로 원료 합계 ${fmt1(R.total)}kg 이 당일 원료실적 ${fmt1(R.dayRaw)}kg 과 ${fmt1(Math.abs(R.gap))}kg (${R.gapPct.toFixed(1)}%) 어긋납니다.&#10;${R.gap>0?'계획번호 단위 값이 중복 합산되고 있거나, 한 계획번호가 여러 날에 걸쳐 원료를 먹은 경우입니다.':'원료는 투입됐으나 아직 포장 실적이 없어 경로를 못 가른 계획번호가 있습니다.'}">⚠ ${R.gap>0?'+':'−'}${fmt(Math.round(Math.abs(R.gap)))}</span>`:''}</div></div>`;
 }
 /* 스코어카드 6종 한 줄 — 생산1팀/2팀 공용 */
