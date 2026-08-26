@@ -436,6 +436,14 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .tdd-table tbody tr:nth-child(even){background:#fafbfd}
 .tdd-table tbody tr:hover{background:#eef4ff}
 .t2-table th.th-hl{background:#fdead3 !important;color:#8a4b08 !important;box-shadow:inset 0 -3px 0 #f5a15f}
+/* 제품별 드릴다운 : 행 클릭 → 수율 추이 팝업 */
+.tdd-table tbody tr.tdd-clk{cursor:pointer}
+.tdd-table tbody tr.tdd-clk:hover{background:#eef3fb}
+.pt-box{background:#fff;border-radius:14px;width:min(680px,100%);max-height:92vh;overflow:auto;box-shadow:0 18px 48px rgba(16,26,42,.28)}
+.pt-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pt-kpi>div{background:#f6f9fd;border:1px solid var(--line);border-radius:9px;padding:8px 10px;text-align:center}
+.pt-kpi span{display:block;font-size:10px;color:var(--mut);font-weight:700}
+.pt-kpi b{font-size:15px;font-variant-numeric:tabular-nums}
 /* ② 생산완료 처리 버튼 · 불량 즉시등록 버튼 */
 .pk-dbtn{margin-top:4px;padding:2px 8px;font-size:10px;font-weight:800;border-radius:6px;cursor:pointer;
   border:1px solid #c7d2e6;background:#fff;color:#3565b8;white-space:nowrap}
@@ -998,7 +1006,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25p</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25q</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1035,7 +1043,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25p</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25q</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2961,9 +2969,9 @@ async function openTDDrill(kind){
 }
 function tddShell(){
   const isOrd=TDD.kind==='order';
-  const kseg=isOrd?`<div class="seg"><span class="seg-label">구분</span>
+  const kseg=`<div class="seg"><span class="seg-label">구분</span>
       ${[['','합산'],['fin','완제품'],['semi','반제품']].map(([k,l])=>`<button class="seg-btn ${TDD.kind2===k?'on':''}" onclick="tddKind('${k}')">${l}</button>`).join('')}
-    </div>`:'';
+    </div>`;
   return `
   <div class="tr-hero"><div>
     <div class="tr-crumb" onclick="openTeamDetail('${TD.team}','${TD.ym}')" style="cursor:pointer">← 뒤로 · ${TD.team} 경영현황</div>
@@ -2998,7 +3006,7 @@ function tddPaint(){
   const cols=TDD_COLS[TDD.kind]||[];
   const q=TDD.q.trim().toLowerCase();
   let rows=TDD.rows;
-  if(isOrd&&TDD.kind2) rows=rows.filter(r=>r.kind===TDD.kind2);
+  if(TDD.kind2) rows=rows.filter(r=>r.kind===TDD.kind2);
   if(q) rows=rows.filter(r=>cols.some(c=>c.ty==='s'&&String(r[c.k]||'').toLowerCase().includes(q)));
   if(isOrd) tddScore(rows);
   if(TDD.sk){
@@ -3023,13 +3031,106 @@ function tddPaint(){
     }).join('');
     if(isOrd) return `<tr>${tds}</tr>`;
     const isFin=/^[23]/.test(String(o.prod_code||''));
-    return `<tr>${tds}<td>${isFin?`<button class="rowbtn" onclick="tddChain('${String(o.prod_code).replace(/'/g,"\\'")}')">${TDD.open===o.prod_code?'닫기':'반제품 ▸'}</button>`:'<span style="color:#c4ccd8">–</span>'}</td></tr>`;
+    const _pc=String(o.prod_code||'').replace(/'/g,"");
+    const _pn=String(o.prod_name||'').replace(/['"<>]/g,'');
+    return `<tr class="tdd-clk" onclick="openProdTrend('${_pc}','${_pn}')" title="클릭하면 이 품목의 일자별 수율 추이가 열립니다">${tds}
+      <td onclick="event.stopPropagation()">${isFin?`<button class="rowbtn" onclick="tddChain('${_pc}')">${TDD.open===o.prod_code?'닫기':'반제품 ▸'}</button>`:'<span style="color:#c4ccd8">–</span>'}</td></tr>`;
   }).join('')
    :`<tr><td colspan="${cols.length+(isOrd?0:1)}" style="text-align:center;color:var(--mut);padding:30px">검색 결과가 없습니다</td></tr>`;
   const t=$('#tddTable'); if(t) t.innerHTML=`<thead><tr>${th}</tr></thead><tbody>${body}</tbody>`;
   const c=$('#tddCnt'); if(c) c.textContent=rows.length+(rows.length!==TDD.rows.length?` / ${TDD.rows.length}`:'');
   const si=$('#tddSortInfo');
   if(si) si.textContent=TDD.sk?`${(cols.find(x=>x.k===TDD.sk)||{}).t} ${TDD.sd<0?'내림차순':'오름차순'}`:'헤더 클릭 시 정렬';
+}
+/* ════════════════════════════════════════════════════════════════════
+   제품별 수율 추이 팝업 (팀별현황 → 제품별 드릴다운 → 행 클릭)
+   ── 데이터는 team_plan_drill(계획번호 단위)을 기간 1회만 받아 캐시하고,
+      품번으로 걸러 일자별로 묶는다. 새 SQL 없이 추이를 만든다.
+   ── 차트는 SVG 직접 그리기 — 외부 라이브러리 없이 즉시 렌더된다.
+   ════════════════════════════════════════════════════════════════════ */
+let PT_CACHE=null, PT_KEY='';
+async function openProdTrend(code, name){
+  if(!code) { toast('품번이 없어 추이를 만들 수 없습니다','err'); return; }
+  const key=`${TD.team}|${TD.from}|${TD.to}`;
+  const back=document.createElement('div');
+  back.className='dq-back'; back.id='ptBack';
+  back.onclick=(e)=>{ if(e.target===back) closeProdTrend(); };
+  back.innerHTML=`<div class="pt-box"><div class="dq-hd"><b>제품 수율 추이</b><span class="dq-x" onclick="closeProdTrend()">✕</span></div>
+    <div class="dq-prod"><span class="dq-code">${code}</span> ${name||''}</div>
+    <div id="ptBody" style="padding:16px"><div class="skel" style="height:220px;border-radius:10px"></div></div></div>`;
+  document.body.appendChild(back);
+  try{
+    if(PT_KEY!==key || !PT_CACHE){
+      const {data,error}=await sb.rpc('team_plan_drill',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null});
+      if(error)throw error;
+      PT_CACHE=data||[]; PT_KEY=key;
+    }
+    prodTrendPaint(code,name);
+  }catch(e){
+    const b=document.getElementById('ptBody');
+    if(b) b.innerHTML=`<div style="color:#b42318;font-size:12.5px;padding:20px;text-align:center">추이 조회 실패 — ${String(e.message||e)}</div>`;
+  }
+}
+function closeProdTrend(){ const b=document.getElementById('ptBack'); if(b) b.remove(); }
+function prodTrendPaint(code,name){
+  const rows=(PT_CACHE||[]).filter(r=>String(r.prod_code)===String(code));
+  const by={};
+  rows.forEach(r=>{
+    const d=String(r.first_date||'').slice(0,10); if(!d) return;
+    const o=by[d]||(by[d]={d, plan:0, act:0, base:0, done:0, loss:0, n:0});
+    o.plan+=Number(r.plan_qty)||0; o.act+=Number(r.actual_qty)||0;
+    o.base+=Number(r.pack_base)||0; o.done+=Number(r.pack_done)||0;
+    o.loss+=Number(r.loss_amt)||0; o.n++;
+  });
+  const list=Object.keys(by).sort().map(k=>{
+    const o=by[k];
+    o.yield = o.base>0 ? o.done/o.base*100 : null;      // 포장수율
+    o.ach   = o.plan>0 ? o.act/o.plan*100 : null;       // 달성률
+    return o;
+  });
+  const b=document.getElementById('ptBody'); if(!b) return;
+  if(!list.length){ b.innerHTML='<div style="color:var(--mut);font-size:12.5px;padding:26px;text-align:center">이 기간에 이 품목의 생산 기록이 없습니다</div>'; return; }
+  const ys=list.map(o=>o.yield).filter(v=>v!=null);
+  const avg=ys.length?ys.reduce((a,c)=>a+c,0)/ys.length:null;
+  const mn=ys.length?Math.min(...ys):0, mx=ys.length?Math.max(...ys):100;
+  const lo=Math.max(0,Math.floor((mn-5)/5)*5), hi=Math.ceil((mx+5)/5)*5;
+  const W=560,H=190,PL=42,PR=12,PT=14,PB=26;
+  const iw=W-PL-PR, ih=H-PT-PB;
+  const px=(i)=>PL+(list.length<2?iw/2:iw*i/(list.length-1));
+  const py=(v)=>PT+ih-(ih*(v-lo)/Math.max(hi-lo,1));
+  const pts=list.map((o,i)=>o.yield==null?null:`${px(i).toFixed(1)},${py(o.yield).toFixed(1)}`).filter(Boolean).join(' ');
+  const grid=[0,.25,.5,.75,1].map(f=>{ const v=lo+(hi-lo)*f, y=py(v);
+    return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e6ebf3"/><text x="${PL-6}" y="${y+3.5}" text-anchor="end" font-size="9" fill="#98a2b3">${v.toFixed(0)}%</text>`; }).join('');
+  const dots=list.map((o,i)=>o.yield==null?'':`<circle cx="${px(i)}" cy="${py(o.yield)}" r="3.4" fill="#fff" stroke="${o.yield>=95?'#0d6b42':(o.yield>=85?'#d97706':'#b42318')}" stroke-width="2"><title>${o.d} · ${o.yield.toFixed(1)}%</title></circle>`).join('');
+  const xlab=list.map((o,i)=>(list.length<=8||i%Math.ceil(list.length/8)===0)?`<text x="${px(i)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#98a2b3">${o.d.slice(5)}</text>`:'').join('');
+  const avgLine=avg==null?'':`<line x1="${PL}" y1="${py(avg)}" x2="${W-PR}" y2="${py(avg)}" stroke="#5a3fb8" stroke-dasharray="4 3" stroke-width="1.2"/>`;
+  b.innerHTML=`
+    <div class="pt-kpi">
+      <div><span>기간 평균 수율</span><b style="color:${avg==null?'var(--mut)':(avg>=95?'#0d6b42':(avg>=85?'#d97706':'#b42318'))}">${avg==null?'–':avg.toFixed(1)+'%'}</b></div>
+      <div><span>최고 / 최저</span><b>${ys.length?mx.toFixed(1)+'% / '+mn.toFixed(1)+'%':'–'}</b></div>
+      <div><span>생산 일수</span><b>${list.length}일</b></div>
+      <div><span>누적 실적</span><b>${fmt(Math.round(list.reduce((a,o)=>a+o.act,0)))}kg</b></div>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin:10px 0 4px">
+      ${grid}${avgLine}
+      <polyline points="${pts}" fill="none" stroke="#3565b8" stroke-width="2.2" stroke-linejoin="round"/>
+      ${dots}${xlab}
+    </svg>
+    <div style="font-size:10.5px;color:var(--mut);margin-bottom:10px">보라 점선 = 기간 평균 · 점 색은 95%↑ 녹색 / 85~95% 주황 / 85% 미만 적색</div>
+    <div style="max-height:34vh;overflow:auto">
+      <table class="t2-table" style="font-size:12px">
+        <thead><tr><th>일자</th><th>오더</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>포장수율</th><th>로스금액</th></tr></thead>
+        <tbody>${list.slice().reverse().map(o=>`<tr>
+          <td class="mono">${o.d}</td>
+          <td class="mono">${o.n}</td>
+          <td class="mono">${fmt(Math.round(o.plan))}</td>
+          <td class="mono"><b>${fmt(Math.round(o.act))}</b></td>
+          <td class="mono ${o.ach==null?'':(o.ach>=95?'pos':'neg')}">${o.ach==null?'–':o.ach.toFixed(1)+'%'}</td>
+          <td class="mono"><b style="color:${o.yield==null?'var(--mut)':(o.yield>=95?'#0d6b42':(o.yield>=85?'#d97706':'#b42318'))}">${o.yield==null?'–':o.yield.toFixed(1)+'%'}</b></td>
+          <td class="mono ${Number(o.loss)>0?'neg':''}">${Number(o.loss)>0?fmt(Math.round(o.loss))+'원':'–'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
 }
 function tddScore(rows){
   const s=TDD.score, box=$('#tddScore');
@@ -5428,7 +5529,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25p';
+const APP_VERSION='v2026.08.25q';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7205,7 +7306,7 @@ function buildPackSection(){
   const _srcs=[...new Set(G.map(g=>{
     const pb=packPlanOf(g);
     if(pb.src==='edit') return '수정 계획';
-    if(pb.src==='raw')  return '원료 투입실적';
+    if(pb.src==='raw')  return '';
     if(pb.src==='mes')  return 'MES 계획';
     return g.base_match==='proc' ? (baseTypeLabel(g)||'투입')+' 투입' : (isT2()?'원료 투입실적':'코터·오븐 산출');
   }))];
@@ -7263,7 +7364,6 @@ function buildPackSection(){
           </td>
           <td rowspan="${n}" class="mono pk-plan">${pb.plan>0?t(pb.plan):'<span style="color:#b42318;font-size:11px">계획 없음</span>'}
             ${pb.src==='edit'?`<div style="font-size:9.5px;font-weight:800;color:#0d8a4f" title="현장에서 수정한 계획이 우선 적용된 묶음입니다.${Number(g.base_actual)>0?` 원래 근거(${g.base_type} 투입)는 ${fmt1(g.base_actual)}kg 였습니다.`:''} SKU 계획칸의 ↺ 로 되돌릴 수 있습니다.">✎ 수정 계획</div>`:''}
-            ${pb.src==='raw'?`<div style="font-size:9.5px;font-weight:800;color:#0d7a8a" title="MES 원료 계획 로직이 아직 제정되지 않아 계획 데이터가 수집되지 않습니다. 그래서 이 계획번호에 실제 투입된 원료 실적을 계획 자리에 놓았습니다. 수율을 근사할 수 있는 유일한 기준선입니다.">원료 투입실적</div>`:''}
             ${pb.src==='mes'&&pb.plan>0?`<div style="font-size:9.5px;font-weight:800;color:#8a6d1f" title="반제품 생산공정 기록이 없어 MES 완제품 계획 합계를 계획으로 씁니다. SKU 계획칸에서 수정하면 즉시 반영됩니다.">MES 계획</div>`:''}
             ${pb.src==='dry'&&g.base_match==='proc'?`<div style="font-size:9.5px;font-weight:800;color:#0d7a8a" title="이 계획번호의 ${g.base_type} 공정에 투입된 원부재료·반제품 합계입니다(부자재 제외). 중간 계량이 없는 라인이라 투입량을 계획으로 봅니다.">원재료 투입</div>`:''}
             ${pb.src==='dry'&&g.base_match==='code'?`<div style="font-size:9.5px;font-weight:800;color:#b54708" title="이 계획번호로 반제품 생산 기록을 찾지 못해, 같은 반제품 품번의 가장 최근 1일치 산출을 대신 사용했습니다. 다른 계획번호의 물량일 수 있으니 수율 판단 시 주의하세요.">⚠ 품번 추정</div>`:''}
@@ -7427,7 +7527,9 @@ function buildYieldSummary(){
       <td class="mono">${r.prod_code}</td>
       <td class="l">${r.prod_name||'-'}</td>
       <td><span class="pk-type ${r.base_type==='오븐'?'pk-oven':'pk-coat'}">${isT2()?(baseTypeLabel({base_code:r.prod_code,base_type:r.base_type})||'반제품'):r.base_type}</span></td>
-      <td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}&#10;압출·건조에서 수분이 증발하는 구간입니다.">${cell(r.ep_rate,[60,80])}</td>
+      ${isT2()
+        ? `<td class="mono" title="이 품목의 포장 누계 실적입니다. 계획번호 단위로 합산되면 오른쪽 포장실적이 됩니다."><b>${fmt(Math.round(x.packCum))}</b>${x.packDay!=null&&x.packDay<x.packCum?`<div style="font-size:9.5px;font-weight:700;color:#8b7bbd">당일 ${fmt(Math.round(x.packDay))}</div>`:''}</td>`
+        : `<td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}&#10;압출·건조에서 수분이 증발하는 구간입니다.">${cell(r.ep_rate,[60,80])}</td>`}
       ${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle" title="포장 누계 ${fmt1(G.pack)} ÷ 계획 ${fmt1(G.dry)}kg&#10;② 포장 실적 표의 포장수율과 같은 값입니다.">${cell(G.pRate,[95,105])}</td>
       <td class="mono" rowspan="${n}" style="background:#fdead3;vertical-align:middle" title="포장 누계 ${fmt1(G.pack)} ÷ 투입 원자재 ${fmt1(G.raw)}kg — 원료를 넣어 완제품이 얼마나 나왔는지&#10;${G.going?`아직 ${fmt1(G.rest)}kg 이 포장 전이라 실제보다 낮게 보입니다.`:'포장 완결 기준이라 확정값에 가깝습니다.'}">${cell(G.fRate,[60,110])}${G.going?'<div style="font-size:9px;font-weight:800;color:#6d47c9">진행중</div>':''}</td>
       <td class="mono" rowspan="${n}" style="vertical-align:middle">${fmt(Math.round(G.raw))}</td>
@@ -7452,10 +7554,10 @@ function buildYieldSummary(){
       <table class="t2-table">
         <thead><tr>
           <th>생산계획번호</th><th>제품번호</th><th>제품명</th><th>구분</th>
-          <th class="th-hl">EP 수율<br><span style="font-weight:600;font-size:9.5px">EP산출÷EP투입</span></th>
+          <th class="th-hl">${isT2()?'SKU 실적(KG)<br><span style="font-weight:600;font-size:9.5px">품목별 포장 누계</span>':'EP 수율<br><span style="font-weight:600;font-size:9.5px">EP산출÷EP투입</span>'}</th>
           <th>포장수율<br><span style="font-weight:600;font-size:9.5px">포장÷산출</span></th>
           <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷원료</span></th>
-          <th>투입원료(KG)</th><th>포장실적(KG)<br><span style="font-weight:600;font-size:9.5px">SKU 누계 합</span></th><th>최종포장</th>
+          <th>${isT2()?'계획(KG)<br><span style="font-weight:600;font-size:9.5px">원료 실적</span>':'투입원료(KG)'}</th><th>포장실적(KG)<br><span style="font-weight:600;font-size:9.5px">SKU 누계 합</span></th><th>최종포장</th>
         </tr></thead>
         <tbody>${body}</tbody>
         ${foot}
