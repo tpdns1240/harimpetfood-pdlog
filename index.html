@@ -1006,7 +1006,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25s</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25t</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1043,7 +1043,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25s</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25t</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2942,10 +2942,8 @@ const TDD_COLS={
     {k:'order_cnt', t:'오더수', ty:'n', cls:'mono'},
     {k:'plan_sum',  t:'계획',   ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
     {k:'actual_sum',t:'실적',   ty:'n', cls:'mono', f:v=>`<b>${fmt(Math.round(v||0))}</b>`},
-    {k:'yield_rate',t:'수율',   ty:'n', cls:'mono',
-      f:(v,r)=>{ let y=(v!=null)?Number(v):(r.pack_rate!=null?Number(r.pack_rate):null);
-        if(y==null){ const p=Number(r.plan_sum)||0, a=Number(r.actual_sum)||0; y=p>0?a/p*100:null; }
-        return y==null?'–':`<b style="color:${y>=95?'var(--grn)':(y>=85?'#d97706':'#b42318')}">${y.toFixed(1)}%</b>`; }},
+    {k:'raw_in',    t:'원료투입', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
+    {k:'semi_in',   t:'반제품투입',ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'achieve',   t:'달성률', ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=95?'pos':'neg'},
     {k:'scrap_rate',t:'스크랩률',ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
     {k:'defect_rate',t:'불량률', ty:'n', cls:'mono', f:v=>v>0?v+'%':'–'},
@@ -5546,7 +5544,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25s';
+const APP_VERSION='v2026.08.25t';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
