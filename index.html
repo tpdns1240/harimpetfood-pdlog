@@ -444,6 +444,17 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .pt-kpi>div{background:#f6f9fd;border:1px solid var(--line);border-radius:9px;padding:8px 10px;text-align:center}
 .pt-kpi span{display:block;font-size:10px;color:var(--mut);font-weight:700}
 .pt-kpi b{font-size:15px;font-variant-numeric:tabular-nums}
+.pt-std{font-size:9.5px;font-weight:700;color:#8a6d1f;margin-top:2px;letter-spacing:0}
+.pt-std b{font-size:10px}
+.pt-std.none{color:#b8c1cf}
+.pt-chain{margin-top:12px;border:1px solid #dfe6f1;border-radius:10px;overflow:hidden;background:#fbfcfe}
+.pt-chain.none{padding:10px 12px;font-size:11.5px;color:var(--mut);text-align:center}
+.pt-chain-hd{background:#eef3fb;padding:6px 11px;font-size:11px;font-weight:800;color:#1c3f7d}
+.pt-chain-row{display:flex;align-items:center;gap:9px;padding:7px 11px;border-top:1px solid #edf1f7;font-size:12px}
+.pt-chain-row .pt-step{font-weight:800;color:#3565b8;white-space:nowrap;min-width:82px}
+.pt-chain-row .pt-line{color:var(--sub);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pt-chain-row .pt-code{font-family:ui-monospace,monospace;font-size:11px;color:#98a2b3}
+.pt-chain-row i{font-style:normal;min-width:104px;text-align:right}
 /* ② 생산완료 처리 버튼 · 불량 즉시등록 버튼 */
 .pk-dbtn{margin-top:4px;padding:2px 8px;font-size:10px;font-weight:800;border-radius:6px;cursor:pointer;
   border:1px solid #c7d2e6;background:#fff;color:#3565b8;white-space:nowrap}
@@ -463,7 +474,7 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .dq-hd{display:flex;align-items:center;padding:13px 16px;background:#1c3f7d;color:#fff;font-size:14px}
 .dq-hd .dq-x{margin-left:auto;cursor:pointer;opacity:.75;font-size:15px;line-height:1}
 .dq-hd .dq-x:hover{opacity:1}
-.dq-prod{padding:10px 16px;background:#f4f7fc;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:700;color:#1c3f7d}
+.dq-prod{display:flex;align-items:center;gap:6px;padding:10px 16px;background:#f4f7fc;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:700;color:#1c3f7d}
 .dq-prod .dq-code{font-family:ui-monospace,monospace;background:#e3ecf9;padding:1px 6px;border-radius:5px;margin-right:6px}
 .dq-grid{display:grid;grid-template-columns:64px 1fr;gap:9px 10px;padding:14px 16px;align-items:center}
 .dq-grid label{font-size:11.5px;font-weight:800;color:var(--sub)}
@@ -1006,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25t</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1043,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.25t</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2942,6 +2953,9 @@ const TDD_COLS={
     {k:'order_cnt', t:'오더수', ty:'n', cls:'mono'},
     {k:'plan_sum',  t:'계획',   ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
     {k:'actual_sum',t:'실적',   ty:'n', cls:'mono', f:v=>`<b>${fmt(Math.round(v||0))}</b>`},
+    {k:'pack_rate', t:'포장수율', ty:'n', cls:'mono',
+      f:(v,r)=>v==null?'–':`<b style="color:${v>=95&&v<=105?'var(--grn)':(v>=85?'#d97706':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
+    {k:'pack_qty',  t:'포장실적', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'raw_in',    t:'원료투입', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'semi_in',   t:'반제품투입',ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'achieve',   t:'달성률', ty:'n', cls:'mono', f:v=>(v==null?'–':v+'%'), c:v=>v>=95?'pos':'neg'},
@@ -2950,6 +2964,75 @@ const TDD_COLS={
     {k:'net_loss',  t:'로스금액',ty:'n', cls:'mono', f:v=>fmtWon(v), c:v=>wonCls(v)}
   ]
 };
+/* team_plan_drill 은 배포 시점에 따라 인자가 3개(p_team,p_from,p_to) 이거나
+   4개(+p_kind) 다. 시그니처를 가정하지 않고 4→3 순으로 시도한다.
+   PostgREST 는 인자 조합이 안 맞으면 "Could not find the function ..." 을 던진다. */
+async function rpcPlanDrill(team, from, to){
+  let r=await sb.rpc('team_plan_drill',{p_team:team,p_from:from,p_to:to,p_kind:null});
+  if(r.error && /Could not find the function/i.test(String(r.error.message||''))){
+    r=await sb.rpc('team_plan_drill',{p_team:team,p_from:from,p_to:to});
+  }
+  return r;
+}
+/* 설계수율 전역 캐시 — 팀별현황·추이 팝업에서 기준 대비를 내려면 필요하다.
+   설정 화면과 같은 get_design_yield 를 쓰되 1회만 받아 재사용한다. */
+let DY_MAP=null;
+let PT_ROWS=null;   // 추이 팝업의 일자별 목록 (엑셀 다운로드용)
+function ptExport(){
+  if(!PT_ROWS || !PT_ROWS.list || !PT_ROWS.list.length){ toast('내려받을 행이 없습니다','err'); return; }
+  const fin=PT_ROWS.fin;
+  const head=['일자','오더수','계획(KG)','투입 실적','원료 투입',
+              fin?'포장 실적':'반제품 투입', fin?'반제품 산출':'하공정 소비',
+              fin?'포장수율(%)':'수율(%)'].concat(fin?[]:['달성률(%)']);
+  const body=PT_ROWS.list.map(o=>{
+    const r=[o.d, o.n||'', Math.round(o.plan), Math.round(o.act), Math.round(o.raw),
+             Math.round(o.semi), Math.round(o.out), o.yield==null?'':o.yield.toFixed(1)];
+    if(!fin) r.push(o.ach==null?'':o.ach.toFixed(1));
+    return r;
+  });
+  downloadCSV(`제품추이_${PT_ROWS.code}_${TD.from}_${TD.to}.csv`, head, body);
+  toast(`${body.length}일 내려받기`,'ok');
+}
+async function dyMap(){
+  if(DY_MAP) return DY_MAP;
+  try{
+    const {data}=await sb.rpc('get_design_yield');
+    DY_MAP={};
+    (data||[]).forEach(x=>{ DY_MAP[String(x.item_code)]={y:(x.design_yield==null?null:Number(x.design_yield)), kind:x.proc_kind||''}; });
+  }catch(_){ DY_MAP={}; }
+  return DY_MAP;
+}
+/* 목록 → 엑셀(CSV·UTF-8 BOM) 다운로드. 엑셀에서 바로 열리고 한글이 깨지지 않는다. */
+function csvCell(v){
+  const t=String(v==null?'':v).replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
+  return /[",\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t;
+}
+function downloadCSV(filename, header, rows){
+  const body=[header.map(csvCell).join(',')]
+    .concat(rows.map(r=>r.map(csvCell).join(','))).join('\r\n');
+  const blob=new Blob(['\uFEFF'+body], {type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 300);
+}
+function tddExport(){
+  const cols=TDD_COLS[TDD.kind]||[];
+  let rows=(TDD.rows||[]).slice();
+  const q=(TDD.q||'').trim().toLowerCase();
+  if(q) rows=rows.filter(r=>Object.keys(r).some(k=>String(r[k]||'').toLowerCase().includes(q)));
+  if(TDD.kind2) rows=rows.filter(r=>r.kind===TDD.kind2);
+  if(!rows.length){ toast('내려받을 행이 없습니다','err'); return; }
+  const head=cols.map(c=>c.t);
+  const body=rows.map(r=>cols.map(c=>{
+    const v=r[c.k];
+    if(c.k==='kind') return v==='fin'?'완제품':(v==='semi'?'반제품':(v||''));
+    return (v==null)?'':v;
+  }));
+  const nm=`제품별드릴다운_${TD.team}_${TD.from}_${TD.to}.csv`;
+  downloadCSV(TDD.kind==='order'?nm.replace('제품별','오더별'):nm, head, body);
+  toast(`${rows.length}행 내려받기`,'ok');
+}
 async function openTDDrill(kind){
   S.view='tddrill';
   $('#wrap').innerHTML='<div class="skel" style="height:500px;border-radius:14px"></div>';
@@ -2958,7 +3041,7 @@ async function openTDDrill(kind){
   try{
     if(TDD.kind==='order'){
       const [dr,sc,ph]=await Promise.all([
-        sb.rpc('team_plan_drill',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null}),
+        rpcPlanDrill(TD.team, TD.from, TD.to),
         sb.rpc('team_plan_score',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
         sb.rpc('team_proc_hoki', {p_team:TD.team,p_from:TD.from,p_to:TD.to})
       ]);
@@ -2998,6 +3081,7 @@ function tddShell(){
       ${kseg}
       <span id="tddSortInfo" style="font-size:11.5px;color:var(--mut)"></span>
       <span class="sp" style="flex:1"></span>
+      <button class="tbtn" onclick="tddExport()" title="현재 검색·구분 필터가 적용된 목록을 엑셀(CSV)로 내려받습니다">⤓ 엑셀</button>
       <button class="tbtn" onclick="tddReset()">↺ 초기화</button>
     </div>
     <div class="sec-bd" style="padding-top:0">
@@ -3055,78 +3139,164 @@ function tddPaint(){
   if(si) si.textContent=TDD.sk?`${(cols.find(x=>x.k===TDD.sk)||{}).t} ${TDD.sd<0?'내림차순':'오름차순'}`:'헤더 클릭 시 정렬';
 }
 /* ════════════════════════════════════════════════════════════════════
-   제품별 수율 추이 팝업 (팀별현황 → 제품별 드릴다운 → 행 클릭)
-   ── 데이터는 team_plan_drill(계획번호 단위)을 기간 1회만 받아 캐시하고,
-      품번으로 걸러 일자별로 묶는다. 새 SQL 없이 추이를 만든다.
-   ── 차트는 SVG 직접 그리기 — 외부 라이브러리 없이 즉시 렌더된다.
+   제품별 생산 추이 팝업 (팀별현황 → 제품별 드릴다운 → 행 클릭)
+   ── RPC 시그니처에 의존하지 않는다. team_plan_drill 은 배포본마다 인자가 달라
+      "Could not find the function" 이 반복됐다. 그래서 원본 테이블을 직접 읽는다.
+   ── 두 갈래를 함께 받는다.
+        A) prod_code = 이 품목  → 이 품목을 만들려고 투입한 자재
+        B) mat_code  = 이 품목  → 하공정이 이 품목을 가져다 쓴 양 (= 산출 근사)
+      수율 = B ÷ A. 하공정 소비 기록이 없으면 수율은 비우고 달성률만 그린다.
+   ── 차트는 SVG 직접 렌더. 외부 라이브러리가 없어 즉시 뜬다.
    ════════════════════════════════════════════════════════════════════ */
-let PT_CACHE=null, PT_KEY='';
 async function openProdTrend(code, name){
-  // 집계 함수가 품번을 안 내려주는 경우가 있어 제품명으로도 추적한다
-  if(!code && !name) { toast('품번·제품명이 모두 없어 추이를 만들 수 없습니다','err'); return; }
-  const key=`${TD.team}|${TD.from}|${TD.to}`;
+  if(!code){ toast('품번이 없어 추이를 만들 수 없습니다','err'); return; }
   const back=document.createElement('div');
   back.className='dq-back'; back.id='ptBack';
   back.onclick=(e)=>{ if(e.target===back) closeProdTrend(); };
-  back.innerHTML=`<div class="pt-box"><div class="dq-hd"><b>제품 수율 추이</b><span class="dq-x" onclick="closeProdTrend()">✕</span></div>
-    <div class="dq-prod">${code?`<span class="dq-code">${code}</span> `:''}${name||''}</div>
+  back.innerHTML=`<div class="pt-box"><div class="dq-hd"><b>제품 생산 추이</b><span class="dq-x" onclick="closeProdTrend()">✕</span></div>
+    <div class="dq-prod"><span class="dq-code">${code}</span> ${name||''}
+      <button class="tbtn" style="margin-left:auto;padding:3px 9px;font-size:11px" onclick="ptExport()" title="아래 일자별 목록을 엑셀(CSV)로 내려받습니다">⤓ 엑셀</button></div>
     <div id="ptBody" style="padding:16px"><div class="skel" style="height:220px;border-radius:10px"></div></div></div>`;
   document.body.appendChild(back);
+  const F='work_date,plan_no,mat_code,prod_name,plan_qty,actual_qty';
+  const q=(col,val)=>sb.from('db_plan_raw').select(F)
+      .eq('team',TD.team).eq(col,val)
+      .gte('work_date',TD.from).lte('work_date',TD.to);
+  /* 주 반제품 = 그 품목이 가장 많이 소비한 6번대 자재. MES 는 제품 산출 행이 없고
+     다음 공정의 자재 투입이 이전 공정의 산출이므로 이 체인으로 수율을 만든다. */
+  const pickBase=(rows)=>{
+    const m={};
+    (rows||[]).forEach(r=>{ if(String(r.mat_code||'')[0]==='6') m[r.mat_code]=(m[r.mat_code]||0)+(Number(r.actual_qty)||0); });
+    const k=Object.keys(m).sort((x,y)=>m[y]-m[x])[0];
+    return k||'';
+  };
   try{
-    if(PT_KEY!==key || !PT_CACHE){
-      const {data,error}=await sb.rpc('team_plan_drill',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_kind:null});
-      if(error)throw error;
-      PT_CACHE=data||[]; PT_KEY=key;
+    const fin=['2','3'].includes(String(code)[0]);
+    const [inp, dy]=await Promise.all([ q('prod_code',code), dyMap() ]);
+    if(inp.error) throw inp.error;
+    const inRows=inp.data||[];
+    let outRows=[], baseRows=[], base2Rows=[], baseCode='', base2Code='';
+    if(fin){
+      baseCode=pickBase(inRows);
+      if(baseCode){
+        const r1=await q('prod_code',baseCode);
+        baseRows=r1.error?[]:(r1.data||[]);
+        base2Code=pickBase(baseRows);
+        if(base2Code){ const r2=await q('prod_code',base2Code); base2Rows=r2.error?[]:(r2.data||[]); }
+      }
+    }else{
+      const r=await q('mat_code',code);
+      outRows=r.error?[]:(r.data||[]);
     }
-    prodTrendPaint(code,name);
+    prodTrendPaint(code, name, inRows, outRows, dy, fin, {baseCode, baseRows, base2Code, base2Rows});
   }catch(e){
     const b=document.getElementById('ptBody');
     if(b) b.innerHTML=`<div style="color:#b42318;font-size:12.5px;padding:20px;text-align:center">추이 조회 실패 — ${String(e.message||e)}</div>`;
   }
 }
 function closeProdTrend(){ const b=document.getElementById('ptBack'); if(b) b.remove(); }
-function prodTrendPaint(code,name){
-  const rows=(PT_CACHE||[]).filter(r=>code
-    ? String(r.prod_code)===String(code)
-    : String(r.prod_name||'').trim()===String(name||'').trim());
+function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
+  ch=ch||{};
+  const sumMat=(rows)=>{ const m={}; (rows||[]).forEach(r=>{
+      const d=String(r.work_date||'').slice(0,10); if(!d) return;
+      if(String(r.mat_code||'')[0]!=='5') m[d]=(m[d]||0)+(Number(r.actual_qty)||0); }); return m; };
+  const baseOutByDay=sumMat(ch.baseRows);          // 완제품 : 기준 반제품의 일자별 산출
   const by={};
-  rows.forEach(r=>{
-    const d=String(r.first_date||'').slice(0,10); if(!d) return;
-    const o=by[d]||(by[d]={d, plan:0, act:0, base:0, done:0, loss:0, n:0});
-    o.plan+=Number(r.plan_qty)||0; o.act+=Number(r.actual_qty)||0;
-    o.base+=Number(r.pack_base)||0; o.done+=Number(r.pack_done)||0;
-    o.loss+=Number(r.loss_amt)||0; o.n++;
+  const slot=(d)=>by[d]||(by[d]={d, plan:0, act:0, raw:0, semi:0, out:0, orders:new Set()});
+  (inRows||[]).forEach(r=>{
+    const d=String(r.work_date||'').slice(0,10); if(!d) return;
+    const o=slot(d), c=String(r.mat_code||'')[0];
+    const pq=Number(r.plan_qty)||0, aq=Number(r.actual_qty)||0;
+    if(c!=='5'){ o.plan+=pq; o.act+=aq; }
+    if(c==='1') o.raw+=aq;
+    if(c==='6') o.semi+=aq;
+    if(r.plan_no) o.orders.add(r.plan_no);
   });
+  (outRows||[]).forEach(r=>{
+    const d=String(r.work_date||'').slice(0,10); if(!d) return;
+    slot(d).out+=Number(r.actual_qty)||0;
+  });
+  if(fin) Object.keys(baseOutByDay).forEach(d=>{ slot(d).out=baseOutByDay[d]; });
   const list=Object.keys(by).sort().map(k=>{
     const o=by[k];
-    o.yield = o.base>0 ? o.done/o.base*100 : null;      // 포장수율
-    o.ach   = o.plan>0 ? o.act/o.plan*100 : null;       // 달성률
+    o.n=o.orders.size;
+    o.ach  = o.plan>0 ? o.act/o.plan*100 : null;
+    // 완제품 : 포장실적(반제품 투입) ÷ 기준 반제품 산출 = 포장수율
+    // 반제품 : 하공정 소비 ÷ 자기 자재 투입      = 이 공정의 수율
+    o.pack = fin ? o.semi : o.out;
+    o.yield= fin ? ((o.out>0&&o.semi>0)? o.semi/o.out*100 : null)
+                 : ((o.out>0&&o.act>0) ? o.out /o.act *100 : null);
     return o;
-  });
+  }).filter(o=>o.act>0||o.plan>0);
   const b=document.getElementById('ptBody'); if(!b) return;
+  PT_ROWS={code, name, fin:!!fin, list};
   if(!list.length){ b.innerHTML='<div style="color:var(--mut);font-size:12.5px;padding:26px;text-align:center">이 기간에 이 품목의 생산 기록이 없습니다</div>'; return; }
-  const ys=list.map(o=>o.yield).filter(v=>v!=null);
-  const avg=ys.length?ys.reduce((a,c)=>a+c,0)/ys.length:null;
-  const mn=ys.length?Math.min(...ys):0, mx=ys.length?Math.max(...ys):100;
+
+  const hasY=list.some(o=>o.yield!=null);
+  const key=hasY?'yield':'ach';
+  const vs=list.map(o=>o[key]).filter(v=>v!=null);
+  const avg=vs.length?vs.reduce((a,c)=>a+c,0)/vs.length:null;
+  const mn=vs.length?Math.min(...vs):0, mx=vs.length?Math.max(...vs):100;
   const lo=Math.max(0,Math.floor((mn-5)/5)*5), hi=Math.ceil((mx+5)/5)*5;
-  const W=560,H=190,PL=42,PR=12,PT=14,PB=26;
-  const iw=W-PL-PR, ih=H-PT-PB;
+  const W=560,H=190,PL=44,PR=12,PT=14,PB=26, iw=W-PL-PR, ih=H-PT-PB;
   const px=(i)=>PL+(list.length<2?iw/2:iw*i/(list.length-1));
   const py=(v)=>PT+ih-(ih*(v-lo)/Math.max(hi-lo,1));
-  const pts=list.map((o,i)=>o.yield==null?null:`${px(i).toFixed(1)},${py(o.yield).toFixed(1)}`).filter(Boolean).join(' ');
+  const col=(v)=>v>=95?'#0d6b42':(v>=85?'#d97706':'#b42318');
+  const pts=list.map((o,i)=>o[key]==null?null:`${px(i).toFixed(1)},${py(o[key]).toFixed(1)}`).filter(Boolean).join(' ');
   const grid=[0,.25,.5,.75,1].map(f=>{ const v=lo+(hi-lo)*f, y=py(v);
     return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e6ebf3"/><text x="${PL-6}" y="${y+3.5}" text-anchor="end" font-size="9" fill="#98a2b3">${v.toFixed(0)}%</text>`; }).join('');
-  const dots=list.map((o,i)=>o.yield==null?'':`<circle cx="${px(i)}" cy="${py(o.yield)}" r="3.4" fill="#fff" stroke="${o.yield>=95?'#0d6b42':(o.yield>=85?'#d97706':'#b42318')}" stroke-width="2"><title>${o.d} · ${o.yield.toFixed(1)}%</title></circle>`).join('');
+  const dots=list.map((o,i)=>o[key]==null?'':`<circle cx="${px(i)}" cy="${py(o[key])}" r="3.4" fill="#fff" stroke="${col(o[key])}" stroke-width="2"><title>${o.d} · ${o[key].toFixed(1)}%</title></circle>`).join('');
   const xlab=list.map((o,i)=>(list.length<=8||i%Math.ceil(list.length/8)===0)?`<text x="${px(i)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#98a2b3">${o.d.slice(5)}</text>`:'').join('');
   const avgLine=avg==null?'':`<line x1="${PL}" y1="${py(avg)}" x2="${W-PR}" y2="${py(avg)}" stroke="#5a3fb8" stroke-dasharray="4 3" stroke-width="1.2"/>`;
+
+  const stdOf=(c)=>(dy&&dy[String(c)]&&dy[String(c)].y!=null)?Number(dy[String(c)].y):null;
+  const stdBox=(v,c)=>{ const st=stdOf(c); if(st==null) return '<i class="pt-std none">기준 미등록</i>';
+    const g=(v==null)?null:(v-st);
+    return `<i class="pt-std">기준 ${st.toFixed(1)}%${g==null?'':` <b style="color:${g>=0?'#0d6b42':'#b42318'}">${g>=0?'+':''}${g.toFixed(1)}%p</b>`}</i>`; };
+  const std=stdOf(code), gap=(std!=null&&avg!=null)?(avg-std):null;
+  const stdLine=(std!=null)
+    ? `<div class="pt-std">기준 ${std.toFixed(1)}%${gap==null?'':` <b style="color:${gap>=0?'#0d6b42':'#b42318'}">${gap>=0?'+':''}${gap.toFixed(1)}%p</b>`}</div>`
+    : `<div class="pt-std none" title="설정 → 🎯 설계수율에 이 품번의 기준값이 없습니다">기준 미등록</div>`;
+
+  // 완제품 공정 단계별 수율 — 자재 체인으로 직접 계산 (별도 함수·테이블 없이)
+  let chainBox='';
+  if(fin){
+    const sumAll=(rows)=>(rows||[]).reduce((a,r)=>a+(String(r.mat_code||'')[0]!=='5'?(Number(r.actual_qty)||0):0),0);
+    const sumSemi=(rows)=>(rows||[]).reduce((a,r)=>a+(String(r.mat_code||'')[0]==='6'?(Number(r.actual_qty)||0):0),0);
+    const packQ=list.reduce((a,o)=>a+o.semi,0);
+    const baseOut=sumAll(ch.baseRows);
+    const y1=baseOut>0?packQ/baseOut*100:null;
+    const base2Out=sumAll(ch.base2Rows);
+    const base2Use=sumSemi(ch.baseRows);
+    const y2=base2Out>0?base2Use/base2Out*100:null;
+    const rows=[];
+    if(ch.baseCode) rows.push({t:'1차 포장수율', c:ch.baseCode, v:y1,
+      d:`포장 ${fmt1(packQ)} ÷ 반제품 산출 ${fmt1(baseOut)}`});
+    if(ch.base2Code) rows.push({t:'2차 건조수율', c:ch.base2Code, v:y2,
+      d:`건조 투입 ${fmt1(base2Use)} ÷ 산출 ${fmt1(base2Out)}`});
+    chainBox = rows.length
+      ? `<div class="pt-chain"><div class="pt-chain-hd">공정 단계별 수율</div>
+          ${rows.map(x=>`<div class="pt-chain-row">
+            <span class="pt-step">${x.t}</span>
+            <span class="pt-line" title="${x.d}">${x.d}</span>
+            <span class="pt-code">${x.c}</span>
+            <b style="color:${x.v==null?'var(--mut)':col(x.v)}">${x.v==null?'–':x.v.toFixed(1)+'%'}</b>
+            ${stdBox(x.v,x.c)}</div>`).join('')}
+          ${!ch.base2Code?'<div class="pt-chain-row" style="color:var(--mut);font-size:11.5px">2차 단계 없음 — 오븐 제품은 중간 반제품이 없습니다</div>':''}
+         </div>`
+      : `<div class="pt-chain none">이 완제품이 소비한 반제품 기록이 없어 단계별 수율을 낼 수 없습니다</div>`;
+  }
+  const label=fin?'포장수율 (반제품 투입 ÷ 기준 반제품 산출)':'수율 (하공정 소비 ÷ 자재 투입)';
   b.innerHTML=`
     <div class="pt-kpi">
-      <div><span>기간 평균 수율</span><b style="color:${avg==null?'var(--mut)':(avg>=95?'#0d6b42':(avg>=85?'#d97706':'#b42318'))}">${avg==null?'–':avg.toFixed(1)+'%'}</b></div>
-      <div><span>최고 / 최저</span><b>${ys.length?mx.toFixed(1)+'% / '+mn.toFixed(1)+'%':'–'}</b></div>
+      <div><span>기간 평균</span><b style="color:${avg==null?'var(--mut)':col(avg)}">${avg==null?'–':avg.toFixed(1)+'%'}</b>${stdLine}</div>
+      <div><span>최고 / 최저</span><b>${vs.length?mx.toFixed(1)+'% / '+mn.toFixed(1)+'%':'–'}</b></div>
       <div><span>생산 일수</span><b>${list.length}일</b></div>
-      <div><span>누적 실적</span><b>${fmt(Math.round(list.reduce((a,o)=>a+o.act,0)))}kg</b></div>
+      <div><span>${fin?'누적 포장':'누적 투입'}</span><b>${fmt(Math.round(list.reduce((a,o)=>a+(fin?o.semi:o.act),0)))}kg</b></div>
     </div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin:10px 0 4px">
+    ${chainBox}
+    <div style="font-size:11px;font-weight:800;color:#3565b8;margin-top:10px">${hasY?label:'달성률 (실적 ÷ 계획) — 수율 산출에 필요한 기록이 없습니다'}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin:2px 0 4px">
       ${grid}${avgLine}
       <polyline points="${pts}" fill="none" stroke="#3565b8" stroke-width="2.2" stroke-linejoin="round"/>
       ${dots}${xlab}
@@ -3134,15 +3304,17 @@ function prodTrendPaint(code,name){
     <div style="font-size:10.5px;color:var(--mut);margin-bottom:10px">보라 점선 = 기간 평균 · 점 색은 95%↑ 녹색 / 85~95% 주황 / 85% 미만 적색</div>
     <div style="max-height:34vh;overflow:auto">
       <table class="t2-table" style="font-size:12px">
-        <thead><tr><th>일자</th><th>오더</th><th>계획(KG)</th><th>실적(KG)</th><th>달성률</th><th>포장수율</th><th>로스금액</th></tr></thead>
+        <thead><tr><th>일자</th><th>오더</th><th>계획(KG)</th><th>투입 실적</th>${fin?'':'<th>달성률</th>'}<th>원료 투입</th><th>${fin?'포장 실적':'반제품 투입'}</th><th>${fin?'반제품 산출':'하공정 소비'}</th><th>${fin?'포장수율':'수율'}</th></tr></thead>
         <tbody>${list.slice().reverse().map(o=>`<tr>
           <td class="mono">${o.d}</td>
-          <td class="mono">${o.n}</td>
+          <td class="mono">${o.n||'–'}</td>
           <td class="mono">${fmt(Math.round(o.plan))}</td>
           <td class="mono"><b>${fmt(Math.round(o.act))}</b></td>
-          <td class="mono ${o.ach==null?'':(o.ach>=95?'pos':'neg')}">${o.ach==null?'–':o.ach.toFixed(1)+'%'}</td>
-          <td class="mono"><b style="color:${o.yield==null?'var(--mut)':(o.yield>=95?'#0d6b42':(o.yield>=85?'#d97706':'#b42318'))}">${o.yield==null?'–':o.yield.toFixed(1)+'%'}</b></td>
-          <td class="mono ${Number(o.loss)>0?'neg':''}">${Number(o.loss)>0?fmt(Math.round(o.loss))+'원':'–'}</td>
+          ${fin?'':`<td class="mono ${o.ach==null?'':(o.ach>=95?'pos':'neg')}">${o.ach==null?'–':o.ach.toFixed(1)+'%'}</td>`}
+          <td class="mono">${o.raw>0?fmt(Math.round(o.raw)):'–'}</td>
+          <td class="mono">${o.semi>0?fmt(Math.round(o.semi)):'–'}</td>
+          <td class="mono">${o.out>0?fmt(Math.round(o.out)):'–'}</td>
+          <td class="mono">${o.yield==null?'–':`<b style="color:${col(o.yield)}">${o.yield.toFixed(1)}%</b>`}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>`;
@@ -3192,11 +3364,22 @@ async function tddChain(code){
   if(TDD.open===code){ TDD.open=null; if(box) box.innerHTML=''; tddPaint(); return; }
   TDD.open=code; tddPaint();
   if(box) box.innerHTML='<div class="skel" style="height:140px;border-radius:12px"></div>';
-  let rows=[];
+  let rows=[], chainErr='';
   try{
     const {data,error}=await sb.rpc('product_semi_chain',{p_team:TD.team,p_from:TD.from,p_to:TD.to,p_prod:code});
     if(error) throw error; rows=data||[];
-  }catch(e){ toast('반제품 조회 실패: '+(e.message||e),'err'); }
+  }catch(e){
+    const m=String(e.message||e);
+    // 이 DB 에는 product_semi_chain 이 배포되지 않았다. 오류 토스트 대신 안내로 대체한다.
+    chainErr=/Could not find the function|does not exist/i.test(m)
+      ? '이 기능에 필요한 product_semi_chain 함수가 DB에 없습니다. 설치 후 다시 시도하세요.'
+      : m;
+  }
+  if(chainErr && $('#tddChain')){
+    $('#tddChain').innerHTML=`<div class="sec" style="border:1px solid #fed7aa;margin:0"><div class="sec-bd" style="padding:14px;font-size:12.5px;color:#9a3412">⚠ ${chainErr}
+      <button class="tbtn" style="margin-left:10px" onclick="tddChain('${String(code).replace(/'/g,"")}')">닫기</button></div></div>`;
+    return;
+  }
   if(!box) return;
   const nm=(TDD.rows.find(x=>x.prod_code===code)||{}).prod_name||'';
   box.innerHTML=`
@@ -5544,7 +5727,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.25t';
+const APP_VERSION='v2026.08.26a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
