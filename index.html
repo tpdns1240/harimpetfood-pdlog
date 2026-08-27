@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5733,7 +5733,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.26b';
+const APP_VERSION='v2026.08.26c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7704,11 +7704,6 @@ function buildYieldSummary(){
     const uniq=[...new Set(list.map(x=>Math.round(x.raw)))];
     totRaw += (uniq.length===1) ? list[0].raw : list.reduce((a,x)=>a+x.raw,0);
   });
-  const totPack=gOrder.reduce((a,G)=>a+G.pack,0);
-  const totDay =gOrder.reduce((a,G)=>a+G.day,0);
-  const totRest=gOrder.reduce((a,G)=>a+G.rest,0);
-  const totFinal=totRaw>0?totPack/totRaw*100:null;
-  const goingN=R.filter(x=>x.going).length;
 
   /* 계획번호 단위 병합 : 계획(투입원료)·포장 누계·수율은 계획번호 1행으로 묶고
      SKU(반제품 품목) 행은 그 안에서 각각 보여준다. 생산1팀·2팀 공통. */
@@ -7735,6 +7730,14 @@ function buildYieldSummary(){
     G.fRate= G.raw>0 ? G.pack/G.raw*100 : null;
     G.going= L.some(x=>x.going) && !(G.pRate!=null&&G.pRate>=PK_DONE);
   });
+
+  /* 합계 — gOrder(계획번호 병합 결과)가 만들어진 뒤에 계산해야 한다.
+     const 는 TDZ 가 있어 선언 전에 참조하면 ReferenceError 로 화면이 통째로 멈춘다. */
+  const totPack=gOrder.reduce((a,G)=>a+G.pack,0);
+  const totDay =gOrder.reduce((a,G)=>a+G.day,0);
+  const totRest=gOrder.reduce((a,G)=>a+G.rest,0);
+  const totFinal=totRaw>0?totPack/totRaw*100:null;
+  const goingN=gOrder.filter(G=>G.going).length;
 
   const T2=isT2();
   /* 생산2팀 전용 컬럼 : 생산계획번호 · 제품번호 · 제품명 · 구분 · 계획 · SKU실적 · 최종완료수율 · 최종포장
