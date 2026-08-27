@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2953,6 +2953,12 @@ const TDD_COLS={
     {k:'order_cnt', t:'오더수', ty:'n', cls:'mono'},
     {k:'plan_sum',  t:'계획',   ty:'n', cls:'mono', f:v=>fmt(Math.round(v||0))},
     {k:'actual_sum',t:'실적',   ty:'n', cls:'mono', f:v=>`<b>${fmt(Math.round(v||0))}</b>`},
+    {k:'dry_type',  t:'건조',   ty:'s', cls:'tag',
+      f:v=>v?`<span class="pk-type ${v==='오븐'?'pk-oven':'pk-coat'}">${v}</span>`:'<span style="color:#c4ccd8">–</span>'},
+    {k:'coat_rate', t:'코터수율', ty:'n', cls:'mono',
+      f:(v,r)=>v==null
+        ? (r.dry_type==='오븐'?'<span style="color:#c4ccd8" title="오븐 제품은 중간 반제품이 없어 코터수율이 존재하지 않습니다">–</span>':'–')
+        : `<b style="color:${v>=70&&v<=90?'var(--grn)':(v>90?'#7fc99a':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
     {k:'pack_rate', t:'포장수율', ty:'n', cls:'mono',
       f:(v,r)=>v==null?'–':`<b style="color:${v>=95&&v<=105?'var(--grn)':(v>=85?'#d97706':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
     {k:'pack_qty',  t:'포장실적', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
@@ -5727,7 +5733,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.26a';
+const APP_VERSION='v2026.08.26b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7674,7 +7680,9 @@ function buildYieldSummary(){
   }); }catch(_){}
 
   const R=rows.map(r=>{
-    const g=gmap[(r.plan_no||'')+'|'+r.prod_code] || gplan[r.plan_no||''] || null;
+    // 정확 키(계획번호|반제품품번) 우선. 계획번호 단위 폴백은 품번 체계가 다른 생산2팀에만 적용한다.
+    // 생산1팀에서 폴백을 쓰면 한 계획번호의 모든 묶음이 합산돼 수율이 부풀려진다.
+    const g=gmap[(r.plan_no||'')+'|'+r.prod_code] || (isT2()?gplan[r.plan_no||'']:null) || null;
     const packCum = g ? g.cum : (Number(r.pack_qty)||0);      // SKU 포장 총합계(누계)
     const packDay = g ? g.day : null;                          // 그중 당일분
     const dry     = (g&&g.plan>0) ? g.plan : (Number(r.dry_qty)||0);
@@ -7696,9 +7704,9 @@ function buildYieldSummary(){
     const uniq=[...new Set(list.map(x=>Math.round(x.raw)))];
     totRaw += (uniq.length===1) ? list[0].raw : list.reduce((a,x)=>a+x.raw,0);
   });
-  const totPack=R.reduce((a,x)=>a+x.packCum,0);
-  const totDay =R.reduce((a,x)=>a+(x.packDay||0),0);
-  const totRest=R.reduce((a,x)=>a+x.rest,0);
+  const totPack=gOrder.reduce((a,G)=>a+G.pack,0);
+  const totDay =gOrder.reduce((a,G)=>a+G.day,0);
+  const totRest=gOrder.reduce((a,G)=>a+G.rest,0);
   const totFinal=totRaw>0?totPack/totRaw*100:null;
   const goingN=R.filter(x=>x.going).length;
 
@@ -7714,8 +7722,14 @@ function buildYieldSummary(){
     G.raw  = (uniq.length===1)? L[0].raw : L.reduce((a,x)=>a+x.raw,0);
     const ud=[...new Set(L.map(x=>Math.round(x.dry)))];
     G.dry  = (ud.length===1)? L[0].dry : L.reduce((a,x)=>a+x.dry,0);
-    G.pack = L.reduce((a,x)=>a+x.packCum,0);
-    G.day  = L.reduce((a,x)=>a+(x.packDay||0),0);
+    /* ★ 포장 누계도 중복 제거 대상이다.
+       같은 계획번호의 SKU 행들이 모두 같은 ② 묶음(gmap)을 가리키면
+       x.packCum 이 행마다 "묶음 전체 누계" 라 그대로 더하면 SKU 수만큼 곱해진다.
+       (생산1팀 포장수율 300% 의 원인) 값이 전부 같으면 1회만, 다르면 합산한다. */
+    const up=[...new Set(L.map(x=>Math.round(x.packCum)))];
+    G.pack = (up.length===1 && L.length>1) ? L[0].packCum : L.reduce((a,x)=>a+x.packCum,0);
+    const ud2=[...new Set(L.map(x=>Math.round(x.packDay||0)))];
+    G.day  = (ud2.length===1 && L.length>1) ? (L[0].packDay||0) : L.reduce((a,x)=>a+(x.packDay||0),0);
     G.rest = Math.max(G.dry-G.pack,0);
     G.pRate= G.dry>0 ? G.pack/G.dry*100 : null;
     G.fRate= G.raw>0 ? G.pack/G.raw*100 : null;
