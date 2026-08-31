@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.26e</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2982,6 +2982,16 @@ async function rpcPlanDrill(team, from, to){
 }
 /* 설계수율 전역 캐시 — 팀별현황·추이 팝업에서 기준 대비를 내려면 필요하다.
    설정 화면과 같은 get_design_yield 를 쓰되 1회만 받아 재사용한다. */
+let UW_MAP=null;          // 품번 → 개당중량(kg). 포장 kg 을 EA 로 환산할 때 쓴다.
+async function uwMap(){
+  if(UW_MAP) return UW_MAP;
+  try{
+    const {data}=await sb.from('m_unit_weight').select('item_code,unit_kg');
+    UW_MAP={};
+    (data||[]).forEach(x=>{ const w=Number(x.unit_kg)||0; if(w>0) UW_MAP[String(x.item_code)]=w; });
+  }catch(_){ UW_MAP={}; }
+  return UW_MAP;
+}
 let DY_MAP=null;
 let PT_ROWS=null;   // 추이 팝업의 일자별 목록 (엑셀 다운로드용)
 function ptExport(){
@@ -4030,6 +4040,7 @@ function renderSettings(){
     <button class="stab ${SETTINGS_TAB==='mailmsg'?'on':''}" onclick="switchSettingsTab('mailmsg')">✉ 결재 알림 문구</button>
     <button class="stab ${SETTINGS_TAB==='bom'?'on':''}" onclick="switchSettingsTab('bom')">🧬 BOM 관리</button>
     <button class="stab ${SETTINGS_TAB==='dyield'?'on':''}" onclick="switchSettingsTab('dyield')">🎯 설계수율</button>
+    <button class="stab ${SETTINGS_TAB==='uweight'?'on':''}" onclick="switchSettingsTab('uweight')">⚖ 개당중량</button>
   </div>
   <div id="settingsBody"></div>`;
   switchSettingsTab(SETTINGS_TAB);
@@ -4046,6 +4057,7 @@ function switchSettingsTab(tab){
   else if(tab==='mailmsg'){ btns[6]&&btns[6].classList.add('on'); renderMailMsgMgmt(); }
   else if(tab==='bom'){ btns[7]&&btns[7].classList.add('on'); renderBomMgmt(); }
   else if(tab==='dyield'){ btns[8]&&btns[8].classList.add('on'); renderDYieldMgmt(); }
+  else if(tab==='uweight'){ btns[9]&&btns[9].classList.add('on'); renderUWeightMgmt(); }
   else { btns[1]&&btns[1].classList.add('on'); renderApprLine(); }
 }
 
@@ -4452,6 +4464,160 @@ async function dySync(){
 }
 function dySetFilter(f){ DY_FILTER=f; dyRenderBody(); }
 
+/* ════════════════════════════════════════════════════════════════════
+   개당중량 마스터 (설정 탭)
+   ── 완제품 1EA 의 중량(kg). 포장 실적 kg 을 EA 로 환산하는 유일한 기준이다.
+   ── 1,000행이 넘으므로 화면은 검색·필터로 좁히고, 대량 입력은 붙여넣기로 받는다.
+   ── 변경된 행만 골라 한 번에 upsert 한다(행마다 저장하면 1,000회 왕복이 된다).
+   ════════════════════════════════════════════════════════════════════ */
+let UW_LIST=[], UW_Q='', UW_FILTER='all', UW_DIRTY={};
+async function renderUWeightMgmt(){
+  $('#settingsBody').innerHTML='<div class="skel" style="height:280px;border-radius:14px"></div>';
+  try{
+    const {data,error}=await sb.from('m_unit_weight')
+      .select('item_code,item_name,unit_kg,memo,updated_by,updated_at').order('item_code');
+    if(error)throw error;
+    UW_LIST=data||[];
+  }catch(e){
+    $('#settingsBody').innerHTML=`<div class="sec"><div class="sec-bd" style="padding:20px;color:#b42318;font-size:13px">
+      조회 실패 — ${String(e.message||e)}<br><span style="color:var(--mut);font-size:12px">개당중량마스터.sql 을 먼저 실행했는지 확인하세요.</span></div></div>`;
+    return;
+  }
+  UW_DIRTY={}; uwRenderBody();
+}
+function uwRenderBody(){
+  const L=UW_LIST||[];
+  const cnt={all:L.length, none:L.filter(x=>!(Number(x.unit_kg)>0)).length};
+  cnt.has=cnt.all-cnt.none;
+  const q=UW_Q.trim().toLowerCase();
+  const view=L.filter(x=>{
+    if(UW_FILTER==='none' && Number(x.unit_kg)>0) return false;
+    if(UW_FILTER==='has'  && !(Number(x.unit_kg)>0)) return false;
+    if(q && !(String(x.item_code).toLowerCase().includes(q) || String(x.item_name||'').toLowerCase().includes(q))) return false;
+    return true;
+  }).slice(0,400);
+  const rows=view.map(x=>{
+    const none=!(Number(x.unit_kg)>0);
+    return `<tr class="${none?'dy-none':''}">
+      <td class="mono"><b>${x.item_code}</b></td>
+      <td class="l">${x.item_name||'-'}${none?'<span class="dy-badge">미입력</span>':''}</td>
+      <td style="white-space:nowrap">
+        <input class="inp-cell uw-in" data-code="${x.item_code}" type="number" step="0.001" min="0"
+          value="${none?'':x.unit_kg}" placeholder="미입력" style="width:110px;text-align:right"
+          oninput="uwMark('${x.item_code}')"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();uwSaveAll();}">
+        <span style="font-size:11px;color:var(--mut);margin-left:4px">kg/EA</span></td>
+      <td class="mono" style="font-size:11.5px;color:var(--sub)">${x.updated_by||'-'}</td>
+      <td><button class="rowbtn" style="border-color:#fda29b;color:#b42318" onclick="uwDelete('${x.item_code}')">삭제</button></td>
+    </tr>`;}).join('');
+  $('#settingsBody').innerHTML=`
+  <div class="sec"><div class="sec-bd" style="padding:14px 16px;font-size:12.5px;color:var(--sub);line-height:1.7">
+    ⚖ <b>개당중량</b>은 완제품 1EA 의 중량(kg)입니다. 포장 실적 kg 을 EA 로 환산하는 기준이며,
+    <b>당일 포장실적 카드</b>의 EA 값이 여기서 나옵니다.<br>
+    · 미입력 품번은 EA 환산에서 제외되고 카드에 <b style="color:#b42318">EA 미환산 n</b> 으로 표시됩니다.<br>
+    · <b>붙여넣기</b>로 대량 등록할 수 있습니다 — 엑셀에서 <b>품번 / 품목명 / 중량(kg)</b> 3열을 복사해 아래 칸에 붙여넣으세요.
+  </div></div>
+
+  <div class="sec"><div class="sec-hd"><span class="no c1">⚖</span><h3>대량 등록 (붙여넣기)</h3>
+    <span class="desc">품번 · 품목명 · 중량(kg) 순서 · 헤더 행이 있어도 자동으로 건너뜁니다</span></div>
+    <div class="sec-bd" style="padding:14px 16px">
+      <textarea id="uwPaste" placeholder="2000207&#9;더리얼 크런치 연어 시니어 1.6kg&#9;1.6" 
+        style="width:100%;height:110px;padding:10px;border:1px solid var(--line);border-radius:9px;font-family:ui-monospace,monospace;font-size:12.5px"></textarea>
+      <div style="display:flex;gap:8px;margin-top:9px;align-items:center">
+        <button class="btn-lg" style="margin:0;padding:9px 18px" onclick="uwPasteApply()">붙여넣기 등록</button>
+        <button class="tbtn" onclick="uwSync()">↻ 완제품 품번 자동 채우기</button>
+        <span id="uwPasteMsg" style="font-size:12px;color:var(--mut)"></span>
+      </div>
+    </div></div>
+
+  <div class="sec"><div class="sec-hd"><span class="no c1">📋</span><h3>개당중량 마스터</h3>
+    <span class="desc">${fmt(cnt.all)}건 · 입력 ${fmt(cnt.has)} · 미입력 ${fmt(cnt.none)}${view.length>=400?' · 상위 400건만 표시(검색으로 좁히세요)':''}</span></div>
+    <div class="sec-bd" style="padding:12px 16px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <input id="uwQ" value="${UW_Q.replace(/"/g,'&quot;')}" placeholder="품번·품목명 검색"
+          oninput="UW_Q=this.value;uwRenderBody();setTimeout(()=>{const e=$('#uwQ');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length);}},0)"
+          style="flex:1;min-width:200px;max-width:320px;padding:7px 12px;border:1.5px solid var(--line);border-radius:8px;font-size:12.5px">
+        <div class="seg"><span class="seg-label">보기</span>
+          ${[['all','전체'],['none','미입력'],['has','입력됨']].map(([k,l])=>`<button class="seg-btn ${UW_FILTER===k?'on':''}" onclick="UW_FILTER='${k}';uwRenderBody()">${l}</button>`).join('')}
+        </div>
+        <span class="sp" style="flex:1"></span>
+        <span id="uwDirty" style="font-size:12px;font-weight:800;color:#b45309"></span>
+        <button class="btn-lg" style="margin:0;padding:8px 16px" onclick="uwSaveAll()">변경분 저장</button>
+      </div>
+      <div style="max-height:56vh;overflow:auto">
+        <table class="t2-table sticky-head">
+          <thead><tr><th style="width:150px">품번</th><th>품목명</th><th style="width:180px">개당중량</th><th style="width:90px">수정자</th><th style="width:70px">삭제</th></tr></thead>
+          <tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:22px">해당 품목이 없습니다</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div></div>`;
+  uwDirtyMsg();
+}
+function uwMark(code){
+  const el=document.querySelector(`.uw-in[data-code="${code}"]`);
+  if(!el) return;
+  const v=Number(el.value);
+  if(el.value===''||!(v>0)) delete UW_DIRTY[code]; else UW_DIRTY[code]=v;
+  el.style.background=UW_DIRTY[code]!==undefined?'#fff8e8':'';
+  uwDirtyMsg();
+}
+function uwDirtyMsg(){
+  const n=Object.keys(UW_DIRTY).length;
+  const e=$('#uwDirty'); if(e) e.textContent=n?`변경 ${n}건`:'';
+}
+async function uwSaveAll(){
+  const codes=Object.keys(UW_DIRTY);
+  if(!codes.length){ toast('변경된 값이 없습니다','err'); return; }
+  const nameOf={}; (UW_LIST||[]).forEach(x=>nameOf[x.item_code]=x.item_name);
+  const rows=codes.map(c=>({item_code:c, item_name:nameOf[c]||null, unit_kg:UW_DIRTY[c]}));
+  try{
+    const {error}=await sb.rpc('upsert_unit_weight',{p_rows:rows, p_by:(S.user&&S.user.name)||'-'});
+    if(error)throw error;
+    toast(`개당중량 ${codes.length}건 저장`,'ok');
+    UW_MAP=null;                    // 캐시 무효화 — 다음 마감 화면에서 새 값으로 환산
+    renderUWeightMgmt();
+  }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
+}
+async function uwDelete(code){
+  if(!confirm(`${code} 의 개당중량을 삭제합니다.\n삭제하면 이 품번은 EA 환산에서 제외됩니다.\n진행할까요?`)) return;
+  try{
+    const {error}=await sb.from('m_unit_weight').delete().eq('item_code',code);
+    if(error)throw error;
+    UW_MAP=null; toast('삭제 완료','ok'); renderUWeightMgmt();
+  }catch(e){ toast('삭제 실패: '+(e.message||e),'err'); }
+}
+async function uwSync(){
+  try{
+    const {data,error}=await sb.rpc('sync_unit_weight');
+    if(error)throw error;
+    toast(`완제품 품번 ${(data&&data.added)||0}건 추가 (중량은 직접 입력)`,'ok');
+    renderUWeightMgmt();
+  }catch(e){ toast('실패: '+(e.message||e),'err'); }
+}
+function uwPasteApply(){
+  const raw=($('#uwPaste')||{}).value||'';
+  const msg=$('#uwPasteMsg');
+  const lines=raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const rows=[]; let skip=0;
+  lines.forEach(ln=>{
+    const c=ln.split(/\t|,|\s{2,}/).map(x=>x.trim());
+    if(c.length<2){ skip++; return; }
+    const code=c[0];
+    // 마지막 숫자 칸을 중량으로 본다 (품목명에 숫자가 섞여도 안전)
+    let w=NaN, name=null;
+    for(let i=c.length-1;i>=1;i--){ const n=Number(String(c[i]).replace(/[^0-9.]/g,'')); if(n>0){ w=n; name=c.slice(1,i).join(' ')||null; break; } }
+    if(!/^[0-9A-Za-z]/.test(code) || !(w>0)){ skip++; return; }
+    rows.push({item_code:code, item_name:name, unit_kg:w});
+  });
+  if(!rows.length){ if(msg){msg.style.color='#b42318'; msg.textContent='인식된 행이 없습니다 — 품번 / 품목명 / 중량 순서인지 확인하세요';} return; }
+  if(!confirm(`${rows.length}건을 등록합니다.${skip?`\n(형식이 맞지 않는 ${skip}행은 건너뜁니다)`:''}\n같은 품번이 있으면 중량을 덮어씁니다.\n진행할까요?`)) return;
+  sb.rpc('upsert_unit_weight',{p_rows:rows, p_by:(S.user&&S.user.name)||'-'}).then(({data,error})=>{
+    if(error){ if(msg){msg.style.color='#b42318'; msg.textContent='등록 실패: '+error.message;} return; }
+    UW_MAP=null;
+    toast(`개당중량 ${rows.length}건 등록`,'ok');
+    renderUWeightMgmt();
+  });
+}
 async function renderDYieldMgmt(){
   $('#settingsBody').innerHTML='<div class="skel" style="height:280px;border-radius:14px"></div>';
   try{ const {data}=await sb.rpc('get_design_yield'); DY_LIST=data||[]; }
@@ -5733,7 +5899,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.26e';
+const APP_VERSION='v2026.08.27b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6133,6 +6299,8 @@ async function openDay(date, team){
       CUR_DAY.yieldSum=data||[];
       try{ if(S.view==='day') rerenderClosing(); }catch(_){}
     },e=>console.warn('[수율요약] 조회 실패', e));
+    // 개당중량 마스터 — EA 환산용. 세션당 1회만 받아 재사용하고, 실패해도 화면은 뜬다.
+    uwMap().then(()=>{ try{ if(S.view==='day') rerenderClosing(); }catch(_){} }, ()=>{});
     // 생산완료 수동 처리 — 계획번호 단위. 실패해도 화면은 그대로 뜬다(fail-open)
     PLAN_DONE=new Set();
     sb.from('t_plan_done').select('plan_no,base_code').eq('team',team).then(({data,error})=>{
@@ -7101,6 +7269,15 @@ function packDayTotals(){
   if(!G.length) return null;
   const {date}=CUR_DAY;
   let qty=0, cum=0, plan=0, carry=0, carryCnt=0, done=0;
+  let ea=0, eaMiss=0, eaMissKg=0;      // 개당중량 마스터 기준 EA 환산
+  const W=UW_MAP||{};
+  G.forEach(g=>{
+    (g.skus||[]).forEach(sk=>{
+      const kg=Number(sk.sku_actual)||0; if(kg<=0) return;
+      const w=W[String(sk.sku_code)];
+      if(w>0) ea+=kg/w; else { eaMiss++; eaMissKg+=kg; }
+    });
+  });
   G.forEach(g=>{
     const a=Number(g.grp_actual)||0;
     const pb=packPlanOf(g);
@@ -7111,6 +7288,7 @@ function packDayTotals(){
     if((pl>0 && cm/pl*100>=PK_DONE) || isPlanDone(g.plan_no,g.base_code)) done++;
   });
   return {qty, cum, plan, cnt:G.length, carry, carryCnt, done,
+          ea, eaMiss, eaMissKg,
           rate:(plan>0? cum/plan*100 : null)};
 }
 /* 스코어카드 '포장 실적' 카드 1개 — 생산1팀/2팀 공용 */
@@ -7119,229 +7297,33 @@ function scPackCard(DR){
   const qty  = P ? P.qty  : Number(DR.pack_qty||0);
   const rate = P ? P.rate : (DR.pack_rate==null?null:Number(DR.pack_rate));
   const col  = (rate==null)?'var(--mut)':(rate>=95?'var(--grn)':(rate>=90?'#d97706':'#e8918c'));
+  const t    = qty/1000;
+  const ea   = P?P.ea:0;
+  const eaTxt= ea>0 ? `${fmt(Math.round(ea))} EA` : null;
   const sub  = P
     ? `<span style="color:${col}">누계수율 ${rate==null?'–':rate.toFixed(1)+'%'}</span>`
-      + (P.carryCnt?`<span class="sc-dot">·</span>이월 ${fmt(Math.round(P.carry))}kg`
+      + (P.carryCnt?`<span class="sc-dot">·</span>이월 ${(P.carry/1000).toFixed(1)}t`
                    :`<span class="sc-dot">·</span>계획 ${P.cnt}건`)
     : (rate==null?'포장수율 –':`포장수율 ${rate.toFixed(1)}%`);
   const tip = P
     ? `② 포장 실적 표의 '합계 실적(당일)' 총합과 같은 값입니다.\n`
       + `계획번호 ${P.cnt}건 (완결 ${P.done}건)\n`
-      + (P.carryCnt?`이월 ${P.carryCnt}건 ${fmt(Math.round(P.carry))}kg 포함 — 전일 코터·오븐분을 오늘 포장\n`:'')
-      + `누계 포장 ${fmt(Math.round(P.cum))}kg ÷ 계획(코터·오븐 산출) ${fmt(Math.round(P.plan))}kg`
+      + (P.carryCnt?`이월 ${P.carryCnt}건 ${fmt1(P.carry)}kg 포함 — 전일 생산 반제품을 오늘 포장\n`:'')
+      + `누계 포장 ${fmt1(P.cum)}kg ÷ 계획 ${fmt1(P.plan)}kg\n`
+      + (ea>0?`\n생산 수량 ${fmt(Math.round(ea))} EA — 설정 → ⚖ 개당중량 마스터 기준 환산`:'')
+      + (P.eaMiss>0?`\n⚠ 개당중량 미등록 ${P.eaMiss}개 품번 ${fmt1(P.eaMissKg)}kg 은 EA 환산에서 제외됐습니다.`:'')
     : `코터·오븐 산출 ${fmt(Math.round(DR.pack_base||0))}kg 대비 포장 완료 비율입니다.`;
-  return `<div class="sc o"><div class="l">포장 실적</div>
-      <div class="v mono" title="${tip.replace(/"/g,'&quot;')}">${fmt(Math.round(qty))}<span class="u">kg</span></div>
-      <div class="sc-sub" title="${tip.replace(/"/g,'&quot;')}">${sub}</div></div>`;
-}
-/* ════════════════════════════════════════════════════════════════════
-   스코어카드 : 원료 사용실적을 건조경로(코터 / 오븐)로 나눠 본다
-   ── 두 경로는 계측 구조가 달라 하나로 묶으면 수율이 왜곡된다.
-        코터 : EP 산출을 실측한다 → 코터 산출 ÷ 원료 실적 = 실측 산출률
-        오븐 : EP 산출 계량 설비가 없다 → 실측 불가.
-               그래서 포장까지 내려가 완제품 달성률(포장 누계 ÷ 원료 실적)로 본다.
-   ── 데이터 원천은 ②-1 수율요약(plan_yield_summary) + ② 포장 묶음(packGroups).
-      같은 소스를 쓰므로 스코어카드와 하위 표의 숫자가 어긋날 수 없다.
-   ════════════════════════════════════════════════════════════════════ */
-const OVEN_BASE_YIELD=80.7;   // 오븐 제품 기본(가상) 최종완료수율 — 설계수율 마스터 등록 전 임시 기준
-function rawRouteTotals(){
-  const DR=CUR_DAY.dayRaw||{};
-  const d8=String(CUR_DAY.date||'').replace(/-/g,'');
-  // ★ 당일 기준 = 생산계획번호 앞 8자리가 오늘인 계획만 (day_raw_summary 와 동일 규칙)
-  const rows=(CUR_DAY.yieldSum||[]).filter(r=>String(r.plan_no||'').slice(0,8)===d8);
-  const gmap={};
-  try{ packGroups().forEach(g=>{
-    gmap[(g.plan_no||'')+'|'+g.base_code]={cum:Number(g.grp_cum)||0, plan:Number(packPlanOf(g).plan)||0};
-  }); }catch(_){}
-
-  /* ★★ 계획번호 단위 중복 제거 ★★
-     plan_yield_summary 는 완제품 SKU 단위로 행이 나뉘는데,
-     raw_qty(투입원료)·dry_qty(코터·오븐 산출)는 그 계획번호 전체 값이라 행마다 같은 값이 반복된다.
-     그대로 더하면 SKU 수만큼 곱해진다 — 8/20 에서 원료가 31t → 62t 로 뻥튀기된 원인.
-     같은 계획번호 안에서 값이 전부 같으면 1회만, 실제로 다르면 합산한다(자기교정). */
-  const byPlan={};
-  rows.forEach(r=>{ const k=r.plan_no||'-'; (byPlan[k]=byPlan[k]||[]).push(r); });
-  const once=(list,f)=>{
-    const vals=list.map(x=>Math.round((Number(f(x))||0)*10)/10);
-    const uniq=[...new Set(vals)];
-    return (uniq.length===1) ? vals[0] : vals.reduce((a,b)=>a+b,0);
-  };
-
-  const R={coat:{raw:0,dry:0,pack:0,n:0}, oven:{raw:0,dry:0,pack:0,n:0}};
-  Object.keys(byPlan).forEach(pno=>{
-    const list=byPlan[pno];
-    const oven=list.filter(x=>x.base_type==='오븐'), coat=list.filter(x=>x.base_type!=='오븐');
-    // 한 계획번호에 코터·오븐이 섞이는 경우는 각 그룹별로 따로 집계
-    [['coat',coat],['oven',oven]].forEach(([k,sub])=>{
-      if(!sub.length) return;
-      R[k].raw += once(sub, x=>x.raw_qty);
-      R[k].dry += once(sub, x=>{
-        const g=gmap[(x.plan_no||'')+'|'+x.prod_code];
-        return g?g.plan:(Number(x.dry_qty)||0);
-      });
-      // 포장은 SKU 단위 실적이라 합산이 맞다. 단 계획번호 묶음값이 잡히면 그것을 우선한다.
-      const g0=sub.map(x=>gmap[(x.plan_no||'')+'|'+x.prod_code]).filter(Boolean);
-      R[k].pack += g0.length ? once(sub, x=>{
-        const g=gmap[(x.plan_no||'')+'|'+x.prod_code]; return g?g.cum:0;
-      }) : sub.reduce((a,x)=>a+(Number(x.pack_qty)||0),0);
-      R[k].n++;
-    });
-  });
-  /* ── 카드에 표시할 "실적" 값 ──
-     코터 : 당일 진공코터 공정 실적 합 (① 라인별 요약의 진공코터 실적과 같은 값)
-     오븐 : 당일 오븐 유형 제품의 SKU 포장 실적 합 (② 포장 실적 표의 당일 실적)
-     ※ 원료 투입량은 분모로만 쓰고 보조줄에 병기한다. */
-  R.coat.out=0;
-  (CUR_DAY.orders||[]).forEach(o=>{
-    if(/진공코터/.test(String(o.proc_sub2||''))) R.coat.out += Number(o.actual_sum??o.actual_qty??0);
-  });
-  /* ★ 오븐 SKU 실적도 분모(원료)와 같은 기준이어야 한다.
-     원료는 "당일 계획번호"만 세는데 SKU 실적이 이월 포장분까지 더하면
-     분자만 커져 수율이 100%를 훌쩍 넘는다 (8/27 164.2% 의 원인). */
-  R.oven.sku=0; R.oven.skuCarry=0;
-  try{ packGroups().forEach(g=>{
-    if(g.base_type!=='오븐') return;
-    const q=Number(g.grp_actual)||0;
-    if(String(g.plan_no||'').slice(0,8)===d8) R.oven.sku+=q;
-    else R.oven.skuCarry+=q;              // 이월 계획번호 포장분 — 참고로만 표시
-  }); }catch(_){}
-
-  /* ★ 코터 원료 = 당일 원료실적 총액 − 오븐 원료 (나머지는 전부 코터)
-     분자인 코터 산출은 "당일 진공코터 공정 전체 실적" 이므로,
-     분모도 당일 코터로 흘러간 원료 전체여야 한다.
-     ②-1 에서 경로를 못 가른 몫(그날 포장을 시작하지 않은 계획번호)은
-     실제로는 코터 계획번호이며 코터 공정은 이미 그날 돌았다.
-     분모에서만 빠지면 수율이 과대평가된다(8/19 91.8% → 실제 71.7%). */
-  R.dayRawTotal = Number(DR.raw_actual)||0;
-  if(R.dayRawTotal>0 && R.oven.raw<=R.dayRawTotal){
-    R.coat.rawYS = R.coat.raw;                       // ②-1 로 직접 확인된 코터 원료(참고)
-    R.coat.raw   = R.dayRawTotal - R.oven.raw;       // 나머지 전부
-    R.coat.resid = Math.max(R.coat.raw - R.coat.rawYS, 0);
-  }else{
-    R.coat.rawYS = R.coat.raw; R.coat.resid = 0;
-  }
-  R.coat.rate = R.coat.raw>0 ? R.coat.out /R.coat.raw*100 : null;   // 코터 산출 ÷ 코터 원료
-  R.oven.rate = R.oven.raw>0 ? R.oven.sku /R.oven.raw*100 : null;   // 오븐 SKU 실적 ÷ 오븐 원료
-  R.coat.packRate = R.coat.raw>0 ? R.coat.pack/R.coat.raw*100 : null;
-  R.oven.dryRate  = R.oven.raw>0 ? R.oven.dry /R.oven.raw*100 : null;
-
-  // ── 정합성 : 코터 + 오븐 = 당일 원료실적 (구조상 항상 일치) ──
-  R.total  = R.coat.raw + R.oven.raw;
-  R.dayRaw = Number(DR.raw_actual)||0;
-  R.gap    = R.total - R.dayRaw;
-  R.gapPct = R.dayRaw>0 ? Math.abs(R.gap)/R.dayRaw*100 : 0;
-  R.ok     = (R.dayRaw<=0) || (R.gapPct<=2);
-  /* 원료계획 경로별 안분 (계획에는 코터/오븐 정보가 없어 실적 비율로 나눈 추정치)
-     ★ 분모는 "분류된 합(R.total)" 이 아니라 "당일 원료실적 전체(R.dayRaw)" 를 쓴다.
-        total 로 나누면 아직 포장이 시작되지 않아 경로를 못 가른 원료까지
-        코터·오븐에 얹혀 계획이 실적보다 커 보인다(8/19 코터 22.0t vs 실적원료 17.7t 사례). */
-  const plan=Number(DR.raw_plan)||0;
-  const base=R.dayRaw>0 ? R.dayRaw : R.total;
-  R.planOven = base>0 ? plan*R.oven.raw/base : 0;
-  R.planCoat = Math.max(plan - R.planOven, 0);                // 오븐을 뺀 나머지가 코터
-  R.planUncl = 0;
-  R.uncl     = 0;
-  return R;
-}
-/* 원료 실적 카드 1개 (코터경로 / 오븐경로 공용) */
-function scRawRouteCard(kind, R){
-  const on=(kind==='coat');
-  const d=R?(on?R.coat:R.oven):null;
-  const sub2=on?'EP·코터 실적반영':'오븐 · 기본수율 반영';
-  const val=d?(on?d.out:d.sku):0;                 // 표시값 = 실적
-  const raw=d?d.raw:0;                            // 분모 = 원료 투입
-  const rate=d?d.rate:null;
-  const band=on?[70,90]:[OVEN_BASE_YIELD-12, OVEN_BASE_YIELD+12];
-  const col=(rate==null)?'var(--mut)':((rate>=band[0]&&rate<=band[1])?'var(--grn)':(rate>band[1]?'#7fc99a':'#e8918c'));
-  const t=val/1000;
-  const tip=!d||!d.n
-    ? `당일(계획번호 앞 8자리 = ${CUR_DAY.date}) ${on?'코터':'오븐'} 경로 계획번호가 없습니다.\n포장만 진행한 날이면 0 이 정상입니다 — 원료는 그 계획번호를 만든 날에 이미 잡혔습니다.`
-    : (on
-      ? `당일 진공코터 공정 실적 ${fmt1(d.out)}kg\n(① 라인별 요약의 진공코터 실적과 같은 값입니다)\n\n분모 = 당일 원료실적 ${fmt1(R?R.dayRawTotal:0)}kg − 오븐 원료 ${fmt1(R?R.oven.raw:0)}kg = ${fmt1(d.raw)}kg\n오븐으로 간 원료만 빼고 나머지는 전부 코터로 봅니다.\n\n달성률 = 코터 산출 ÷ 코터 원료 · 정상 70~90%\nEP에서 수분이 빠지고 코터에서 오일·분체로 증량된 결과입니다.${d.resid>50?`\n\n이 중 ${fmt1(d.resid)}kg 은 그날 포장을 시작하지 않아 ②-1 에는 아직 안 잡힌 계획번호 몫입니다.`:''}`
-      : `당일 계획번호(${CUR_DAY.date}) 오븐 제품의 SKU 포장 실적 ${fmt1(d.sku)}kg${d.skuCarry>0?`\n※ 이월 계획번호 포장분 ${fmt1(d.skuCarry)}kg 은 제외했습니다 — 그 원료는 만든 날에 이미 잡혔습니다.`:''}\n\n원료 투입 ${fmt1(d.raw)}kg → SKU 실적 ${fmt1(d.sku)}kg\n오븐은 EP 산출 계량 설비가 없어 실측 EP수율을 낼 수 없습니다.\n그래서 완제품 SKU 실적까지 내려가 달성률을 봅니다.\n기본수율 ${OVEN_BASE_YIELD}% 대비 ${rate==null?'–':((rate-OVEN_BASE_YIELD>=0?'+':'')+(rate-OVEN_BASE_YIELD).toFixed(1)+'%p')}\n계획번호 ${d.n}건 · 오븐 산출 기준 ${d.dryRate==null?'–':d.dryRate.toFixed(1)+'%'}`);
-  return `<div class="sc g2" title="${tip.replace(/"/g,'&quot;')}">
-    <div class="l">당일 원료사용실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (${sub2})</span></div>
-    <div class="v mono sc-dual">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
-      <span class="sc-slash">/</span>
-      <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
-    <div class="sub">${on?'코터산출':'SKU실적'} ${fmt(Math.round(val))}<span class="u">kg</span><span class="sc-dot">·</span>원료 ${fmt(Math.round(raw))}<span class="u">kg</span>
-      ${on&&R&&!R.ok?`<span class="sc-dot">·</span><span style="color:#b42318" title="코터 ${fmt1(R.coat.raw)} + 오븐 ${fmt1(R.oven.raw)} = ${fmt1(R.total)}kg 이 당일 원료실적 ${fmt1(R.dayRaw)}kg 과 ${fmt1(Math.abs(R.gap))}kg 어긋납니다.&#10;오븐 경로 원료가 당일 원료실적을 넘어선 상태로, ②-1 수율요약에 이월 계획번호가 섞였을 가능성이 있습니다.">⚠ ${fmt(Math.round(Math.abs(R.gap)))}</span>`:''}</div></div>`;
-}
-/* 스코어카드 6종 한 줄 — 생산1팀/2팀 공용 */
-/* ════════════════════════════════════════════════════════════════════
-   생산2팀 전용 스코어카드
-   ── 코터·오븐 경로 구분이 없는 플랫폼이라 경로별 카드가 성립하지 않는다.
-   ── MES 원료 계획 로직 미제정으로 raw 계획이 수집되지 않는다.
-      그래서 '당일 원료사용계획' 자리에 계획번호별 원료 투입 실적을 놓는다.
-      수율을 근사할 수 있는 유일한 기준선이며, 카드에 그 사실을 명시한다.
-   ════════════════════════════════════════════════════════════════════ */
-function scoreRow2(DR, totLoss, totScrap){
-  const orders=CUR_DAY.orders||[];
-  const isFin=(o)=>{ if(o.kind==='fin'||o.kind==='완제품')return true;
-                     if(o.kind==='semi'||o.kind==='반제품')return false;
-                     return ['2','3'].includes(String(o.prod_code||'')[0]); };
-  const isSemi=(o)=>{ if(o.kind==='semi'||o.kind==='반제품')return true;
-                      if(o.kind==='fin'||o.kind==='완제품')return false;
-                      return String(o.prod_code||'')[0]==='6'; };
-  // 원료 기준선 = 계획번호별 투입 원료 실적 합 (당일 계획번호만)
-  const d8=String(CUR_DAY.date||'').replace(/-/g,'');
-  const m=t2RawByPlan();
-  let rawBase=0, planCnt=0;
-  Object.keys(m).forEach(k=>{ if(String(k).slice(0,8)===d8){ rawBase+=m[k]; planCnt++; } });
-  if(rawBase<=0){ rawBase=Number(DR.raw_actual)||0; }
-  // 당일 생산실적 = 완제품 오더 실적 합
-  let finAct=0, finCnt=0, semiCnt=0;
-  orders.forEach(o=>{
-    if(isFin(o)){ finAct+=Number(o.actual_sum??o.actual_qty??0); finCnt++; }
-    else if(isSemi(o)) semiCnt++;
-  });
-  const rate=rawBase>0 ? finAct/rawBase*100 : null;
-  const col=(rate==null)?'var(--mut)':((rate>=70&&rate<=105)?'var(--grn)':(rate>105?'#7fc99a':'#e8918c'));
-  const rt=rawBase/1000, ft=finAct/1000;
-  return `<div class="score-row">
-    <div class="sc k" title="MES 원료 계획 로직이 아직 제정되지 않아 계획 데이터가 수집되지 않습니다.&#10;그래서 계획번호별로 실제 투입된 원료 실적을 계획 기준선으로 씁니다.&#10;수율을 근사할 수 있는 유일한 방법이며, MES 원료계획이 도입되면 즉시 전환합니다."><div class="l">당일 원료사용계획<span style="font-size:9px;color:#98a2b3;font-weight:700"> (실적 기준)</span></div>
-      <div class="v mono">${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">ton</span></div>
-      <div class="sub">원료 ${fmt(Math.round(rawBase))}<span class="u">kg</span><span class="sc-dot">·</span>${planCnt?`계획 ${planCnt}건`:'당일 계획 없음'}</div></div>
-    <div class="sc g2" title="완제품 오더 실적 합 ${fmt1(finAct)}kg ÷ 원료 투입 ${fmt1(rawBase)}kg&#10;원료를 넣어 완제품이 얼마나 나왔는지 보는 종합 수율입니다."><div class="l">당일 생산실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (완제품)</span></div>
-      <div class="v mono sc-dual">${ft>=100?ft.toFixed(0):ft.toFixed(1)}<span class="u">ton</span>
-        <span class="sc-slash">/</span>
-        <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
-      <div class="sub">완제품 ${fmt(Math.round(finAct))}<span class="u">kg</span><span class="sc-dot">·</span>원료대비</div></div>
-    ${scPackCard(DR)}
-    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCnt}</div>
-      <div class="sc-sub">반제품 ${semiCnt}종</div></div>
-    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
-  </div>`;
-}
-function scoreRow(DR, totLoss, totScrap){
-  if(isT2()) return scoreRow2(DR, totLoss, totScrap);
-  const R=rawRouteTotals();
-  return `<div class="score-row">
-    <div class="sc k" title="생산계획번호 앞 8자리가 이 날짜인 계획의 원부재료(자재코드 1번대) 계획량 합계입니다. 반제품·부자재는 제외합니다.&#10;포장만 진행한 날은 0 건이 정상입니다 — 그날 새로 시작한 생산계획이 없다는 뜻입니다."><div class="l">당일 원료사용계획</div>
-      <div class="v mono">${((Number(DR.raw_plan)||0)/1000)>=100?((Number(DR.raw_plan)||0)/1000).toFixed(0):((Number(DR.raw_plan)||0)/1000).toFixed(1)}<span class="u">ton</span></div>
-      <div class="sub">원료 ${fmt(Math.round(Number(DR.raw_plan)||0))}<span class="u">kg</span><span class="sc-dot">·</span>계획 ${fmt(Number(DR.plan_cnt)||0)}건</div>
-      ${R&&R.dayRaw>0&&Number(DR.raw_plan)>0?(()=>{
-        const ex=R.dayRaw/Number(DR.raw_plan)*100;
-        const bad=(ex<90||ex>110);
-        return `<div class="sub" style="margin-top:1px;color:${bad?'#b42318':'#6b7280'}" title="당일 원료 실적 ${fmt1(R.dayRaw)}kg ÷ 계획 ${fmt1(DR.raw_plan)}kg&#10;차이 ${fmt1(Math.abs(Number(DR.raw_plan)-R.dayRaw))}kg&#10;${bad?'계획과 실적이 10% 넘게 벌어졌습니다.&#10;· 계획만 있고 실행되지 않은 생산계획번호가 섞였을 가능성이 큽니다&#10;· MES에서 해당 오더를 정정한 뒤 계획 업로드를 다시 하면 즉시 반영됩니다':'정상 범위입니다.'}">실행률 ${ex.toFixed(1)}%${bad?` ⚠ 차이 ${fmt(Math.round(Math.abs(Number(DR.raw_plan)-R.dayRaw)/100)/10)}t`:''}</div>`;
-      })():''}
-      ${R&&R.total>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="MES 계획에는 코터·오븐 경로 정보가 없습니다.&#10;오븐은 ②-1 수율요약에서 오븐 유형으로 확인된 계획번호의 몫만 계산하고, 나머지는 전부 코터로 봅니다.&#10;당일 원료실적의 경로 비율을 계획 총액에 적용한 추정치입니다.">(코터 ${(R.planCoat/1000).toFixed(1)}t / 오븐 ${(R.planOven/1000).toFixed(1)}t) <span style="font-size:9px;color:#9aa8bd">안분추정</span></div>`:''}</div>
-    ${scRawRouteCard('coat', R)}
-    ${scRawRouteCard('oven', R)}
-    ${scPackCard(DR)}
-    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
-  </div>`;
+  const tipA=tip.replace(/"/g,'&quot;');
+  return `<div class="sc o"><div class="l">당일 포장실적</div>
+      <div class="v mono sc-dual" title="${tipA}">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
+        ${eaTxt?`<span class="sc-slash">/</span><span class="sc-rate" style="color:#b45309;font-size:15px">${eaTxt}</span>`:''}</div>
+      <div class="sc-sub" title="${tipA}">${sub}${P&&P.eaMiss>0?`<span class="sc-dot">·</span><span style="color:#b42318" title="개당중량 미등록 ${P.eaMiss}품번">EA 미환산 ${P.eaMiss}</span>`:''}</div></div>`;
 }
 /* ════════════════════════════════════════════════════════════════════
    생산완료 수동 처리 (계획번호 단위)
-   ── 포장수율이 95% 미만이어도 "더 포장할 물량이 없다"는 경우가 있다.
-      잔량이 불량 폐기됐거나, 오더가 조기 종료된 경우다.
-      그대로 두면 매일 '진행중'으로 남아 익일 일보를 오염시킨다.
-   ── 그래서 현장이 직접 완료를 찍을 수 있게 한다. 날짜가 아니라 계획번호에 붙는다.
+   ── 포장수율이 낮아도 "더 포장할 물량이 없다"는 경우가 있다(잔량 불량 폐기·조기 종료).
+      그대로 두면 매일 진행중으로 남아 익일 일보를 오염시킨다.
+   ── 날짜가 아니라 계획번호에 붙는다. 입력·수정을 막지 않는다.
    ════════════════════════════════════════════════════════════════════ */
 let PLAN_DONE=new Set();
 const pdKey=(planNo,baseCode)=>String(planNo||'')+'|'+String(baseCode||'');
@@ -7370,14 +7352,11 @@ async function togglePlanDone(planNo, baseCode){
 }
 /* ════════════════════════════════════════════════════════════════════
    ② 포장 실적 → 완제품 불량 즉시 등록 모달
-   ── 포장수율이 낮은 SKU를 발견한 그 자리에서 ④ 불량관리로 넘긴다.
-      화면을 옮겨 라인·제품을 다시 고르는 동선이 사라진다.
-   ── 저장처는 ④ 와 동일한 t_cl_defect. 등록 후 ④ 목록에 즉시 반영한다.
+   저장처는 ④ 와 동일한 t_cl_defect. 등록 후 ④ 목록에 즉시 반영한다.
    ════════════════════════════════════════════════════════════════════ */
 function openDefectQuick(code, name, unit){
   if(CUR_DAY.locked){ toast('결재 진행중이라 등록할 수 없습니다','err'); return; }
   const lines=CUR_DAY.lines||[];
-  // 이 품번이 실제로 돌아간 포장 라인을 먼저 추린다
   const packLine=(CUR_DAY.orders||[]).filter(o=>String(o.prod_code)===String(code)
       && /포장/.test(String(o.proc_sub2||'')))[0];
   const lineOpts=lines.map(l=>{
@@ -7386,7 +7365,7 @@ function openDefectQuick(code, name, unit){
     return `<option value="${v}"${sel}>${l.line_name}</option>`;
   }).join('');
   const typeOpts=(CUR_DAY.defectTypes||[]).map(t=>`<option value="${t.type_name}">${t.type_name}</option>`).join('');
-  const u=unit||prodUnitOf(code)||'EA';
+  const u=unit||'EA';
   const el=document.createElement('div');
   el.className='dq-back'; el.id='dqBack';
   el.onclick=(ev)=>{ if(ev.target===el) closeDefectQuick(); };
@@ -7440,12 +7419,8 @@ async function saveDefectQuick(code, name){
 }
 /* ════════════════════════════════════════════════════════════════════
    특이사항 팝오버 편집기
-   ── 칸 안에서 input 을 넓히면 <td> 폭이 바뀌고 제품명이 줄바꿈되면서
-      행 높이가 폭증한다. 그 결과 방금 클릭한 행이 화면 밖으로 밀려난다.
-   ── 그래서 칸은 고정 폭으로 두고, position:fixed 팝오버에서 읽고 쓴다.
-      표 레이아웃이 1px 도 안 바뀌므로 스크롤이 절대 튀지 않는다.
-   ── 저장 경로는 그대로다. 팝오버는 원래 input 의 value 만 갱신하고,
-      저장은 기존 saveMH 가 .t2-note 를 훑는 방식을 그대로 쓴다.
+   칸 안에서 넓히면 <td> 폭이 바뀌어 표 전체가 리플로우되고 클릭한 행이 화면 밖으로 밀린다.
+   그래서 칸은 고정하고 position:fixed 팝오버에서 읽고 쓴다. 저장 경로는 그대로다.
    ════════════════════════════════════════════════════════════════════ */
 let NP_EL=null;
 function npSync(el){
@@ -7485,7 +7460,6 @@ function openNotePop(el){
 function npPlace(){
   const pop=document.getElementById('npPop'); if(!pop||!NP_EL) return;
   const r=NP_EL.getBoundingClientRect();
-  // 앵커가 화면 밖으로 나가면 팝오버도 닫는다(스크롤로 표를 크게 움직인 경우)
   if(r.bottom<0||r.top>window.innerHeight){ closeNotePop(true); return; }
   const w=pop.offsetWidth, h=pop.offsetHeight, m=10;
   let left=Math.min(Math.max(r.right-w, m), window.innerWidth-w-m);
@@ -7511,6 +7485,164 @@ function closeNotePop(save){
   document.removeEventListener('mousedown', npOutside, true);
   window.removeEventListener('scroll', npPlace, true);
   window.removeEventListener('resize', npPlace);
+}
+const OVEN_BASE_YIELD=80.7;   // 오븐 제품 기본(가상) 최종완료수율 — 설계수율 마스터 등록 전 임시 기준
+/* 스코어카드 : 원료 사용실적을 건조경로(코터 / 오븐)로 나눠 본다.
+   코터는 EP 산출을 실측하고, 오븐은 계량 설비가 없어 포장까지 내려가 본다.
+   데이터는 ②-1 수율요약 + ② 포장 묶음 — 하위 표와 같은 소스라 숫자가 어긋날 수 없다. */
+function rawRouteTotals(){
+  const DR=CUR_DAY.dayRaw||{};
+  const d8=String(CUR_DAY.date||'').replace(/-/g,'');
+  const rows=(CUR_DAY.yieldSum||[]).filter(r=>String(r.plan_no||'').slice(0,8)===d8);
+  const gmap={};
+  try{ packGroups().forEach(g=>{
+    gmap[(g.plan_no||'')+'|'+g.base_code]={cum:Number(g.grp_cum)||0, plan:Number(packPlanOf(g).plan)||0};
+  }); }catch(_){}
+  /* 계획번호 단위 중복 제거 — plan_yield_summary 는 SKU 단위로 행이 나뉘는데
+     raw_qty·dry_qty 는 계획번호 전체 값이라 그대로 더하면 SKU 수만큼 곱해진다. */
+  const byPlan={};
+  rows.forEach(r=>{ const k=r.plan_no||'-'; (byPlan[k]=byPlan[k]||[]).push(r); });
+  const once=(list,f)=>{
+    const vals=list.map(x=>Math.round((Number(f(x))||0)*10)/10);
+    const uniq=[...new Set(vals)];
+    return (uniq.length===1) ? vals[0] : vals.reduce((a,b)=>a+b,0);
+  };
+  const R={coat:{raw:0,dry:0,pack:0,n:0}, oven:{raw:0,dry:0,pack:0,n:0}};
+  Object.keys(byPlan).forEach(pno=>{
+    const list=byPlan[pno];
+    const oven=list.filter(x=>x.base_type==='오븐'), coat=list.filter(x=>x.base_type!=='오븐');
+    [['coat',coat],['oven',oven]].forEach(([k,sub])=>{
+      if(!sub.length) return;
+      R[k].raw += once(sub, x=>x.raw_qty);
+      R[k].dry += once(sub, x=>{ const g=gmap[(x.plan_no||'')+'|'+x.prod_code]; return g?g.plan:(Number(x.dry_qty)||0); });
+      const g0=sub.map(x=>gmap[(x.plan_no||'')+'|'+x.prod_code]).filter(Boolean);
+      R[k].pack += g0.length ? once(sub, x=>{ const g=gmap[(x.plan_no||'')+'|'+x.prod_code]; return g?g.cum:0; })
+                             : sub.reduce((a,x)=>a+(Number(x.pack_qty)||0),0);
+      R[k].n++;
+    });
+  });
+  /* 코터 산출 = 당일 진공코터 공정 실적 (① 라인별 요약과 같은 값) */
+  R.coat.out=0;
+  (CUR_DAY.orders||[]).forEach(o=>{
+    if(/진공코터/.test(String(o.proc_sub2||''))) R.coat.out += Number(o.actual_sum??o.actual_qty??0);
+  });
+  /* 오븐 SKU 실적 — 분모(원료)와 같은 기준이어야 하므로 당일 계획번호만 센다 */
+  R.oven.sku=0; R.oven.skuCarry=0;
+  try{ packGroups().forEach(g=>{
+    if(g.base_type!=='오븐') return;
+    const q=Number(g.grp_actual)||0;
+    if(String(g.plan_no||'').slice(0,8)===d8) R.oven.sku+=q; else R.oven.skuCarry+=q;
+  }); }catch(_){}
+  /* 코터 원료 = 당일 원료실적 − 오븐 원료 (나머지는 전부 코터).
+     분자인 코터 산출이 당일 전체이므로 분모도 당일 전체여야 한다. */
+  R.dayRawTotal = Number(DR.raw_actual)||0;
+  if(R.dayRawTotal>0 && R.oven.raw<=R.dayRawTotal){
+    R.coat.rawYS = R.coat.raw;
+    R.coat.raw   = R.dayRawTotal - R.oven.raw;
+    R.coat.resid = Math.max(R.coat.raw - R.coat.rawYS, 0);
+  }else{ R.coat.rawYS = R.coat.raw; R.coat.resid = 0; }
+  R.coat.rate = R.coat.raw>0 ? R.coat.out /R.coat.raw*100 : null;
+  R.oven.rate = R.oven.raw>0 ? R.oven.sku /R.oven.raw*100 : null;
+  R.coat.packRate = R.coat.raw>0 ? R.coat.pack/R.coat.raw*100 : null;
+  R.oven.dryRate  = R.oven.raw>0 ? R.oven.dry /R.oven.raw*100 : null;
+  R.total  = R.coat.raw + R.oven.raw;
+  R.dayRaw = Number(DR.raw_actual)||0;
+  R.gap    = R.total - R.dayRaw;
+  R.gapPct = R.dayRaw>0 ? Math.abs(R.gap)/R.dayRaw*100 : 0;
+  R.ok     = (R.dayRaw<=0) || (R.gapPct<=2);
+  const plan=Number(DR.raw_plan)||0;
+  const base=R.dayRaw>0 ? R.dayRaw : R.total;
+  R.planOven = base>0 ? plan*R.oven.raw/base : 0;
+  R.planCoat = Math.max(plan - R.planOven, 0);
+  return R;
+}
+/* 원료 실적 카드 1개 (코터경로 / 오븐경로 공용) */
+function scRawRouteCard(kind, R){
+  const on=(kind==='coat');
+  const d=R?(on?R.coat:R.oven):null;
+  const sub2=on?'EP·코터 실적반영':'오븐 · 기본수율 반영';
+  const val=d?(on?d.out:d.sku):0;
+  const raw=d?d.raw:0;
+  const rate=d?d.rate:null;
+  const band=on?[70,90]:[OVEN_BASE_YIELD-12, OVEN_BASE_YIELD+12];
+  const col=(rate==null)?'var(--mut)':((rate>=band[0]&&rate<=band[1])?'var(--grn)':(rate>band[1]?'#7fc99a':'#e8918c'));
+  const t=val/1000;
+  const tip=!d||!d.n
+    ? `당일(계획번호 앞 8자리 = ${CUR_DAY.date}) ${on?'코터':'오븐'} 경로 계획번호가 없습니다.\n포장만 진행한 날이면 0 이 정상입니다 — 원료는 그 계획번호를 만든 날에 이미 잡혔습니다.`
+    : (on
+      ? `당일 진공코터 공정 실적 ${fmt1(d.out)}kg\n(① 라인별 요약의 진공코터 실적과 같은 값입니다)\n\n분모 = 당일 원료실적 ${fmt1(R?R.dayRawTotal:0)}kg − 오븐 원료 ${fmt1(R?R.oven.raw:0)}kg = ${fmt1(d.raw)}kg\n오븐으로 간 원료만 빼고 나머지는 전부 코터로 봅니다.\n\n달성률 = 코터 산출 ÷ 코터 원료 · 정상 70~90%${d.resid>50?`\n\n이 중 ${fmt1(d.resid)}kg 은 그날 포장을 시작하지 않아 ②-1 에는 아직 안 잡힌 계획번호 몫입니다.`:''}`
+      : `당일 계획번호(${CUR_DAY.date}) 오븐 제품의 SKU 포장 실적 ${fmt1(d.sku)}kg${d.skuCarry>0?`\n※ 이월 계획번호 포장분 ${fmt1(d.skuCarry)}kg 은 제외했습니다 — 그 원료는 만든 날에 이미 잡혔습니다.`:''}\n\n원료 투입 ${fmt1(d.raw)}kg → SKU 실적 ${fmt1(d.sku)}kg\n오븐은 EP 산출 계량 설비가 없어 실측 EP수율을 낼 수 없습니다.\n기본수율 ${OVEN_BASE_YIELD}% 대비 ${rate==null?'–':((rate-OVEN_BASE_YIELD>=0?'+':'')+(rate-OVEN_BASE_YIELD).toFixed(1)+'%p')}`);
+  return `<div class="sc g2" title="${tip.replace(/"/g,'&quot;')}">
+    <div class="l">당일 원료사용실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (${sub2})</span></div>
+    <div class="v mono sc-dual">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
+      <span class="sc-slash">/</span>
+      <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
+    <div class="sub">${on?'코터산출':'SKU실적'} ${fmt(Math.round(val))}<span class="u">kg</span><span class="sc-dot">·</span>원료 ${fmt(Math.round(raw))}<span class="u">kg</span>
+      ${on&&R&&!R.ok?`<span class="sc-dot">·</span><span style="color:#b42318" title="코터 ${fmt1(R.coat.raw)} + 오븐 ${fmt1(R.oven.raw)} = ${fmt1(R.total)}kg 이 당일 원료실적 ${fmt1(R.dayRaw)}kg 과 어긋납니다.">⚠ ${fmt(Math.round(Math.abs(R.gap)))}</span>`:''}</div></div>`;
+}
+/* 생산2팀 전용 스코어카드 — 코터·오븐 경로 구분이 없는 플랫폼 */
+function scoreRow2(DR, totLoss, totScrap){
+  const orders=CUR_DAY.orders||[];
+  const isFin=(o)=>{ if(o.kind==='fin'||o.kind==='완제품')return true;
+                     if(o.kind==='semi'||o.kind==='반제품')return false;
+                     return ['2','3'].includes(String(o.prod_code||'')[0]); };
+  const isSemi=(o)=>{ if(o.kind==='semi'||o.kind==='반제품')return true;
+                      if(o.kind==='fin'||o.kind==='완제품')return false;
+                      return String(o.prod_code||'')[0]==='6'; };
+  let finCnt=0, semiCnt=0;
+  orders.forEach(o=>{ if(isFin(o)) finCnt++; else if(isSemi(o)) semiCnt++; });
+  /* 당일 포장원료 계획량 = ② 표의 계획(KG) 열 합. 한 계획번호가 여러 묶음이면 1회만 센다. */
+  let packPlan=0, packPlanCnt=0;
+  try{
+    const seen={};
+    packGroups().forEach(g=>{
+      const k=g.plan_no||''; if(seen[k]) return; seen[k]=1;
+      const v=Number(packPlanOf(g).plan)||0;
+      if(v>0){ packPlan+=v; packPlanCnt++; }
+    });
+  }catch(_){}
+  const d8=String(CUR_DAY.date||'').replace(/-/g,'');
+  const m=t2RawByPlan();
+  let rawBase=0, planCnt=0;
+  Object.keys(m).forEach(k=>{ if(String(k).slice(0,8)===d8){ rawBase+=m[k]; planCnt++; } });
+  if(rawBase<=0){ rawBase=Number(DR.raw_actual)||0; }
+  const T=(v)=>{ const t=(Number(v)||0)/1000; return t>=100?t.toFixed(0):t.toFixed(1); };
+  return `<div class="score-row">
+    <div class="sc k" title="② 오더별 생산실적 표의 '계획(KG)' 열 합계입니다.&#10;계획번호별 원료 투입 실적을 포장 계획 기준선으로 사용하며, 계획번호가 여러 묶음으로 나뉘어도 1회만 계상합니다."><div class="l">당일 포장원료 계획량</div>
+      <div class="v mono">${T(packPlan)}<span class="u">ton</span></div>
+      <div class="sub">원료 ${fmt(Math.round(packPlan))}<span class="u">kg</span><span class="sc-dot">·</span>${packPlanCnt?`계획 ${packPlanCnt}건`:'해당 없음'}</div></div>
+    <div class="sc g2" title="생산계획번호 앞 8자리가 ${CUR_DAY.date} 인 계획의 원료 투입 실적 합계입니다.&#10;MES 원료 계획 로직이 아직 제정되지 않아 실적을 계획 기준선으로 씁니다."><div class="l">당일 원료계획량<span style="font-size:9px;color:#98a2b3;font-weight:700"> (실적 기준)</span></div>
+      <div class="v mono">${T(rawBase)}<span class="u">ton</span></div>
+      <div class="sub">원료 ${fmt(Math.round(rawBase))}<span class="u">kg</span><span class="sc-dot">·</span>${planCnt?`계획 ${planCnt}건`:'당일 계획 없음'}</div></div>
+    ${scPackCard(DR)}
+    <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCnt}</div>
+      <div class="sc-sub">반제품 ${semiCnt}종</div></div>
+    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
+  </div>`;
+}
+/* 스코어카드 6종 한 줄 — 생산1팀/2팀 공용 진입점 */
+function scoreRow(DR, totLoss, totScrap){
+  if(isT2()) return scoreRow2(DR, totLoss, totScrap);
+  const R=rawRouteTotals();
+  return `<div class="score-row">
+    <div class="sc k" title="생산계획번호 앞 8자리가 이 날짜인 계획의 원부재료(자재코드 1번대) 계획량 합계입니다.&#10;포장만 진행한 날은 0 건이 정상입니다."><div class="l">당일 원료사용계획</div>
+      <div class="v mono">${((Number(DR.raw_plan)||0)/1000)>=100?((Number(DR.raw_plan)||0)/1000).toFixed(0):((Number(DR.raw_plan)||0)/1000).toFixed(1)}<span class="u">ton</span></div>
+      <div class="sub">원료 ${fmt(Math.round(Number(DR.raw_plan)||0))}<span class="u">kg</span><span class="sc-dot">·</span>계획 ${fmt(Number(DR.plan_cnt)||0)}건</div>
+      ${R&&R.dayRaw>0&&Number(DR.raw_plan)>0?(()=>{
+        const ex=R.dayRaw/Number(DR.raw_plan)*100;
+        const bad=(ex<90||ex>110);
+        return `<div class="sub" style="margin-top:1px;color:${bad?'#b42318':'#6b7280'}" title="당일 원료 실적 ${fmt1(R.dayRaw)}kg ÷ 계획 ${fmt1(DR.raw_plan)}kg&#10;차이 ${fmt1(Math.abs(Number(DR.raw_plan)-R.dayRaw))}kg&#10;${bad?'계획만 있고 실행되지 않은 생산계획번호가 섞였을 가능성이 큽니다. MES 정정 후 재업로드하면 즉시 반영됩니다.':'정상 범위입니다.'}">실행률 ${ex.toFixed(1)}%${bad?` ⚠ 차이 ${fmt(Math.round(Math.abs(Number(DR.raw_plan)-R.dayRaw)/100)/10)}t`:''}</div>`;
+      })():''}
+      ${R&&R.total>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="MES 계획에는 코터·오븐 경로 정보가 없습니다.&#10;오븐은 ②-1 에서 확인된 계획번호 몫만 계산하고 나머지는 전부 코터로 봅니다.">(코터 ${(R.planCoat/1000).toFixed(1)}t / 오븐 ${(R.planOven/1000).toFixed(1)}t) <span style="font-size:9px;color:#9aa8bd">안분추정</span></div>`:''}</div>
+    ${scRawRouteCard('coat', R)}
+    ${scRawRouteCard('oven', R)}
+    ${scPackCard(DR)}
+    <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
+    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
+  </div>`;
 }
 function buildPackSection(){
   const G=packGroups();
