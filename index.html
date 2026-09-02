@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5899,7 +5899,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.27c';
+const APP_VERSION='v2026.08.27d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7170,7 +7170,14 @@ function coaterYieldTip(cy){
    ════════════════════════════════════════════════════════════════════ */
 /* 포장 완결 판정 임계값(%) — 누계 포장수율이 이 값 이상이면 완결로 본다 */
 const PK_DONE=95;
-const PK_SHOW=98;   // 생산완료 처리 버튼 노출선 — 이 값 미만이면 완결로 잡혀도 버튼을 띄운다
+const PK_SHOW=98;
+let PK_EDIT_ON=false;   // ② SKU 계획 수동 수정 컬럼 표시 여부 (기본 숨김)
+function togglePackEdit(){
+  PK_EDIT_ON=!PK_EDIT_ON;
+  try{ closeNotePop(false); }catch(_){}
+  rerenderClosing();
+  toast(PK_EDIT_ON?'SKU 계획 수정 열림 — 자동 산출을 덮어씁니다':'SKU 계획 수정 닫힘','ok');
+}   // 생산완료 처리 버튼 노출선 — 이 값 미만이면 완결로 잡혀도 버튼을 띄운다
 /* 렌더 1회당 packGroups() 가 3~5회 호출된다(② 표 / 스코어카드 / ②-1 수율요약 / 드릴다운).
    결과는 CUR_DAY.pack 이 바뀌지 않는 한 동일하므로 배열 참조를 키로 메모이즈한다.
    pack 배열은 데이터 재조회 시에만 새 참조가 되므로 무효화 로직이 따로 필요 없다. */
@@ -7684,7 +7691,14 @@ function buildPackSection(){
   const G=packGroups();
   if(!G.length) return '';
   // MES 계획 기준 묶음이 하나라도 있으면 'SKU 계획' 입력 컬럼을 띄운다
-  const anyMes=G.some(g=>packPlanEditable(g));
+  /* SKU 계획 컬럼은 기본 숨김.
+     ── 계획은 코터·오븐 산출 자동 산출이 원칙이고, 수동 수정은 예외 경로다.
+     ── 계획번호로 반제품 생산 기록을 못 찾은 건(품번 추정)이 하루라도 섞이면
+        packPlanEditable 이 true 가 되어 표 전체에 입력 컬럼이 튀어나왔다.
+        예고 없이 컬럼이 생기면 마감 화면이 날마다 달라 보인다.
+     ── 그래서 편집 가능 건이 있을 때 헤더에 버튼만 띄우고, 눌렀을 때만 컬럼을 연다. */
+  const canMes=G.some(g=>packPlanEditable(g));
+  const anyMes=canMes && PK_EDIT_ON;
   // 계획 근거 라벨 — 팀·라인 구조에 따라 자동으로 달라진다
   const _srcs=[...new Set(G.map(g=>{
     const pb=packPlanOf(g);
@@ -8128,6 +8142,7 @@ function buildSection2(){
       ? (isT2()?'생산계획번호 묶음 · 계획 = 계획번호별 원료 투입실적 · 달성률 = 포장수율(당일·누계)':'생산계획번호 묶음 · 계획 = 코터/오븐 산출(자동) · 달성률 = 포장수율')
       : `투입공수(MH)·특이사항 수기 입력 · 계획(KG) 수정 가능${hasCoat?' · 진공코터·오븐 계획 = EP 실적(자동)':' · 계획 = MES 원본'}`}</span><span class="sp"></span>
     ${(!usePack&&noPlanCnt)?`<span style="font-size:11.5px;font-weight:800;color:#b42318;background:#fee4e2;border:1px solid #fda29b;border-radius:5px;padding:2px 7px;margin-right:8px">계획 미입력 ${noPlanCnt}</span>`:''}
+    ${usePack&&packGroups().some(g=>packPlanEditable(g))?`<button class="tbtn${PK_EDIT_ON?' save':''}" onclick="togglePackEdit()" style="margin-right:6px" title="계획은 코터·오븐 산출로 자동 계산됩니다.&#10;계획번호로 반제품 생산 기록을 못 찾은 건(⚠ 품번 추정)만 수동 보정이 필요할 수 있어, 눌렀을 때만 입력 컬럼이 열립니다.">${PK_EDIT_ON?'✕ 계획 수정 닫기':'✎ 계획 수정'}</button>`:''}
     ${usePack?'':`<button class="tbtn" onclick="fillSuggestPlan()" title="앞 공정 실적을 기준으로 계획 입력칸을 채웁니다. 저장 전까지 DB는 바뀌지 않습니다." style="margin-right:6px">⚡ 계획 제안값 채우기</button>`}
     <button class="tbtn save" onclick="saveT2MH()">${usePack?'투입공수 저장':'투입공수 · 계획 저장'}</button></div>
     <div class="tabbar">
