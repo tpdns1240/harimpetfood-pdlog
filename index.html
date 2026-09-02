@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27e</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.08.27e</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5899,7 +5899,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.08.27d';
+const APP_VERSION='v2026.08.27e';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7761,6 +7761,7 @@ function buildPackSection(){
           </td>
           <td rowspan="${n}" class="mono pk-plan">${pb.plan>0?t(pb.plan):'<span style="color:#b42318;font-size:11px">계획 없음</span>'}
             ${pb.src==='edit'?`<div style="font-size:9.5px;font-weight:800;color:#0d8a4f" title="현장에서 수정한 계획이 우선 적용된 묶음입니다.${Number(g.base_actual)>0?` 원래 근거(${g.base_type} 투입)는 ${fmt1(g.base_actual)}kg 였습니다.`:''} SKU 계획칸의 ↺ 로 되돌릴 수 있습니다.">✎ 수정 계획</div>`:''}
+            ${g.base_match==='code'?`<div style="font-size:9px;font-weight:800;color:#b45309" title="이 계획번호로 반제품 생산 기록을 찾지 못했습니다.&#10;· 반제품 공정(오븐·진공코터) 행에 생산계획번호가 비어 있거나&#10;· 반제품을 만든 날이 조회 범위(기본 30일) 밖일 때 발생합니다.&#10;같은 반제품 품번의 최근 산출로 대신했으므로 수율이 왜곡될 수 있습니다.">품번매칭</div>`:''}
             ${pb.src==='mes'&&pb.plan>0?`<div style="font-size:9.5px;font-weight:800;color:#8a6d1f" title="반제품 생산공정 기록이 없어 MES 완제품 계획 합계를 계획으로 씁니다. SKU 계획칸에서 수정하면 즉시 반영됩니다.">MES 계획</div>`:''}
             ${pb.src==='dry'&&g.base_match==='proc'?`<div style="font-size:9.5px;font-weight:800;color:#0d7a8a" title="이 계획번호의 ${g.base_type} 공정에 투입된 원부재료·반제품 합계입니다(부자재 제외). 중간 계량이 없는 라인이라 투입량을 계획으로 봅니다.">원재료 투입</div>`:''}
             ${pb.src==='dry'&&g.base_match==='code'?`<div style="font-size:9.5px;font-weight:800;color:#b54708" title="이 계획번호로 반제품 생산 기록을 찾지 못해, 같은 반제품 품번의 가장 최근 1일치 산출을 대신 사용했습니다. 다른 계획번호의 물량일 수 있으니 수율 판단 시 주의하세요.">⚠ 품번 추정</div>`:''}
