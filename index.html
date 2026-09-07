@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5899,7 +5899,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.03b';
+const APP_VERSION='v2026.09.03d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6195,7 +6195,10 @@ function isDeadlinePassed(dateStr){
       작성자가 문서를 아예 못 고치는 사고가 난다. 그래서 잠글 상태만 명시한다.
       모르는 상태는 '편집 가능'으로 열어둔다 (업무 중단 방지 우선).
    ── 관리자는 예외 (오기재 정정 목적) */
-const APPR_LOCKED=['submitted','lead_ok','div_ok','done'];
+/* 결재 잠금 대상 — 결재 진행중(submitted/lead_ok/div_ok)에는 수정을 허용한다.
+   현장이 결재 도중에도 숫자를 바로잡을 수 있어야 하고, 확정은 'done' 시점이다.
+   기간 잠금은 별도로 isDeadlineLocked(마감월 익월 10일)가 담당한다. */
+const APPR_LOCKED=['done'];
 function isApprLocked(status, isAdmin){
   if(isAdmin) return false;
   return APPR_LOCKED.includes(String(status||'').trim());
@@ -6205,7 +6208,7 @@ function apprLockMsg(status){
   const ko={submitted:'팀장 승인 대기', lead_ok:'본부장 승인 대기', div_ok:'CEO 승인 대기', done:'결재 완료'}[st]||'결재 진행';
   return st==='done'
     ? '<b>결재가 최종 완료된 문서</b>입니다. 수정할 수 없습니다.'
-    : `<b>결재 상신된 문서</b>입니다 (현재 ${ko}). 수정하려면 <b>결재자에게 반려</b>를 요청하세요.`;
+    : `<b>결재 진행중</b>입니다 (현재 ${ko}). 수정은 가능하지만 <b>결재자가 본 숫자가 바뀌니 주의</b>하세요.`;
 }
 function isDeadlineLocked(dateStr, team){
   if(!isDeadlinePassed(dateStr)) return false;
@@ -6345,6 +6348,20 @@ async function openDay(date, team){
         if(error){ console.warn('[당일 원본] 조회 실패', error); return; }
         CUR_DAY.dayRows=data||[];
         try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+        /* 그날 원료를 쓴 계획번호의 포장 실적을 "조업일 이후 전부" 긁는다.
+           9/1 을 며칠 뒤에 열어도 그 사이에 나온 포장이 누적돼,
+           어느 날짜가 마무리됐고 어느 날짜가 남았는지 알 수 있다. */
+        const pk=[...new Set((data||[])
+          .filter(r=>String(r.mat_code||'')[0]==='1' && Number(r.actual_qty)>0 && r.plan_no)
+          .map(r=>r.plan_no))];
+        if(!pk.length){ CUR_DAY.packRows=[]; return; }
+        sb.from('db_plan_raw').select('plan_no,prod_code,mat_code,proc_sub2,work_date,actual_qty')
+          .eq('team',team).gte('work_date',date).in('plan_no',pk)
+          .then(({data:pd,error:pe})=>{
+            if(pe){ console.warn('[포장 누적] 조회 실패', pe); CUR_DAY.packRows=[]; return; }
+            CUR_DAY.packRows=pd||[];
+            try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+          }, e=>{ console.warn('[포장 누적] 조회 실패', e); CUR_DAY.packRows=[]; });
       }, e=>console.warn('[당일 원본] 조회 실패', e));
     // 개당중량 마스터 — EA 환산용. 세션당 1회만 받아 재사용하고, 실패해도 화면은 뜬다.
     uwMap().then(()=>{ try{ if(S.view==='day') rerenderClosing(); }catch(_){} }, ()=>{});
@@ -7182,7 +7199,13 @@ function coaterYieldTip(cy){
 /* 포장 완결 판정 임계값(%) — 누계 포장수율이 이 값 이상이면 완결로 본다 */
 const PK_DONE=95;
 const PK_SHOW=98;
-let PK_EDIT_ON=false;   // ② SKU 계획 수동 수정 컬럼 표시 여부 (기본 숨김)
+let PK_EDIT_ON=false;
+let YS_Q='';   // ②-1 계획번호 검색어
+function ysSearch(v){
+  YS_Q=String(v||'');
+  rerenderClosing();
+  setTimeout(()=>{ const e=$('#ysQ'); if(e && YS_Q){ e.focus(); e.setSelectionRange(e.value.length,e.value.length); } },0);
+}   // ② SKU 계획 수동 수정 컬럼 표시 여부 (기본 숨김)
 function togglePackEdit(){
   PK_EDIT_ON=!PK_EDIT_ON;
   try{ closeNotePop(false); }catch(_){}
@@ -7356,11 +7379,11 @@ function packDayTotals(){
    ── day_raw_summary 는 "계획번호 앞 8자리 = 당일" 조건이라 이월·선행 계획번호를
       놓치거나 잘못 포함한다. 그래서 스코어카드는 이 함수를 단일 기준으로 쓴다.
    ════════════════════════════════════════════════════════════════════ */
-let _DRC_SRC=null, _DRC_VAL=null;
+let _DRC_SRC=null, _DRC_PK=null, _DRC_VAL=null;
 function dayRawCalc(){
   const rows=CUR_DAY.dayRows;
-  if(!rows) return null;
-  if(_DRC_SRC===rows && _DRC_VAL) return _DRC_VAL;
+  if(!rows || CUR_DAY.packRows==null) return null;   // 두 조회가 모두 끝나야 확정값
+  if(_DRC_SRC===rows && _DRC_PK===CUR_DAY.packRows && _DRC_VAL) return _DRC_VAL;
   const d8=String(CUR_DAY.date||'').replace(/-/g,'');
   const nx=(()=>{ const m=String(CUR_DAY.date||'').match(/(\d{4})-(\d{2})-(\d{2})/);
     if(!m) return d8;
@@ -7378,24 +7401,38 @@ function dayRawCalc(){
       rawPlan+=pl; rawAct+=aq;
       if(pn && aq>0) rawByPlan[pn]=(rawByPlan[pn]||0)+aq;
     }
-    if(c==='6' && /포장/.test(String(r.proc_sub2||''))){
-      const p8=pn.slice(0,8);
-      if(p8===d8 || p8===nx){
-        packKg+=aq;
-        if(pn) packByPlan[pn]=(packByPlan[pn]||0)+aq;
-        const w=W[String(r.prod_code)];
-        if(w>0) packEa+=aq/w; else if(aq>0){ skuSet[r.prod_code]=1; }
-      }
-    }
+  });
+  /* 포장 실적 = 그 계획번호로 조업일 이후 오늘까지 포장된 전량.
+     날짜를 당일·익일로 좁히면 며칠 뒤 리뷰할 때 그 사이 포장분이 빠진다. */
+  let lastDate=null;
+  (CUR_DAY.packRows||[]).forEach(r=>{
+    if(String(r.mat_code||'')[0]!=='6') return;
+    if(!/포장/.test(String(r.proc_sub2||''))) return;
+    const pn=String(r.plan_no||''); if(!(pn in rawByPlan)) return;
+    const aq=Number(r.actual_qty)||0; if(aq<=0) return;
+    packKg+=aq;
+    packByPlan[pn]=(packByPlan[pn]||0)+aq;
+    const w=W[String(r.prod_code)];
+    if(w>0) packEa+=aq/w; else skuSet[r.prod_code]=1;
+    const d=String(r.work_date||'').slice(0,10);
+    if(d && (!lastDate || d>lastDate)) lastDate=d;
   });
   eaMiss=Object.keys(skuSet).length;
   const planKeys=Object.keys(rawByPlan);
-  let noPackKg=0, noPackCnt=0;
-  planKeys.forEach(k=>{ if(!packByPlan[k]){ noPackKg+=rawByPlan[k]; noPackCnt++; } });
-  const V={rawPlan, rawAct, packKg, packEa, eaMiss,
+  let noPackKg=0, noPackCnt=0, doneKg=0, doneCnt=0;
+  const noPackList=[];
+  planKeys.forEach(k=>{
+    if(packByPlan[k]) return;
+    if(isPlanDoneAny(k)){ doneKg+=rawByPlan[k]; doneCnt++; return; }  // 생산완료 처리분은 제외
+    noPackKg+=rawByPlan[k]; noPackCnt++;
+    noPackList.push({plan_no:k, kg:rawByPlan[k]});
+  });
+  noPackList.sort((a,b)=>b.kg-a.kg);
+  const V={rawPlan, rawAct, packKg, packEa, eaMiss, lastDate,
+    pending:(CUR_DAY.packRows==null),
     planCnt:planKeys.length, packPlanCnt:Object.keys(packByPlan).length,
-    noPackKg, noPackCnt, rawByPlan, packByPlan, d8, nx};
-  _DRC_SRC=rows; _DRC_VAL=V;
+    noPackKg, noPackCnt, noPackList, doneKg, doneCnt, rawByPlan, packByPlan, d8, nx};
+  _DRC_SRC=rows; _DRC_PK=CUR_DAY.packRows; _DRC_VAL=V;
   return V;
 }
 /* ════════════════════════════════════════════════════════════════════
@@ -7406,6 +7443,37 @@ function dayRawCalc(){
    ── 원료를 썼는데 아직 포장이 하나도 없는 계획번호는 '미포장'으로 드러낸다.
       잔여 사유를 찾는 출발점이 그 목록이다.
    ════════════════════════════════════════════════════════════════════ */
+/* 미포장 계획번호 목록 — 원료는 썼는데 포장이 아직 없는 건.
+   ② 표에는 포장 실적이 없어 나타나지 않으므로 생산완료 처리를 할 수단이 없었다.
+   여기서 바로 닫을 수 있게 한다. 닫으면 미포장 집계에서 빠진다. */
+function openNoPackList(){
+  const V=dayRawCalc(); if(!V||!V.noPackList||!V.noPackList.length) return;
+  const el=document.createElement('div');
+  el.className='dq-back'; el.id='npkBack';
+  el.onclick=(e)=>{ if(e.target===el) closeNoPackList(); };
+  el.innerHTML=`<div class="pt-box" style="width:min(560px,100%)">
+    <div class="dq-hd"><b>미포장 계획번호</b><span class="dq-x" onclick="closeNoPackList()">✕</span></div>
+    <div class="dq-prod">${CUR_DAY.date} 조업일에 원료를 투입했으나 아직 포장 실적이 없는 계획번호입니다.</div>
+    <div style="padding:14px 16px">
+      <table class="t2-table" style="font-size:12.5px">
+        <thead><tr><th>생산계획번호</th><th>원료 사용량(KG)</th><th style="width:120px">처리</th></tr></thead>
+        <tbody>${V.noPackList.map(x=>`<tr>
+          <td class="mono"><b>${x.plan_no}</b></td>
+          <td class="mono">${fmt(Math.round(x.kg))}</td>
+          <td><button class="rowbtn" onclick="togglePlanDone('${x.plan_no}','')">생산완료 처리</button></td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr style="background:#f4f7fc;font-weight:800">
+          <td class="l">합계 ${V.noPackList.length}건</td>
+          <td class="mono">${fmt(Math.round(V.noPackKg))}</td><td></td></tr></tfoot>
+      </table>
+      <div style="font-size:11px;color:var(--mut);margin-top:10px;line-height:1.6">
+        ※ 익일 이후 포장이 예정된 건이면 그대로 두세요. 다음에 열면 자동으로 빠집니다.<br>
+        ※ 더 포장하지 않을 건(잔량 폐기·오더 종료)만 <b>생산완료 처리</b> 하세요. 불량 폐기분은 ④ 완제품 불량관리에 먼저 등록하시면 됩니다.
+      </div>
+    </div></div>`;
+  document.body.appendChild(el);
+}
+function closeNoPackList(){ const b=document.getElementById('npkBack'); if(b) b.remove(); }
 function scPackRawCard(){
   const V=dayRawCalc();
   if(!V) return `<div class="sc o"><div class="l">당일 포장실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (원료사용량기준)</span></div>
@@ -7414,8 +7482,10 @@ function scPackRawCard(){
   const rate=V.rawAct>0 ? V.packKg/V.rawAct*100 : null;
   const col=(rate==null)?'var(--mut)':(rate>=70?'var(--grn)':(rate>=50?'#d97706':'#b42318'));
   const tip=`1차 필터 : 조업일 ${CUR_DAY.date} 07:00 ~ 익일 06:59\n`
-    + `2차 필터 : 포장공정 + 반제품(6번대) 소비 · 생산계획번호 앞 8자리가 ${V.d8} 또는 ${V.nx}\n`
-    + `  (포장공정이 소비한 반제품 양이 곧 완제품 포장량입니다)\n\n`
+    + `2차 필터 : 그 원료를 쓴 계획번호의 포장을 ${CUR_DAY.date} 이후 오늘까지 전부 합산\n`
+    + `  (포장공정이 소비한 반제품 양이 곧 완제품 포장량입니다)\n`
+    + (V.lastDate?`  마지막 포장일 ${V.lastDate}\n`:'')
+    + `  며칠 뒤에 다시 열면 그 사이 포장분이 누적되어 수율이 올라갑니다.\n\n`
     + `원료 사용 ${fmt1(V.rawAct)}kg → 포장 ${fmt1(V.packKg)}kg\n`
     + `원료 투입 계획번호 ${V.planCnt}건 · 포장 잡힌 계획번호 ${V.packPlanCnt}건`
     + (V.noPackCnt>0 ? `\n\n미포장 ${V.noPackCnt}건 · 원료 ${fmt1(V.noPackKg)}kg — 아직 포장이 시작되지 않았습니다. 잔여 사유는 여기서 찾으세요.` : '\n모든 계획번호가 포장에 들어갔습니다.')
@@ -7427,7 +7497,8 @@ function scPackRawCard(){
     <div class="sub" title="${tipA}">원료 ${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">t</span>
       <span class="sc-slash" style="font-size:12px">/</span>포장 ${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">t</span>
       <span class="sc-dot">·</span><span style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span>
-      ${V.noPackCnt>0?`<span class="sc-dot">·</span><span style="color:#b42318">미포장 ${V.noPackCnt}건</span>`:''}</div></div>`;
+      ${V.noPackCnt>0?`<span class="sc-dot">·</span><span style="color:#b42318;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();openNoPackList()" title="클릭하면 미포장 계획번호 목록이 열리고, 거기서 생산완료 처리를 할 수 있습니다">미포장 ${V.noPackCnt}건</span>`:''}
+      ${V.doneCnt>0?`<span class="sc-dot">·</span><span style="color:#0d6b42" title="생산완료로 처리해 미포장에서 제외한 계획번호입니다 (원료 ${fmt1(V.doneKg)}kg)">완료 ${V.doneCnt}건</span>`:''}</div></div>`;
 }
 /* 임원 요청으로 '당일 포장실적'(일자 기준) 카드를 잠시 숨긴다.
    되돌리려면 이 값을 true 로 바꾸면 원래대로 나온다. */
@@ -7468,6 +7539,13 @@ function scPackCard(DR){
 let PLAN_DONE=new Set();
 const pdKey=(planNo,baseCode)=>String(planNo||'')+'|'+String(baseCode||'');
 function isPlanDone(planNo,baseCode){ return PLAN_DONE.has(pdKey(planNo,baseCode)); }
+/* 계획번호 단위 완료 판정 — 반제품 코드를 몰라도 그 계획번호가 닫혔는지 알 수 있다.
+   미포장 집계에서 '더 포장 안 함'으로 처리된 건을 빼는 데 쓴다. */
+function isPlanDoneAny(planNo){
+  const pre=String(planNo||'')+'|';
+  for(const k of PLAN_DONE){ if(k.indexOf(pre)===0) return true; }
+  return false;
+}
 async function togglePlanDone(planNo, baseCode){
   if(CUR_DAY.locked){ toast('결재 진행중이라 수정할 수 없습니다','err'); return; }
   const k=pdKey(planNo,baseCode), on=PLAN_DONE.has(k);
@@ -7487,6 +7565,7 @@ async function togglePlanDone(planNo, baseCode){
       if(error)throw error;
       PLAN_DONE.add(k); toast('생산완료 처리','ok');
     }
+    try{ closeNoPackList(); }catch(_){}
     rerenderClosing();
   }catch(e){ toast('처리 실패: '+(e.message||e),'err'); }
 }
@@ -8038,76 +8117,70 @@ function buildYieldSummary(){
   const goingN=gOrder.filter(G=>G.going).length;
 
   const T2=isT2();
-  /* 생산2팀 전용 컬럼 : 생산계획번호 · 제품번호 · 제품명 · 구분 · 계획 · SKU실적 · 최종완료수율 · 최종포장
-     EP수율·포장수율·포장실적 컬럼은 쓰지 않는다 (플랫폼이 달라 의미가 없거나 중복). */
-  const body=R.length?gOrder.map(G=>G.list.map((x,gi)=>{
+  /* 컬럼 구성 (생산1팀·2팀 동일)
+     생산계획번호 | 제품번호 | 제품명 | 구분 | 계획수량 | 포장실적 | 최종완료수율 | 최종포장일
+     ── 계획수량·포장실적·최종완료수율은 계획번호 단위 병합(rowspan)
+     ── 제품번호·제품명·구분은 반제품 품목별로 나뉜다 */
+  const q=String(YS_Q||'').trim().toLowerCase();
+  const gView=q ? gOrder.filter(G=>String(G.key).toLowerCase().includes(q)
+                    || G.list.some(x=>String(x.r.prod_code||'').toLowerCase().includes(q)
+                                    || String(x.r.prod_name||'').toLowerCase().includes(q)))
+                : gOrder;
+  const body=gView.length?gView.map(G=>G.list.map((x,gi)=>{
     const r=x.r; const first=(gi===0); const n=G.list.length;
-    const head=`${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle">${r.plan_no}</td>`:''}
+    return `<tr>
+      ${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle"><b>${r.plan_no}</b></td>`:''}
       <td class="mono">${r.prod_code}</td>
       <td class="l">${r.prod_name||'-'}</td>
-      <td><span class="pk-type ${r.base_type==='오븐'?'pk-oven':'pk-coat'}">${T2?(baseTypeLabel({base_code:r.prod_code,base_type:r.base_type})||'반제품'):r.base_type}</span></td>`;
-    const tail=`<td class="mono" style="font-size:11.5px;color:var(--sub)">${r.pack_last?String(r.pack_last).slice(5):'-'}${r.day_cnt>1?` · ${r.day_cnt}일`:''}</td>`;
-    if(T2){
-      return `<tr>${head}
-      ${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle" title="계획번호 ${G.key} 에 투입된 원료 실적입니다. MES 원료 계획이 아직 수집되지 않아 실적을 계획 기준선으로 씁니다."><b>${fmt(Math.round(G.raw))}</b></td>`:''}
-      <td class="mono" title="이 품목의 포장 누계 실적입니다."><b>${fmt(Math.round(x.packCum))}</b>${x.packDay!=null&&x.packDay<x.packCum?`<div style="font-size:9.5px;font-weight:700;color:#8b7bbd">당일 ${fmt(Math.round(x.packDay))}</div>`:''}</td>
-      ${first?`<td class="mono" rowspan="${n}" style="background:#fdead3;vertical-align:middle" title="SKU 포장 합계 ${fmt1(G.pack)} ÷ 계획(원료 실적) ${fmt1(G.raw)}kg&#10;${G.going?`아직 ${fmt1(G.rest)}kg 이 포장 전이라 실제보다 낮게 보입니다.`:'포장 완결 기준이라 확정값에 가깝습니다.'}">${cell(G.fRate,[60,110])}${G.going?'<div style="font-size:9px;font-weight:800;color:#6d47c9">진행중</div>':''}</td>`:''}
-      ${tail}</tr>`;
-    }
-    return `<tr>${head}
-      <td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}&#10;압출·건조에서 수분이 증발하는 구간입니다.">${cell(r.ep_rate,[60,80])}</td>
-      ${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle" title="포장 누계 ${fmt1(G.pack)} ÷ 계획 ${fmt1(G.dry)}kg&#10;② 포장 실적 표의 포장수율과 같은 값입니다.">${cell(G.pRate,[95,105])}</td>
-      <td class="mono" rowspan="${n}" style="background:#fdead3;vertical-align:middle" title="포장 누계 ${fmt1(G.pack)} ÷ 투입 원자재 ${fmt1(G.raw)}kg — 원료를 넣어 완제품이 얼마나 나왔는지&#10;${G.going?`아직 ${fmt1(G.rest)}kg 이 포장 전이라 실제보다 낮게 보입니다.`:'포장 완결 기준이라 확정값에 가깝습니다.'}">${cell(G.fRate,[60,110])}${G.going?'<div style="font-size:9px;font-weight:800;color:#6d47c9">진행중</div>':''}</td>
-      <td class="mono" rowspan="${n}" style="vertical-align:middle">${fmt(Math.round(G.raw))}</td>
-      <td class="mono" rowspan="${n}" style="vertical-align:middle" title="계획번호 ${G.key} 의 SKU ${n}종 포장 합계"><b>${fmt(Math.round(G.pack))}</b>
-        ${G.day<G.pack?`<div style="font-size:9.5px;font-weight:700;color:#8b7bbd">당일 ${fmt(Math.round(G.day))}</div>`:''}
-        ${G.going&&G.rest>1?`<div style="font-size:9px;font-weight:700;color:#98a2b3">미포장 ${fmt(Math.round(G.rest))}</div>`:''}</td>`:''}
-      ${tail}</tr>`;
+      <td><span class="pk-type ${r.base_type==='오븐'?'pk-oven':'pk-coat'}">${T2?(baseTypeLabel({base_code:r.prod_code,base_type:r.base_type})||'반제품'):(r.base_type||'-')}</span></td>
+      ${T2?'':`<td class="mono" title="EP 산출 ${fmt1(r.ep_qty)} ÷ EP 투입 ${fmt1(r.ep_in)}&#10;압출·건조에서 수분이 증발하는 구간입니다. 손실의 대부분이 여기서 발생합니다.&#10;오븐 제품은 EP 산출을 별도 계량하지 않아 100%로 기록됩니다.">${cell(r.ep_rate,[60,80])}</td>`}
+      ${first?`<td class="mono" rowspan="${n}" style="vertical-align:middle" title="${T2?`계획번호 ${G.key} 에 투입된 원료 실적입니다. MES 원료 계획이 아직 수집되지 않아 실적을 계획 기준선으로 씁니다.`:`계획번호 ${G.key} 의 투입 원자재 합계입니다.`}"><b>${fmt(Math.round(G.raw))}</b></td>
+      <td class="mono" rowspan="${n}" style="vertical-align:middle" title="이 계획번호의 SKU ${n>1?n+'종 ':''}포장 누계입니다.${G.day<G.pack?`&#10;그중 당일분 ${fmt1(G.day)}kg`:''}"><b>${fmt(Math.round(G.pack))}</b>
+        ${G.day<G.pack?`<div style="font-size:9.5px;font-weight:700;color:#8b7bbd">당일 ${fmt(Math.round(G.day))}</div>`:''}</td>
+      <td class="mono" rowspan="${n}" style="background:#fdead3;vertical-align:middle" title="포장 누계 ${fmt1(G.pack)} ÷ 계획수량 ${fmt1(G.raw)}kg&#10;${G.going?`아직 ${fmt1(G.rest)}kg 이 포장 전이라 실제보다 낮게 보입니다.`:'포장 완결 기준이라 확정값에 가깝습니다.'}">${cell(G.fRate,[60,110])}${G.going?'<div style="font-size:9px;font-weight:800;color:#6d47c9">진행중</div>':''}</td>
+      <td class="mono" rowspan="${n}" style="vertical-align:middle;font-size:11.5px;color:var(--sub)">${r.pack_last?String(r.pack_last).slice(5):'-'}${r.day_cnt>1?` · ${r.day_cnt}일`:''}</td>`:''}
+    </tr>`;
   }).join('')).join('')
-    :`<tr><td colspan="${T2?8:10}" style="text-align:center;color:var(--mut);padding:22px">당일 포장 실적이 있는 생산계획번호가 없습니다</td></tr>`;
+    :`<tr><td colspan="${T2?8:9}" style="text-align:center;color:var(--mut);padding:22px">${q?`"${YS_Q}" 에 해당하는 계획번호가 없습니다`:'당일 포장 실적이 있는 생산계획번호가 없습니다'}</td></tr>`;
 
-  const foot=R.length?(T2
-    ? `<tfoot><tr style="background:#f4f7fc;font-weight:800">
-      <td colspan="4" class="l">합계 · 계획번호 ${Object.keys(byPlan).length}건${goingN?` <span style="font-weight:700;color:#6d47c9">(진행중 ${goingN}건 포함)</span>`:''}</td>
-      <td class="mono">${fmt(Math.round(totRaw))}</td>
-      <td class="mono" title="당일 포장 ${fmt(Math.round(totDay))}kg 포함">${fmt(Math.round(totPack))}</td>
-      <td class="mono" style="background:#fdead3" title="총 포장 ${fmt1(totPack)} ÷ 총 계획(원료 실적) ${fmt1(totRaw)}kg">${cell(totFinal,[60,110])}</td>
-      <td></td></tr></tfoot>`
-    : `<tfoot><tr style="background:#f4f7fc;font-weight:800">
-      <td colspan="6" class="l">합계 · 계획번호 ${Object.keys(byPlan).length}건${goingN?` <span style="font-weight:700;color:#6d47c9">(진행중 ${goingN}건 포함)</span>`:''}</td>
-      <td class="mono" style="background:#fdead3" title="총 포장 ${fmt1(totPack)} ÷ 총 투입원료 ${fmt1(totRaw)}kg${totRest>1?`&#10;미포장 ${fmt1(totRest)}kg 이 남아 있어 확정 시 더 올라갑니다.`:''}">${cell(totFinal,[60,110])}</td>
-      <td class="mono">${fmt(Math.round(totRaw))}</td>
-      <td class="mono" title="당일 포장 ${fmt(Math.round(totDay))}kg 포함">${fmt(Math.round(totPack))}</td>
-      <td></td></tr></tfoot>`):'';
+  const foot=gView.length?`<tfoot><tr style="background:#f4f7fc;font-weight:800">
+      <td colspan="${T2?4:5}" class="l">합계 · 계획번호 ${gView.length}건${goingN?` <span style="font-weight:700;color:#6d47c9">(진행중 ${goingN}건 포함)</span>`:''}</td>
+      <td class="mono">${fmt(Math.round(gView.reduce((a,G)=>a+G.raw,0)))}</td>
+      <td class="mono">${fmt(Math.round(gView.reduce((a,G)=>a+G.pack,0)))}</td>
+      <td class="mono" style="background:#fdead3">${(()=>{const rw=gView.reduce((a,G)=>a+G.raw,0), pk=gView.reduce((a,G)=>a+G.pack,0);
+        return cell(rw>0?pk/rw*100:null,[60,110]);})()}</td>
+      <td></td></tr></tfoot>`:'';
 
   return `
   <div class="sec"><div class="sec-hd"><span class="no c2">2-1</span><h3>당일 생산계획별 제품 수율요약</h3>
-    <span class="desc">계획번호 단위 병합 · 이월 포장 포함 · 포장실적=SKU 포장 누계 합${isT2()?' · 계획=원료 투입실적':''}</span></div>
+    <span class="desc">계획번호 단위 병합 · 이월 포장 포함${isT2()?' · 계획수량=원료 투입실적':' · 계획수량=투입 원자재'}</span>
+    <span class="sp" style="flex:1"></span>
+    <input id="ysQ" value="${String(YS_Q||'').replace(/"/g,'&quot;')}" placeholder="계획번호·품번·품명 검색"
+      oninput="ysSearch(this.value)"
+      style="padding:6px 11px;border:1.5px solid var(--line);border-radius:8px;font-size:12px;width:210px">
+    ${gOrder.length?`<select onchange="ysSearch(this.value)" style="padding:6px 9px;border:1.5px solid var(--line);border-radius:8px;font-size:12px;max-width:170px">
+      <option value="">계획번호 전체 (${gOrder.length})</option>
+      ${gOrder.map(G=>`<option value="${G.key}"${YS_Q===G.key?' selected':''}>${G.key}</option>`).join('')}
+    </select>`:''}
+    ${YS_Q?`<button class="tbtn" onclick="ysSearch('')">↺</button>`:''}</div>
     <div class="sec-bd" style="overflow-x:auto">
       <table class="t2-table">
         <thead><tr>
           <th>생산계획번호</th><th>제품번호</th><th>제품명</th><th>구분</th>
-          ${T2?`<th>계획(KG)<br><span style="font-weight:600;font-size:9.5px">원료 실적</span></th>
-               <th class="th-hl">SKU 실적(KG)<br><span style="font-weight:600;font-size:9.5px">품목별 포장 누계</span></th>
-               <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷계획</span></th>`
-             :`<th class="th-hl">EP 수율<br><span style="font-weight:600;font-size:9.5px">EP산출÷EP투입</span></th>
-               <th>포장수율<br><span style="font-weight:600;font-size:9.5px">포장÷산출</span></th>
-               <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷원료</span></th>
-               <th>투입원료(KG)</th>
-               <th>포장실적(KG)<br><span style="font-weight:600;font-size:9.5px">SKU 누계 합</span></th>`}
-          <th>최종포장</th>
+          ${isT2()?'':'<th class="th-hl">EP 수율<br><span style="font-weight:600;font-size:9.5px">EP산출÷EP투입</span></th>'}
+          <th>계획수량(KG)<br><span style="font-weight:600;font-size:9.5px">${isT2()?'원료 투입실적':'투입 원자재'}</span></th>
+          <th>포장실적(KG)<br><span style="font-weight:600;font-size:9.5px">SKU 누계 합</span></th>
+          <th class="th-hl">최종완료수율<br><span style="font-weight:600;font-size:9.5px">포장÷계획수량</span></th>
+          <th>최종포장일</th>
         </tr></thead>
         <tbody>${body}</tbody>
         ${foot}
       </table>
       <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
-        ※ 공정 흐름 : <b>원료 → EP(수분 증발·손실) → 코터/오븐(오일·분체 증량) → 포장</b><br>
-        ※ <b>포장실적</b> = 그 계획번호로 최종 포장된 <b>SKU 전량의 누계 합</b>(이월 포장 포함) — ② 포장 실적 표의 '누계'와 같은 값입니다.<br>
-        ※ <b>EP 수율</b> 60~80% (수분이 빠지는 구간 · 손실의 대부분이 여기서 발생) ·
-           <b>포장수율</b> 95~105% (②오더별 완제품의 포장수율과 동일) ·
-           <b>최종완료수율</b> 60~110% (투입 원재료 대비 포장 산출)<br>
-        ※ <b style="color:#6d47c9">진행중</b> 표시는 아직 포장이 끝나지 않은 계획번호입니다. 미포장 잔량이 분자에서 빠져 있어 <b>최종완료수율이 실제보다 낮게</b> 보이며, 익일 포장이 이어지면 올라갑니다. 채산성 판단은 완결된 계획번호로 하세요.<br>
-        ${isT2()?"※ 생산2팀은 MES 원료 계획이 아직 수집되지 않아 <b>계획번호별 원료 투입 실적</b>을 계획 기준선으로 씁니다.":"※ 오븐 제품은 중간 계량 설비가 없어 증량률을 산출하지 않습니다."} 투입 원료는 자재코드 1번대(원부재료)만 집계하며 반제품·부자재는 제외합니다.
+        ※ <b>계획수량</b> = 그 계획번호에 투입된 원자재(자재코드 1번대) 합 · <b>포장실적</b> = 그 계획번호로 포장된 SKU 전량의 누계(이월 포함)<br>
+        ※ <b>최종완료수율</b> = 포장실적 ÷ 계획수량 · 정상 60~110% — 원료를 넣어 완제품이 얼마나 나왔는지입니다.<br>
+        ${isT2()?'':'※ <b>EP 수율</b> 60~80% — 압출·건조에서 수분이 빠지는 구간이며 손실 대부분이 여기서 발생합니다. 오븐 제품은 EP 산출을 계량하지 않아 100%로 기록됩니다.<br>'}
+        ※ <b style="color:#6d47c9">진행중</b> 은 아직 포장이 끝나지 않은 계획번호입니다. 미포장 잔량이 분자에서 빠져 <b>수율이 실제보다 낮게</b> 보이며, 익일 포장이 이어지면 올라갑니다. 채산성 판단은 완결된 계획번호로 하세요.
       </div>
     </div>
   </div>`;
