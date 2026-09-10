@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.03d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5899,7 +5899,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.03d';
+const APP_VERSION='v2026.09.08b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6980,12 +6980,37 @@ function buildManpower6(){
   const manpower=CUR_DAY.manpower||[];
   const orders=CUR_DAY.orders||[];
   const manByLine={}; manpower.forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
-  const lineNames=[...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort();
+  /* 생산2팀은 오더 유무와 무관하게 파트 구성을 고정한다.
+     ── 오더 기준으로 뽑으면 그날 안 돌린 파트가 사라져 인원을 넣을 칸이 없어진다.
+     ── 수제/충진포장 과 수제간식/전처리 는 한 파트(수제간식)로 운영하므로 묶는다. */
+  const T2_PARTS=[
+    ['로우','원료계량'], ['로우','충진포장'], ['수제간식','수제간식'],
+    ['아이스크림','아이스크림'], ['퀴진','퀴진'],
+    ['퍼프','건식EXT'], ['퍼프','충진포장']
+  ];
+  const T2_MERGE={ '수제/충진포장':'수제간식/수제간식', '수제간식/전처리':'수제간식/수제간식' };
+  if(isT2()){
+    Object.keys(T2_MERGE).forEach(src=>{
+      const dst=T2_MERGE[src], a=manByLine[src];
+      if(!a) return;
+      const b=manByLine[dst]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''};
+      manByLine[dst]={
+        plan_head:Number(b.plan_head||0)+Number(a.plan_head||0),
+        regular_head:Number(b.regular_head||0)+Number(a.regular_head||0),
+        dispatch_head:Number(b.dispatch_head||0)+Number(a.dispatch_head||0),
+        memo:b.memo||a.memo||''
+      };
+      delete manByLine[src];
+    });
+  }
+  const lineNames=isT2()
+    ? T2_PARTS.map(([a,b])=>a+'/'+b)
+    : [...new Set((orders||[]).map(o=>(o.proc_sub1||'')+'/'+(o.proc_sub2||'')))].sort();
   // 고정 행: 공통부문·예비인력(2팀) + 관리자1·2(1팀 1/n 배분 대상)
   const FIXED=[['공통','공통부문','공통'],['기타','예비인력','예비인력']];
   const MGR_KEYS=[['관리','관리자1'],['관리','관리자2']];
   // 관리자 총원 → 인원이 투입된 라인 수로 1/n 배분
-  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{regular_head:0,dispatch_head:0,memo:''});
+  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''});
   const mgrTotal=mgrRows.reduce((a,m)=>a+Number(m.regular_head||0)+Number(m.dispatch_head||0),0);
   const linesWithMan=lineNames.filter(name=>{
     const m=manByLine[name]; if(!m)return false;
@@ -7002,7 +7027,7 @@ function buildManpower6(){
     const sh=shareOf(name); const eff=inp+sh;
     tPlan+=Number(m.plan_head||0); tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
     return `<tr>
-      <td class="l"><span class="t2-lno">L${i+1}</span> ${name}</td>
+      <td class="l"><span class="t2-lno">${isT2()?'P':'L'}${i+1}</span> ${isT2()?name.replace('수제간식/수제간식','수제간식').replace('로우/원료계량','로우 원료').replace('로우/충진포장','로우 충진').replace('아이스크림/아이스크림','아이스크림').replace('퀴진/퀴진','퀴진'):name}</td>
       <td><input class="inp-cell mp-plan" data-line="${name}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
       <td><input class="inp-cell mp-reg" data-line="${name}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
       <td><input class="inp-cell mp-disp" data-line="${name}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
@@ -7031,10 +7056,11 @@ function buildManpower6(){
   const mgrFixedRows=MGR_KEYS.map(([s1,s2],i)=>{
     const ln=s1+'/'+s2; const m=mgrRows[i];
     const inp=(Number(m.regular_head||0)+Number(m.dispatch_head||0));
+    tPlan+=Number(m.plan_head||0);
     tReg+=Number(m.regular_head||0); tDisp+=Number(m.dispatch_head||0);
     return `<tr class="mp-fixed">
       <td class="l"><span class="t2-lno" style="background:#ede9fe;color:#6d28d9">관리</span> ${s2} <span style="font-size:11px;color:var(--mut)">· 공정 공통</span></td>
-      <td style="color:var(--mut);font-size:11px">–</td>
+      <td><input class="inp-cell mp-plan" data-line="${ln}" value="${m.plan_head||''}" placeholder="0" style="width:80px"></td>
       <td><input class="inp-cell mp-reg" data-line="${ln}" value="${m.regular_head||''}" placeholder="0" style="width:80px"></td>
       <td><input class="inp-cell mp-disp" data-line="${ln}" value="${m.dispatch_head||''}" placeholder="0" style="width:80px"></td>
       <td class="mono"><b>${inp||'–'}</b></td>
@@ -7056,6 +7082,7 @@ function buildManpower6(){
       </tr></tfoot>
     </table></div>
     <div style="padding:8px 16px 0;font-size:11.5px;color:var(--mut);line-height:1.55">
+      ${isT2()?'※ 생산2팀은 <b>파트 구성이 고정</b>되어 있습니다. 그날 오더가 없어도 행이 유지되며, <b>수제/충진포장·수제간식/전처리는 수제간식</b> 한 파트로 묶입니다.<br>':''}
       ※ <b>관리자1·2</b>는 특정 공정에 속하지 않는 반장·공정관리자 등입니다. 입력한 인원은
       <b>인원이 투입된 공정 수로 나누어(1/n)</b> 각 공정 <b>실공수</b>에 더해집니다.
       ${mgrTotal>0&&linesWithMan.length>0?`<br>현재: 관리자 ${mgrTotal}명 ÷ ${linesWithMan.length}개 공정 = 공정당 <b style="color:var(--blue)">+${fmtN(share)}</b>명`:''}
@@ -7500,9 +7527,11 @@ function scPackRawCard(){
       ${V.noPackCnt>0?`<span class="sc-dot">·</span><span style="color:#b42318;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();openNoPackList()" title="클릭하면 미포장 계획번호 목록이 열리고, 거기서 생산완료 처리를 할 수 있습니다">미포장 ${V.noPackCnt}건</span>`:''}
       ${V.doneCnt>0?`<span class="sc-dot">·</span><span style="color:#0d6b42" title="생산완료로 처리해 미포장에서 제외한 계획번호입니다 (원료 ${fmt1(V.doneKg)}kg)">완료 ${V.doneCnt}건</span>`:''}</div></div>`;
 }
-/* 임원 요청으로 '당일 포장실적'(일자 기준) 카드를 잠시 숨긴다.
-   되돌리려면 이 값을 true 로 바꾸면 원래대로 나온다. */
-const SHOW_PACK_DAY_CARD=false;
+/* 스코어카드 표시 스위치 — 정책이 바뀌면 이 값만 고치면 된다.
+   ── 당일 포장생산실적 : 일자 기준. "그날 포장은 얼마나 됐나"(생산 수준)
+   ── 스크랩 건수      : 카드가 많아 숨김. 필요하면 true 로 되돌린다. */
+const SHOW_PACK_DAY_CARD=true;
+const SHOW_SCRAP_CARD=false;
 function scPackCard(DR){
   const P=packDayTotals();
   const qty  = P ? P.qty  : Number(DR.pack_qty||0);
@@ -7525,7 +7554,7 @@ function scPackCard(DR){
       + (P.eaMiss>0?`\n⚠ 개당중량 미등록 ${P.eaMiss}개 품번 ${fmt1(P.eaMissKg)}kg 은 EA 환산에서 제외됐습니다.`:'')
     : `코터·오븐 산출 ${fmt(Math.round(DR.pack_base||0))}kg 대비 포장 완료 비율입니다.`;
   const tipA=tip.replace(/"/g,'&quot;');
-  return `<div class="sc o"><div class="l">당일 포장실적</div>
+  return `<div class="sc o"><div class="l">당일 포장생산실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (일자 기준)</span></div>
       <div class="v mono sc-dual" title="${tipA}">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
         ${eaTxt?`<span class="sc-slash">/</span><span class="sc-rate" style="color:#b45309;font-size:15px">${eaTxt}</span>`:''}</div>
       <div class="sc-sub" title="${tipA}">${sub}${P&&P.eaMiss>0?`<span class="sc-dot">·</span><span style="color:#b42318" title="개당중량 미등록 ${P.eaMiss}품번">EA 미환산 ${P.eaMiss}</span>`:''}</div></div>`;
@@ -7838,8 +7867,8 @@ function scoreRow2(DR, totLoss, totScrap){
     <div class="sc"><div class="l">완제품 SKU</div><div class="v mono">${finCnt}</div>
       <div class="sc-sub">반제품 ${semiCnt}종</div></div>
     <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
+    ${SHOW_SCRAP_CARD?`<div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>`:''}
   </div>`;
 }
 /* 스코어카드 6종 한 줄 — 생산1팀/2팀 공용 진입점 */
@@ -7866,8 +7895,8 @@ function scoreRow(DR, totLoss, totScrap){
     ${scPackRawCard()}
     ${SHOW_PACK_DAY_CARD?scPackCard(DR):''}
     <div class="sc r"><div class="l">로스금액</div><div id="scLossBox">${scWon(totLoss)}</div></div>
-    <div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
-      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>
+    ${SHOW_SCRAP_CARD?`<div class="sc"><div class="l">스크랩 건수</div><div class="v mono" id="scScrapV">${totScrap}</div>
+      <div class="sc-sub" id="scScrapSub">로스 등록 건수</div></div>`:''}
   </div>`;
 }
 function buildPackSection(){
@@ -10075,7 +10104,7 @@ function renderMoreSections(){
   (manpower||[]).forEach(m=>{ manByLine[(m.proc_sub1||'')+'/'+(m.proc_sub2||'')]=m; });
   // 관리자 행: proc_sub1='관리' 로 저장 (라인 목록엔 없는 고정 행)
   const MGR_KEYS=[['관리','관리자1'],['관리','관리자2']];
-  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{regular_head:0,dispatch_head:0,memo:''});
+  const mgrRows=MGR_KEYS.map(([s1,s2])=>manByLine[s1+'/'+s2]||{plan_head:0,regular_head:0,dispatch_head:0,memo:''});
   const mgrTotal=mgrRows.reduce((a,m)=>a+Number(m.regular_head||0)+Number(m.dispatch_head||0),0);
   // 배분 대상 = 인원이 입력된 공정만
   const linesWithMan=lines.filter(l=>{
