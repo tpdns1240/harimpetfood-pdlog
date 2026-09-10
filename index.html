@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2960,7 +2960,11 @@ const TDD_COLS={
         ? (r.dry_type==='오븐'?'<span style="color:#c4ccd8" title="오븐 제품은 중간 반제품이 없어 코터수율이 존재하지 않습니다">–</span>':'–')
         : `<b style="color:${v>=70&&v<=90?'var(--grn)':(v>90?'#7fc99a':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
     {k:'pack_rate', t:'포장수율', ty:'n', cls:'mono',
-      f:(v,r)=>v==null?'–':`<b style="color:${v>=95&&v<=105?'var(--grn)':(v>=85?'#d97706':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
+      f:(v,r)=>v==null
+        ? `<span style="color:#c4ccd8" title="${!r.base_code?'이 제품과 연결된 반제품 기록이 없습니다.':(!(Number(r.base_out)>0)?'기준 반제품('+r.base_code+')의 산출 기록이 조회 기간 ±45일 안에 없습니다. 오래 전에 만든 반제품을 이번 기간에 포장한 경우입니다.':'분모 대비 소비가 3배를 넘어 수율로 쓸 수 없는 값입니다.')}">–</span>`
+        : `<b style="color:${v>=95&&v<=105?'var(--grn)':(v>=85?'#d97706':'#b42318')}">${Number(v).toFixed(1)}%</b>`},
+    {k:'base_out',  t:'반제품산출', ty:'n', cls:'mono',
+      f:(v,r)=>v>0?`<span title="기준반제품 ${r.base_code||'-'} · 포장수율의 분모입니다">${fmt(Math.round(v))}</span>`:'–'},
     {k:'pack_qty',  t:'포장실적', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'raw_in',    t:'원료투입', ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
     {k:'semi_in',   t:'반제품투입',ty:'n', cls:'mono', f:v=>v>0?fmt(Math.round(v)):'–'},
@@ -5899,7 +5903,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.08b';
+const APP_VERSION='v2026.09.08c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
