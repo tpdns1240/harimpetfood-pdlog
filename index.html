@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -2668,6 +2668,11 @@ async function loadTeamDetail(){
       sb.rpc('team_defect_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to}),
       sb.rpc('team_downtime_types',{p_team:TD.team,p_from:TD.from,p_to:TD.to})
     ]);
+    /* 조회가 실패하면 지표가 전부 0 으로 보여 데이터가 없는 것처럼 오해된다.
+       기간이 길면 서버 타임아웃이 나기도 하므로 실패 사유를 화면에 드러낸다. */
+    const _errs=[['종합지표',met],['요약',sum],['스크랩',scrap],['불량',defect],['비가동',downtime]]
+      .filter(([,r])=>r&&r.error).map(([k,r])=>`${k}: ${r.error.message||r.error}`);
+    if(_errs.length) console.warn('[생산경영현황] 조회 실패', _errs);
     const M=met.data||{}, s=sum.data||{}, sc=scrap.data||[], df=defect.data||[], dt=downtime.data||[];
     TD.sc=sc; TD.df=df; TD.dt=dt;
 
@@ -2681,7 +2686,8 @@ async function loadTeamDetail(){
     <div class="tr-hero">
       <div><div class="tr-crumb" onclick="go('team')" style="cursor:pointer">← 뒤로 · 팀별 현황</div>
         <h2>${TD.team} 생산경영현황</h2>
-        <div class="en">저장된 일보 ${M.work_days||0}건 · 조회기간 ${TD.from} ~ ${TD.to}</div></div>
+        <div class="en">저장된 일보 ${M.work_days||0}건 · 조회기간 ${TD.from} ~ ${TD.to}</div>
+        ${_errs.length?`<div style="margin-top:6px;padding:6px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:11.5px;color:#9a3412">⚠ 일부 조회 실패 — ${_errs.join(' / ')}<br>기간을 좁혀서 다시 조회해 보세요. 서버 조회 시간 초과일 수 있습니다.</div>`:''}</div>
       <div class="tr-nav">
         <button onclick="openTeamReport('${TD.team}','${TD.ym}')">월간일보</button>
         <button class="tr-cal" onclick="go('cal')">캘린더</button>
@@ -2709,24 +2715,36 @@ async function loadTeamDetail(){
       // 물량 기반 지표는 완제품 기준(반제품은 공정마다 재집계되어 중복). 시간 기반은 영향 없음.
       const fA=Number(M.fin_actual??M.actual??0), fP=Number(M.fin_plan??M.plan??0);
       const fAch=(M.fin_achieve!=null)?Number(M.fin_achieve):Number(M.achieve||0);
-      const prod=(M.fin_productivity!=null)?Number(M.fin_productivity):Number(M.productivity||0);
-      const scR =(M.fin_scrap_rate!=null)?Number(M.fin_scrap_rate):Number(M.scrap_rate||0);
-      const dfR =(M.fin_defect_rate!=null)?Number(M.fin_defect_rate):Number(M.defect_rate||0);
-      const fin=(M.fin_actual!=null);
-      const tag=fin?'<span style="font-size:9px;color:#98a2b3;font-weight:700">완제품</span>':'';
+      /* 생산경영현황 스코어카드 — 마감 화면과 축을 맞춘다.
+         ── 계획 기반 지표(계획대비·fin_achieve)는 MES 완제품 계획이 0·1 인 건이 많아
+            785% 같은 값이 나온다. 그래서 기간 요약에서는 쓰지 않는다.
+         ── 대신 원료 투입 → 완제품 생산 → 종합수율 흐름을 전면에 놓는다. */
+      const rawIn=Number(M.raw_input||0);
+      const finA =Number(M.fin_actual||0);
+      const yld  = rawIn>0 ? finA/rawIn*100 : null;
+      const scR  =(M.fin_scrap_rate!=null)?Number(M.fin_scrap_rate):(M.scrap_qty_rate!=null?Number(M.scrap_qty_rate):null);
+      const dfR  =(M.fin_defect_rate!=null)?Number(M.fin_defect_rate):Number(M.defect_rate||0);
+      const T=(v)=>{const t=(Number(v)||0)/1000; return t>=1000?fmt(Math.round(t)):(t>=100?t.toFixed(0):t.toFixed(1));};
+      const yCol=(yld==null)?'var(--mut)':(yld>=70&&yld<=90?'var(--grn)':(yld>90?'#7fc99a':'#b42318'));
       return `
     <div class="score-row" style="grid-template-columns:repeat(6,1fr)">
-      <div class="sc ${fAch>=100?'g':'r'}"><div class="l">계획대비 ${tag}</div><div class="v mono">${fAch||0}%</div><div class="sc-sub">${fmt(Math.round(fA))} / ${fmt(Math.round(fP))}</div></div>
-      <div class="sc b"><div class="l">계획가동률</div><div class="v mono">${M.run_rate||0}%</div><div class="sc-sub">${M.run_hours||0}hr 가동</div></div>
-      <div class="sc"><div class="l">비계획정지율</div><div class="v mono" style="color:var(--red)">${M.unplan_rate||0}%</div><div class="sc-sub">${fmt(M.unplan_min||0)}분</div></div>
-      <div class="sc"><div class="l">생산성 ${tag}</div><div class="v mono">${fmt(prod)}</div><div class="sc-sub">KG/hr</div></div>
-      ${(()=>{const qr=M.scrap_qty_rate;
-        if(qr==null) return `<div class="sc"><div class="l">스크랩 금액</div><div class="v mono ${wonCls(-(M.scrap_amt||0))}" style="font-size:15px" title="생산량(kg) 대비 비율은 단위가 달라(원÷kg) 산출하지 않습니다.">${fmtWon(M.scrap_amt||0)}</div><div class="sc-sub">로스 등록 기준</div></div>`;
-        const q=Number(qr), cls=q<=2?'g':q<=5?'':'r';
-        return `<div class="sc ${cls}"><div class="l">스크랩률 <span style="font-size:9px;color:#98a2b3;font-weight:700">수량</span></div>
-          <div class="v mono" title="스크랩률 = 편차 수량 합계 ÷ 원자재 투입량 (kg ÷ kg). 금액이 아니라 물량 기준이라 비율로 해석할 수 있습니다.">${q.toFixed(2)}%</div>
-          <div class="sc-sub">${fmt(Math.round(M.scrap_qty||0))}kg · ${fmtWon(M.scrap_amt||0)}</div></div>`;})()}
-      <div class="sc"><div class="l">불량률 ${tag}</div><div class="v mono">${dfR}%</div><div class="sc-sub">${fmt(M.defect_qty||0)} EA</div></div>
+      <div class="sc k" title="기간 내 투입한 원부재료(자재코드 1번대) 실적 합계입니다."><div class="l">원료 투입</div>
+        <div class="v mono">${T(rawIn)}<span class="u">ton</span></div>
+        <div class="sc-sub">${fmt(Math.round(rawIn))}kg · ${M.work_days||0}일</div></div>
+      <div class="sc g2" title="기간 내 완제품 생산(포장) 실적 합계입니다."><div class="l">완제품 생산</div>
+        <div class="v mono">${T(finA)}<span class="u">ton</span></div>
+        <div class="sc-sub">${fmt(Math.round(finA))}kg</div></div>
+      <div class="sc o" title="완제품 생산 ÷ 원료 투입 — 마감 화면의 최종완료수율과 같은 축입니다.&#10;정상 70~90% · 기간이 짧을수록 이월·미포장 때문에 낮게 나옵니다."><div class="l">종합 수율</div>
+        <div class="v mono" style="color:${yCol}">${yld==null?'–':yld.toFixed(1)+'%'}</div>
+        <div class="sc-sub">완제품 ÷ 원료</div></div>
+      <div class="sc b"><div class="l">계획가동률</div>
+        <div class="v mono">${M.run_rate||0}%</div>
+        <div class="sc-sub">${M.run_hours||0}hr · 비계획정지 ${fmt(M.unplan_min||0)}분</div></div>
+      <div class="sc r"><div class="l">로스금액</div><div class="v mono ${wonCls(-(M.net_loss||0))}" style="font-size:17px">${fmtWon(M.net_loss||0)}</div>
+        <div class="sc-sub">스크랩 ${scR==null?'–':Number(scR).toFixed(2)+'%'}</div></div>
+      <div class="sc"><div class="l">불량률<span style="font-size:9px;color:#98a2b3;font-weight:700"> 완제품</span></div>
+        <div class="v mono">${dfR}%</div>
+        <div class="sc-sub">${fmt(M.defect_qty||0)} EA · 생산성 ${fmt(Number(M.fin_productivity!=null?M.fin_productivity:M.productivity||0))}KG/hr</div></div>
     </div>`;
     })()}
 
@@ -5960,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.09a';
+const APP_VERSION='v2026.09.09b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
