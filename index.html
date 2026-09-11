@@ -1017,7 +1017,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08d</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1054,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08d</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -3175,10 +3175,11 @@ async function openProdTrend(code, name){
   back.onclick=(e)=>{ if(e.target===back) closeProdTrend(); };
   back.innerHTML=`<div class="pt-box"><div class="dq-hd"><b>제품 생산 추이</b><span class="dq-x" onclick="closeProdTrend()">✕</span></div>
     <div class="dq-prod"><span class="dq-code">${code}</span> ${name||''}
+      <span id="ptBase" style="font-size:10.5px;color:#98a2b3;font-weight:700;margin-left:6px"></span>
       <button class="tbtn" style="margin-left:auto;padding:3px 9px;font-size:11px" onclick="ptExport()" title="아래 일자별 목록을 엑셀(CSV)로 내려받습니다">⤓ 엑셀</button></div>
     <div id="ptBody" style="padding:16px"><div class="skel" style="height:220px;border-radius:10px"></div></div></div>`;
   document.body.appendChild(back);
-  const F='work_date,plan_no,mat_code,prod_name,plan_qty,actual_qty';
+  const F='work_date,plan_no,prod_code,mat_code,proc_sub2,prod_name,plan_qty,actual_qty';
   const q=(col,val)=>sb.from('db_plan_raw').select(F)
       .eq('team',TD.team).eq(col,val)
       .gte('work_date',TD.from).lte('work_date',TD.to);
@@ -3199,8 +3200,13 @@ async function openProdTrend(code, name){
     if(fin){
       baseCode=pickBase(inRows);
       if(baseCode){
-        const r1=await q('prod_code',baseCode);
+        /* ★ 한 반제품을 여러 SKU 가 나눠 쓴다. 이 SKU 의 포장량만으로 나누면
+           분자만 작아져 수율이 널뛴다(3.4kg 과 1kg 이 서로 다른 값이 됨).
+           그래서 기준 반제품을 소비한 모든 완제품의 포장을 합쳐 분자로 쓴다.
+           같은 EP 계열이면 어느 SKU 를 눌러도 같은 화면이 나온다. */
+        const [r1,rm]=await Promise.all([ q('prod_code',baseCode), q('mat_code',baseCode) ]);
         baseRows=r1.error?[]:(r1.data||[]);
+        outRows=(rm.error?[]:(rm.data||[])).filter(r=>/포장/.test(String(r.proc_sub2||'')));
         base2Code=pickBase(baseRows);
         if(base2Code){ const r2=await q('prod_code',base2Code); base2Rows=r2.error?[]:(r2.data||[]); }
       }
@@ -3208,6 +3214,8 @@ async function openProdTrend(code, name){
       const r=await q('mat_code',code);
       outRows=r.error?[]:(r.data||[]);
     }
+    const bl=document.getElementById('ptBase');
+    if(bl && fin && baseCode) bl.textContent=`· 기준 반제품 ${baseCode}${base2Code?` → EP ${base2Code}`:''} (전 SKU 병합)`;
     prodTrendPaint(code, name, inRows, outRows, dy, fin, {baseCode, baseRows, base2Code, base2Rows});
   }catch(e){
     const b=document.getElementById('ptBody');
@@ -3232,20 +3240,36 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
     if(c==='6') o.semi+=aq;
     if(r.plan_no) o.orders.add(r.plan_no);
   });
+  /* 완제품 : outRows = 기준 반제품을 소비한 모든 완제품의 포장(병합 분자)
+     반제품 : outRows = 하공정이 이 품목을 가져다 쓴 양 */
   (outRows||[]).forEach(r=>{
     const d=String(r.work_date||'').slice(0,10); if(!d) return;
-    slot(d).out+=Number(r.actual_qty)||0;
+    if(fin) slot(d).mpack=(slot(d).mpack||0)+(Number(r.actual_qty)||0);
+    else    slot(d).out+=Number(r.actual_qty)||0;
   });
   if(fin) Object.keys(baseOutByDay).forEach(d=>{ slot(d).out=baseOutByDay[d]; });
+  // EP 산출(2차 반제품)·EP 투입 일자별 — 완제품 화면에 EP수율을 같이 보여준다
+  const ep2ByDay=fin?sumMat(ch.base2Rows):{};
+  const epInByDay={};
+  if(fin) (ch.baseRows||[]).forEach(r=>{
+    const d=String(r.work_date||'').slice(0,10); if(!d) return;
+    if(String(r.mat_code||'')[0]==='6') epInByDay[d]=(epInByDay[d]||0)+(Number(r.actual_qty)||0);
+  });
+  if(fin){ Object.keys(ep2ByDay).forEach(d=>slot(d)); Object.keys(epInByDay).forEach(d=>slot(d)); }
   const list=Object.keys(by).sort().map(k=>{
     const o=by[k];
     o.n=o.orders.size;
     o.ach  = o.plan>0 ? o.act/o.plan*100 : null;
     // 완제품 : 포장실적(반제품 투입) ÷ 기준 반제품 산출 = 포장수율
     // 반제품 : 하공정 소비 ÷ 자기 자재 투입      = 이 공정의 수율
-    o.pack = fin ? o.semi : o.out;
-    o.yield= fin ? ((o.out>0&&o.semi>0)? o.semi/o.out*100 : null)
-                 : ((o.out>0&&o.act>0) ? o.out /o.act *100 : null);
+    o.mpack = o.mpack||0;
+    o.pack  = fin ? o.mpack : o.out;
+    // 완제품 : 병합 포장 ÷ 기준 반제품 산출 (SKU 수와 무관하게 같은 값)
+    o.yield = fin ? ((o.out>0&&o.mpack>0)? o.mpack/o.out*100 : null)
+                  : ((o.out>0&&o.act>0) ? o.out /o.act *100 : null);
+    o.epIn  = epInByDay[o.d]||0;
+    o.epOut = ep2ByDay[o.d]||0;
+    o.epY   = (o.epOut>0&&o.epIn>0)? o.epIn/o.epOut*100 : null;
     return o;
   }).filter(o=>o.act>0||o.plan>0);
   const b=document.getElementById('ptBody'); if(!b) return;
@@ -3283,7 +3307,7 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
   if(fin){
     const sumAll=(rows)=>(rows||[]).reduce((a,r)=>a+(String(r.mat_code||'')[0]!=='5'?(Number(r.actual_qty)||0):0),0);
     const sumSemi=(rows)=>(rows||[]).reduce((a,r)=>a+(String(r.mat_code||'')[0]==='6'?(Number(r.actual_qty)||0):0),0);
-    const packQ=list.reduce((a,o)=>a+o.semi,0);
+    const packQ=list.reduce((a,o)=>a+(o.mpack||0),0);   // 병합 분자 (전 SKU 합)
     const baseOut=sumAll(ch.baseRows);
     const y1=baseOut>0?packQ/baseOut*100:null;
     const base2Out=sumAll(ch.base2Rows);
@@ -3291,7 +3315,7 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
     const y2=base2Out>0?base2Use/base2Out*100:null;
     const rows=[];
     if(ch.baseCode) rows.push({t:'1차 포장수율', c:ch.baseCode, v:y1,
-      d:`포장 ${fmt1(packQ)} ÷ 반제품 산출 ${fmt1(baseOut)}`});
+      d:`포장(전 SKU 합) ${fmt1(packQ)} ÷ 반제품 산출 ${fmt1(baseOut)}`});
     if(ch.base2Code) rows.push({t:'2차 건조수율', c:ch.base2Code, v:y2,
       d:`건조 투입 ${fmt1(base2Use)} ÷ 산출 ${fmt1(base2Out)}`});
     chainBox = rows.length
@@ -3306,13 +3330,13 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
          </div>`
       : `<div class="pt-chain none">이 완제품이 소비한 반제품 기록이 없어 단계별 수율을 낼 수 없습니다</div>`;
   }
-  const label=fin?'포장수율 (반제품 투입 ÷ 기준 반제품 산출)':'수율 (하공정 소비 ÷ 자재 투입)';
+  const label=fin?'포장수율 (기준 반제품을 쓴 전 SKU 포장 합 ÷ 기준 반제품 산출)':'수율 (하공정 소비 ÷ 자재 투입)';
   b.innerHTML=`
     <div class="pt-kpi">
       <div><span>기간 평균</span><b style="color:${avg==null?'var(--mut)':col(avg)}">${avg==null?'–':avg.toFixed(1)+'%'}</b>${stdLine}</div>
       <div><span>최고 / 최저</span><b>${vs.length?mx.toFixed(1)+'% / '+mn.toFixed(1)+'%':'–'}</b></div>
       <div><span>생산 일수</span><b>${list.length}일</b></div>
-      <div><span>${fin?'누적 포장':'누적 투입'}</span><b>${fmt(Math.round(list.reduce((a,o)=>a+(fin?o.semi:o.act),0)))}kg</b></div>
+      <div><span>${fin?'누적 포장(병합)':'누적 투입'}</span><b>${fmt(Math.round(list.reduce((a,o)=>a+(fin?o.mpack:o.act),0)))}kg</b></div>
     </div>
     ${chainBox}
     <div style="font-size:11px;font-weight:800;color:#3565b8;margin-top:10px">${hasY?label:'달성률 (실적 ÷ 계획) — 수율 산출에 필요한 기록이 없습니다'}</div>
@@ -3324,17 +3348,23 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
     <div style="font-size:10.5px;color:var(--mut);margin-bottom:10px">보라 점선 = 기간 평균 · 점 색은 95%↑ 녹색 / 85~95% 주황 / 85% 미만 적색</div>
     <div style="max-height:34vh;overflow:auto">
       <table class="t2-table" style="font-size:12px">
-        <thead><tr><th>일자</th><th>오더</th><th>계획(KG)</th><th>투입 실적</th>${fin?'':'<th>달성률</th>'}<th>원료 투입</th><th>${fin?'포장 실적':'반제품 투입'}</th><th>${fin?'반제품 산출':'하공정 소비'}</th><th>${fin?'포장수율':'수율'}</th></tr></thead>
+        <thead><tr><th>일자</th><th>오더</th>${fin?`<th>이 SKU 포장</th><th>병합 포장</th><th>반제품 산출</th><th>포장수율</th><th>EP수율</th>`:`<th>계획(KG)</th><th>투입 실적</th><th>달성률</th><th>원료 투입</th><th>반제품 투입</th><th>하공정 소비</th><th>수율</th>`}</tr></thead>
         <tbody>${list.slice().reverse().map(o=>`<tr>
           <td class="mono">${o.d}</td>
           <td class="mono">${o.n||'–'}</td>
+          ${fin?`
+          <td class="mono">${o.semi>0?fmt(Math.round(o.semi)):'–'}</td>
+          <td class="mono"><b>${o.mpack>0?fmt(Math.round(o.mpack)):'–'}</b></td>
+          <td class="mono">${o.out>0?fmt(Math.round(o.out)):'–'}</td>
+          <td class="mono">${o.yield==null?'–':`<b style="color:${col(o.yield)}">${o.yield.toFixed(1)}%</b>`}</td>
+          <td class="mono">${o.epY==null?'–':`<b style="color:${o.epY>=60&&o.epY<=80?'var(--grn)':'#d97706'}">${o.epY.toFixed(1)}%</b>`}</td>`:`
           <td class="mono">${fmt(Math.round(o.plan))}</td>
           <td class="mono"><b>${fmt(Math.round(o.act))}</b></td>
-          ${fin?'':`<td class="mono ${o.ach==null?'':(o.ach>=95?'pos':'neg')}">${o.ach==null?'–':o.ach.toFixed(1)+'%'}</td>`}
+          <td class="mono ${o.ach==null?'':(o.ach>=95?'pos':'neg')}">${o.ach==null?'–':o.ach.toFixed(1)+'%'}</td>
           <td class="mono">${o.raw>0?fmt(Math.round(o.raw)):'–'}</td>
           <td class="mono">${o.semi>0?fmt(Math.round(o.semi)):'–'}</td>
           <td class="mono">${o.out>0?fmt(Math.round(o.out)):'–'}</td>
-          <td class="mono">${o.yield==null?'–':`<b style="color:${col(o.yield)}">${o.yield.toFixed(1)}%</b>`}</td>
+          <td class="mono">${o.yield==null?'–':`<b style="color:${col(o.yield)}">${o.yield.toFixed(1)}%</b>`}</td>`}
         </tr>`).join('')}</tbody>
       </table>
     </div>`;
@@ -5903,7 +5933,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.08c';
+const APP_VERSION='v2026.09.08d';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
