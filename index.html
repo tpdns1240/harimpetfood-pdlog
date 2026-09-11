@@ -463,6 +463,9 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .pk-dbtn.off:hover{background:#fdf0dc}
 .pk-notew{display:flex;align-items:center;gap:5px}
 .pk-notew .inp-cell{flex:1;min-width:70px}
+.pk-ybtn{flex:0 0 auto;padding:3px 8px;font-size:10.5px;font-weight:800;border-radius:6px;cursor:pointer;
+  border:1px solid #a7c4ec;background:#eef3fb;color:#1c3f7d;white-space:nowrap}
+.pk-ybtn:hover{background:#dbe6f7;border-color:#3565b8}
 .pk-dfbtn{flex:0 0 auto;padding:3px 8px;font-size:10.5px;font-weight:800;border-radius:6px;cursor:pointer;
   border:1px solid #fda29b;background:#fff5f4;color:#b42318;white-space:nowrap}
 .pk-dfbtn:hover{background:#fee4e2;border-color:#b42318}
@@ -1017,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1054,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.08d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -3168,21 +3171,44 @@ function tddPaint(){
       수율 = B ÷ A. 하공정 소비 기록이 없으면 수율은 비우고 달성률만 그린다.
    ── 차트는 SVG 직접 렌더. 외부 라이브러리가 없어 즉시 뜬다.
    ════════════════════════════════════════════════════════════════════ */
-async function openProdTrend(code, name){
+/* 조회 기간 모드 — 팀별현황에서 열면 그 기간, 마감 화면에서 열면 기본 3개월.
+   "최근 10회" 는 6개월을 받아 생산 기록이 있는 마지막 10일만 남긴다. */
+let PT_CTX={code:'', name:'', mode:'3m'};
+const PT_MODES=[['10','최근 10회'],['prev','전월'],['3m','3개월'],['6m','6개월'],['range','조회기간']];
+function ptRange(mode){
+  const p=n=>String(n).padStart(2,'0');
+  const f=d=>`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  const t=new Date();
+  if(mode==='range' && typeof TD==='object' && TD && TD.from && TD.to) return {from:TD.from, to:TD.to};
+  if(mode==='prev'){
+    const s0=new Date(t.getFullYear(), t.getMonth()-1, 1);
+    const e0=new Date(t.getFullYear(), t.getMonth(), 0);
+    return {from:f(s0), to:f(e0)};
+  }
+  const back=(mode==='6m'||mode==='10')?6:3;
+  const s0=new Date(t.getFullYear(), t.getMonth()-back, t.getDate());
+  return {from:f(s0), to:f(t)};
+}
+function ptSetMode(m){ PT_CTX.mode=m; closeProdTrend(); openProdTrend(PT_CTX.code, PT_CTX.name, m); }
+async function openProdTrend(code, name, mode){
   if(!code){ toast('품번이 없어 추이를 만들 수 없습니다','err'); return; }
+  PT_CTX={code, name, mode:mode||PT_CTX.mode||'3m'};
+  const RG=ptRange(PT_CTX.mode);
   const back=document.createElement('div');
   back.className='dq-back'; back.id='ptBack';
   back.onclick=(e)=>{ if(e.target===back) closeProdTrend(); };
   back.innerHTML=`<div class="pt-box"><div class="dq-hd"><b>제품 생산 추이</b><span class="dq-x" onclick="closeProdTrend()">✕</span></div>
     <div class="dq-prod"><span class="dq-code">${code}</span> ${name||''}
       <span id="ptBase" style="font-size:10.5px;color:#98a2b3;font-weight:700;margin-left:6px"></span>
-      <button class="tbtn" style="margin-left:auto;padding:3px 9px;font-size:11px" onclick="ptExport()" title="아래 일자별 목록을 엑셀(CSV)로 내려받습니다">⤓ 엑셀</button></div>
+      <span class="seg" style="margin-left:auto">${PT_MODES.filter(m=>m[0]!=='range'||(typeof TD==='object'&&TD&&TD.from)).map(([k,l])=>`<button class="seg-btn ${PT_CTX.mode===k?'on':''}" onclick="ptSetMode('${k}')">${l}</button>`).join('')}</span>
+      <button class="tbtn" style="padding:3px 9px;font-size:11px" onclick="ptExport()" title="아래 일자별 목록을 엑셀(CSV)로 내려받습니다">⤓ 엑셀</button></div>
     <div id="ptBody" style="padding:16px"><div class="skel" style="height:220px;border-radius:10px"></div></div></div>`;
   document.body.appendChild(back);
   const F='work_date,plan_no,prod_code,mat_code,proc_sub2,prod_name,plan_qty,actual_qty';
+  const TEAM=(typeof TD==='object'&&TD&&TD.team)?TD.team:(CUR_DAY&&CUR_DAY.team)||'';
   const q=(col,val)=>sb.from('db_plan_raw').select(F)
-      .eq('team',TD.team).eq(col,val)
-      .gte('work_date',TD.from).lte('work_date',TD.to);
+      .eq('team',TEAM).eq(col,val)
+      .gte('work_date',RG.from).lte('work_date',RG.to);
   /* 주 반제품 = 그 품목이 가장 많이 소비한 6번대 자재. MES 는 제품 산출 행이 없고
      다음 공정의 자재 투입이 이전 공정의 산출이므로 이 체인으로 수율을 만든다. */
   const pickBase=(rows)=>{
@@ -3256,7 +3282,7 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
     if(String(r.mat_code||'')[0]==='6') epInByDay[d]=(epInByDay[d]||0)+(Number(r.actual_qty)||0);
   });
   if(fin){ Object.keys(ep2ByDay).forEach(d=>slot(d)); Object.keys(epInByDay).forEach(d=>slot(d)); }
-  const list=Object.keys(by).sort().map(k=>{
+  let list=Object.keys(by).sort().map(k=>{
     const o=by[k];
     o.n=o.orders.size;
     o.ach  = o.plan>0 ? o.act/o.plan*100 : null;
@@ -3271,7 +3297,8 @@ function prodTrendPaint(code, name, inRows, outRows, dy, fin, ch){
     o.epOut = ep2ByDay[o.d]||0;
     o.epY   = (o.epOut>0&&o.epIn>0)? o.epIn/o.epOut*100 : null;
     return o;
-  }).filter(o=>o.act>0||o.plan>0);
+  }).filter(o=>o.act>0||o.plan>0||o.mpack>0);
+  if((PT_CTX&&PT_CTX.mode)==='10' && list.length>10) list=list.slice(-10);   // 최근 10회 생산일
   const b=document.getElementById('ptBody'); if(!b) return;
   PT_ROWS={code, name, fin:!!fin, list};
   if(!list.length){ b.innerHTML='<div style="color:var(--mut);font-size:12.5px;padding:26px;text-align:center">이 기간에 이 품목의 생산 기록이 없습니다</div>'; return; }
@@ -5933,7 +5960,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.08d';
+const APP_VERSION='v2026.09.09a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -8001,6 +8028,7 @@ function buildPackSection(){
               : (achC==null?'':`${done
                 ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
                 : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?baseTypeLabel(g)+' 투입':(isT2()?'원료 투입실적':'코터·오븐 산출')))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>`}
+                <button class="pk-dbtn" onclick="openProdTrend('${g.base_code}','${String(g.base_name||'').replace(/['"<>]/g,'')}','10')" title="이 반제품(${g.base_code})의 수율 추이를 봅니다 — 하공정이 가져다 쓴 양 ÷ 자재 투입">반제품 수율</button>
                 ${showDone?`<button class="pk-dbtn" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="누계 포장수율 ${achC.toFixed(1)}% · 잔여 ${fmt1(rest)}kg — 더 포장할 물량이 없으면 생산완료로 처리하세요. 진행중 목록과 미포장 잔량에서 빠집니다.&#10;입력·수정을 막지는 않습니다.">생산완료 처리</button>`:''}`)}
             ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
             <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
@@ -8035,7 +8063,8 @@ function buildPackSection(){
           : `<td><input class="inp-cell t2-mh" data-code="${s.sku_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:76px;text-align:right;background:#fffbe8"></td>
              <td class="mono">${prod?prod.toFixed(1):'–'}</td>
              <td><div class="pk-notew"><input class="inp-cell t2-note${(mh.note||'').trim()?' has':''}" data-code="${s.sku_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" readonly placeholder="특이사항" style="text-align:left;background:#fffbe8" onfocus="openNotePop(this)" onclick="openNotePop(this)">
-               <button class="pk-dfbtn" onclick="openDefectQuick('${s.sku_code}','${String(s.sku_name||'').replace(/['"<>]/g,'')}','${(s.sku_unit||'')}')" title="이 제품의 완제품 불량을 바로 등록합니다 → ④ 완제품 불량관리">불량</button></div></td>`}
+               <button class="pk-dfbtn" onclick="openDefectQuick('${s.sku_code}','${String(s.sku_name||'').replace(/['"<>]/g,'')}','${(s.sku_unit||'')}')" title="이 제품의 완제품 불량을 바로 등록합니다 → ④ 완제품 불량관리">불량</button>
+               <button class="pk-ybtn" onclick="openProdTrend('${s.sku_code}','${String(s.sku_name||'').replace(/['"<>]/g,'')}','10')" title="이 품목의 수율 추이를 봅니다. 최근 10회·전월·3개월·6개월로 기간을 바꿀 수 있습니다.&#10;같은 반제품을 쓰는 전 SKU 를 병합해 계산하므로 용량이 달라도 같은 값이 나옵니다.">수율</button></div></td>`}
       </tr>`;
     }).join('');
   }).join('');
