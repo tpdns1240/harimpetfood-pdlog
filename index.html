@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.09b';
+const APP_VERSION='v2026.09.09c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -8046,7 +8046,6 @@ function buildPackSection(){
               : (achC==null?'':`${done
                 ? `<div class="pk-done" title="누계 포장수율 ${achC.toFixed(1)}% — 이 계획번호는 포장이 마무리된 것으로 봅니다.">✓ 완결</div>`
                 : `<div class="pk-going" title="누계 포장수율 ${achC.toFixed(1)}%. ${pb.src==='edit'?'수정 계획':(pb.src==='mes'?'MES 계획':(g.base_match==='proc'?baseTypeLabel(g)+' 투입':(isT2()?'원료 투입실적':'코터·오븐 산출')))} 대비 ${fmt1(rest)}kg 이 아직 포장되지 않았습니다. 익일 포장이 이어질 계획이면 다음 일보에서 누계가 올라갑니다.">▷ 진행중 · 잔여 ${fmt1(rest)}kg</div>`}
-                <button class="pk-dbtn" onclick="openProdTrend('${g.base_code}','${String(g.base_name||'').replace(/['"<>]/g,'')}','10')" title="이 반제품(${g.base_code})의 수율 추이를 봅니다 — 하공정이 가져다 쓴 양 ÷ 자재 투입">반제품 수율</button>
                 ${showDone?`<button class="pk-dbtn" onclick="togglePlanDone('${g.plan_no}','${g.base_code}')" title="누계 포장수율 ${achC.toFixed(1)}% · 잔여 ${fmt1(rest)}kg — 더 포장할 물량이 없으면 생산완료로 처리하세요. 진행중 목록과 미포장 잔량에서 빠집니다.&#10;입력·수정을 막지는 않습니다.">생산완료 처리</button>`:''}`)}
             ${isCarry?`<div class="pk-carry" title="${g.base_date} 생산분을 ${date} 에 포장한 이월 건입니다. 달성률이 낮게 보일 수 있습니다.">⚠ ${String(g.base_date).slice(5)} 생산분</div>`:''}
             <div class="pk-base" title="${g.base_name||''}">${g.base_code}${g.base_team&&g.base_team!==CUR_DAY.team?` · ${g.base_team}`:''}</div>
@@ -8387,7 +8386,8 @@ function buildSection2(){
         ${dySt?`<b style="color:${dySt.col};font-size:14px">${dyGap>=0?'+':'−'}${Math.abs(dyGap).toFixed(1)}<span style="font-size:10px;font-weight:700">%p</span></b><div style="font-size:9.5px;font-weight:800;color:${dySt.col};letter-spacing:-.2px">${dySt.tag}</div>`:'<span style="color:var(--mut)">–</span>'}</td>`:''}
       <td><input class="inp-cell t2-mh" data-code="${o.prod_code}" type="number" step="0.1" value="${mh.mh?Number(mh.mh).toFixed(1):''}" placeholder="0" style="width:80px;text-align:right;background:#fffbe8"></td>
       <td class="mono">${mhProd?mhProd.toFixed(1):'–'}</td>
-      <td><input class="inp-cell t2-note${(mh.note||'').trim()?' has':''}" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" readonly placeholder="특이사항" style="width:180px;text-align:left;background:#fffbe8" onfocus="openNotePop(this)" onclick="openNotePop(this)"></td>
+      <td><div class="pk-notew"><input class="inp-cell t2-note${(mh.note||'').trim()?' has':''}" data-code="${o.prod_code}" value="${(mh.note||'').replace(/"/g,'&quot;')}" title="${(mh.note||'').replace(/"/g,'&quot;')}" readonly placeholder="특이사항" style="text-align:left;background:#fffbe8" onfocus="openNotePop(this)" onclick="openNotePop(this)">
+        <button class="pk-ybtn" onclick="openProdTrend('${o.prod_code}','${String(o.prod_name||'').replace(/['"<>]/g,'')}','10')" title="이 품목의 수율 추이를 봅니다 — 하공정이 가져다 쓴 양 ÷ 자재 투입&#10;최근 10회·전월·3개월·6개월로 기간을 바꿀 수 있습니다.">수율</button></div></td>
     </tr>`;
   }).join('');
   const curIsDry=/진공코터|오븐/.test(String(T2_PROC||''));   // 현재 공정탭이 건조공정인지
