@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.09c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.09c';
+const APP_VERSION='v2026.09.10a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6420,7 +6420,7 @@ async function openDay(date, team){
     /* 당일 원료를 사용한 계획번호 맵 — "그 원료로 포장을 얼마나 했나" 스코어카드용.
        계획번호 앞 8자리가 아니라 실제 원료 투입(work_date=조업일, 자재 1번대)으로 잡는다.
        이월·미래 계획번호가 섞여도 정확하다. */
-    CUR_DAY.dayRows=null;
+    CUR_DAY.dayRows=null; CUR_DAY.rawAllRows=null;
     sb.from('db_plan_raw').select('plan_no,prod_code,mat_code,proc_sub2,plan_qty,actual_qty')
       .eq('team',team).eq('work_date',date)
       .then(({data,error})=>{
@@ -6433,14 +6433,24 @@ async function openDay(date, team){
         const pk=[...new Set((data||[])
           .filter(r=>String(r.mat_code||'')[0]==='1' && Number(r.actual_qty)>0 && r.plan_no)
           .map(r=>r.plan_no))];
-        if(!pk.length){ CUR_DAY.packRows=[]; return; }
+        if(!pk.length){ CUR_DAY.packRows=[]; CUR_DAY.rawAllRows=[]; return; }
         sb.from('db_plan_raw').select('plan_no,prod_code,mat_code,proc_sub2,work_date,actual_qty')
           .eq('team',team).gte('work_date',date).in('plan_no',pk)
           .then(({data:pd,error:pe})=>{
             if(pe){ console.warn('[포장 누적] 조회 실패', pe); CUR_DAY.packRows=[]; return; }
             CUR_DAY.packRows=pd||[];
             try{ if(S.view==='day') rerenderClosing(); }catch(_){}
-          }, e=>{ console.warn('[포장 누적] 조회 실패', e); CUR_DAY.packRows=[]; });
+            /* 분자(계획번호 전체 포장)와 분모의 범위를 맞춘다.
+               당일 원료만 분모로 쓰면, 여러 날에 걸쳐 원료를 넣은 계획번호에서
+               분자만 커져 수율이 100%를 넘는다(물리적으로 불가능한 값). */
+            sb.from('db_plan_raw').select('plan_no,mat_code,actual_qty')
+              .eq('team',team).in('plan_no',pk).like('mat_code','1%')
+              .then(({data:rd,error:re2})=>{
+                if(re2){ console.warn('[원료 총투입] 조회 실패', re2); CUR_DAY.rawAllRows=[]; return; }
+                CUR_DAY.rawAllRows=rd||[];
+                try{ if(S.view==='day') rerenderClosing(); }catch(_){}
+              }, e=>{ console.warn('[원료 총투입] 조회 실패', e); CUR_DAY.rawAllRows=[]; });
+          }, e=>{ console.warn('[포장 누적] 조회 실패', e); CUR_DAY.packRows=[]; CUR_DAY.rawAllRows=[]; });
       }, e=>console.warn('[당일 원본] 조회 실패', e));
     // 개당중량 마스터 — EA 환산용. 세션당 1회만 받아 재사용하고, 실패해도 화면은 뜬다.
     uwMap().then(()=>{ try{ if(S.view==='day') rerenderClosing(); }catch(_){} }, ()=>{});
@@ -7534,7 +7544,15 @@ function dayRawCalc(){
     noPackList.push({plan_no:k, kg:rawByPlan[k]});
   });
   noPackList.sort((a,b)=>b.kg-a.kg);
-  const V={rawPlan, rawAct, packKg, packEa, eaMiss, lastDate,
+  /* 계획번호 전체 원료 투입 — 포장(분자)과 같은 범위의 분모 */
+  let rawAll=0;
+  (CUR_DAY.rawAllRows||[]).forEach(r=>{
+    if(String(r.mat_code||'')[0]!=='1') return;
+    if(!(String(r.plan_no||'') in rawByPlan)) return;
+    rawAll+=Number(r.actual_qty)||0;
+  });
+  if(!(rawAll>0)) rawAll=rawAct;          // 조회 실패 시 당일분으로 폴백
+  const V={rawPlan, rawAct, rawAll, packKg, packEa, eaMiss, lastDate,
     pending:(CUR_DAY.packRows==null),
     planCnt:planKeys.length, packPlanCnt:Object.keys(packByPlan).length,
     noPackKg, noPackCnt, noPackList, doneKg, doneCnt, rawByPlan, packByPlan, d8, nx};
@@ -7584,15 +7602,17 @@ function scPackRawCard(){
   const V=dayRawCalc();
   if(!V) return `<div class="sc o"><div class="l">당일 포장실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (원료사용량기준)</span></div>
       <div class="skel" style="height:46px;border-radius:8px;margin-top:8px"></div></div>`;
-  const t=V.packKg/1000, rt=V.rawAct/1000;
-  const rate=V.rawAct>0 ? V.packKg/V.rawAct*100 : null;
+  const t=V.packKg/1000, rt=V.rawAll/1000, dt=V.rawAct/1000;
+  const rate=V.rawAll>0 ? V.packKg/V.rawAll*100 : null;
   const col=(rate==null)?'var(--mut)':(rate>=70?'var(--grn)':(rate>=50?'#d97706':'#b42318'));
   const tip=`1차 필터 : 조업일 ${CUR_DAY.date} 07:00 ~ 익일 06:59\n`
     + `2차 필터 : 그 원료를 쓴 계획번호의 포장을 ${CUR_DAY.date} 이후 오늘까지 전부 합산\n`
     + `  (포장공정이 소비한 반제품 양이 곧 완제품 포장량입니다)\n`
     + (V.lastDate?`  마지막 포장일 ${V.lastDate}\n`:'')
     + `  며칠 뒤에 다시 열면 그 사이 포장분이 누적되어 수율이 올라갑니다.\n\n`
-    + `원료 사용 ${fmt1(V.rawAct)}kg → 포장 ${fmt1(V.packKg)}kg\n`
+    + `분모 = 그 계획번호들의 원료 총투입 ${fmt1(V.rawAll)}kg (그중 당일 투입 ${fmt1(V.rawAct)}kg)\n`
+    + `분자 = 그 계획번호들의 포장 ${fmt1(V.packKg)}kg\n`
+    + `여러 날에 걸쳐 원료를 넣은 계획번호가 있어, 당일분만 분모로 쓰면 100%를 넘습니다.\n`
     + `원료 투입 계획번호 ${V.planCnt}건 · 포장 잡힌 계획번호 ${V.packPlanCnt}건`
     + (V.noPackCnt>0 ? `\n\n미포장 ${V.noPackCnt}건 · 원료 ${fmt1(V.noPackKg)}kg — 아직 포장이 시작되지 않았습니다. 잔여 사유는 여기서 찾으세요.` : '\n모든 계획번호가 포장에 들어갔습니다.')
     + (V.eaMiss>0 ? `\n⚠ 개당중량 미등록 ${V.eaMiss}품번은 EA 환산에서 제외했습니다.` : '');
@@ -7600,7 +7620,7 @@ function scPackRawCard(){
   return `<div class="sc o"><div class="l">당일 포장실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (원료사용량기준)</span></div>
     <div class="v mono sc-dual" title="${tipA}">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
       ${V.packEa>0?`<span class="sc-slash">/</span><span class="sc-rate" style="color:#b45309;font-size:15px">${fmt(Math.round(V.packEa))} EA</span>`:''}</div>
-    <div class="sub" title="${tipA}">원료 ${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">t</span>
+    <div class="sub" title="${tipA}">원료 ${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">t</span>${Math.abs(rt-dt)>0.05?`<span style="font-size:9.5px;color:#98a2b3">(당일 ${dt.toFixed(1)}t)</span>`:''}
       <span class="sc-slash" style="font-size:12px">/</span>포장 ${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">t</span>
       <span class="sc-dot">·</span><span style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span>
       ${V.noPackCnt>0?`<span class="sc-dot">·</span><span style="color:#b42318;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();openNoPackList()" title="클릭하면 미포장 계획번호 목록이 열리고, 거기서 생산완료 처리를 할 수 있습니다">미포장 ${V.noPackCnt}건</span>`:''}
@@ -7862,7 +7882,11 @@ function rawRouteTotals(){
   }); }catch(_){}
   /* 코터 원료 = 당일 원료실적 − 오븐 원료 (나머지는 전부 코터).
      분자인 코터 산출이 당일 전체이므로 분모도 당일 전체여야 한다. */
-  R.dayRawTotal = Number(DR.raw_actual)||0;
+  /* 분모는 계획 카드와 같은 소스(작업일자 기준)를 써야 한다.
+     day_raw_summary 는 계획번호 앞 8자리 기준이라 계획 카드와 총량이 어긋난다
+     (9/2 사례: 계획 31.0t 인데 코터 27.9 + 오븐 5.0 = 32.8t). */
+  const _V=(typeof dayRawCalc==='function')?dayRawCalc():null;
+  R.dayRawTotal = _V ? Number(_V.rawAct||0) : (Number(DR.raw_actual)||0);
   if(R.dayRawTotal>0 && R.oven.raw<=R.dayRawTotal){
     R.coat.rawYS = R.coat.raw;
     R.coat.raw   = R.dayRawTotal - R.oven.raw;
@@ -7873,11 +7897,11 @@ function rawRouteTotals(){
   R.coat.packRate = R.coat.raw>0 ? R.coat.pack/R.coat.raw*100 : null;
   R.oven.dryRate  = R.oven.raw>0 ? R.oven.dry /R.oven.raw*100 : null;
   R.total  = R.coat.raw + R.oven.raw;
-  R.dayRaw = Number(DR.raw_actual)||0;
+  R.dayRaw = R.dayRawTotal;
   R.gap    = R.total - R.dayRaw;
   R.gapPct = R.dayRaw>0 ? Math.abs(R.gap)/R.dayRaw*100 : 0;
   R.ok     = (R.dayRaw<=0) || (R.gapPct<=2);
-  const plan=Number(DR.raw_plan)||0;
+  const plan=_V?Number(_V.rawPlan||0):(Number(DR.raw_plan)||0);
   const base=R.dayRaw>0 ? R.dayRaw : R.total;
   R.planOven = base>0 ? plan*R.oven.raw/base : 0;
   R.planCoat = Math.max(plan - R.planOven, 0);
