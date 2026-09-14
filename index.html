@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10g</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10h</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10g</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10h</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.10g';
+const APP_VERSION='v2026.09.10h';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7965,7 +7965,7 @@ function scRawRouteCard(kind, R){
     <div class="v mono sc-dual">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
       <span class="sc-slash">/</span>
       <span class="sc-rate" style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span></div>
-    <div class="sub">${on?'코터산출':'SKU실적'} ${fmt(Math.round(val))}<span class="u">kg</span><span class="sc-dot">·</span>원료 ${fmt(Math.round(raw))}<span class="u">kg</span>
+    <div class="sub">${on?'코터산출':'SKU실적'} ${fmt(Math.round(val))}<span class="u">kg</span>${(!on&&d&&d.dry>0)?`<span class="sc-dot">·</span><span title="오븐 공정 산출(반제품)입니다. 위 SKU실적은 그 반제품으로 포장된 완제품 양이라 서로 다른 값입니다.">오븐산출 ${fmt(Math.round(d.dry))}<span class="u">kg</span></span>`:''}<span class="sc-dot">·</span>원료 ${fmt(Math.round(raw))}<span class="u">kg</span>
       ${on&&R&&!R.ok?`<span class="sc-dot">·</span><span style="color:#b42318" title="코터 ${fmt1(R.coat.raw)} + 오븐 ${fmt1(R.oven.raw)} = ${fmt1(R.total)}kg 이 당일 원료실적 ${fmt1(R.dayRaw)}kg 과 어긋납니다.">⚠ ${fmt(Math.round(Math.abs(R.gap)))}</span>`:''}</div></div>`;
 }
 /* 생산2팀 전용 스코어카드 — 코터·오븐 경로 구분이 없는 플랫폼 */
