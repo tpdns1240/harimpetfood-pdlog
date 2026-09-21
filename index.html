@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.21b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.21b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.21b';
+const APP_VERSION='v2026.09.22a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7699,7 +7699,8 @@ function scPackRawCard(){
       <span class="sc-slash" style="font-size:12px">/</span>포장 ${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">t</span>
       <span class="sc-dot">·</span><span style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span>${!V.proRateOk?`<span class="sc-dot">·</span><span style="color:#b42318;font-weight:800" title="계획번호 조회가 불완전해 안분이 적용되지 않았습니다.&#10;${V.proRateErr||'원인 미상'}&#10;수율이 실제보다 높게 나올 수 있습니다.">⚠ 조회 불완전</span>`:(rate!=null&&rate>105?`<span style="color:#b42318;font-weight:800" title="포장이 원료를 넘었습니다. 원료 ${fmt1(V.baseRaw)}kg · 포장 ${fmt1(V.packKg)}kg — 데이터 점검이 필요합니다."> ⚠</span>`:'')}
       ${V.planGoing>0?`<span class="sc-dot">·</span><span style="color:${(V.elapsed!=null&&V.elapsed>=5)?'#b42318':'#d97706'};cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();openNoPackList()" title="포장이 아직 마무리되지 않은 계획번호입니다.${V.elapsed!=null?` 조업일로부터 ${V.elapsed}일 경과 —${V.elapsed>=5?' 5일이 지났으므로 확인이 필요합니다.':' 보통 3~5일이면 마무리됩니다.'}`:''}&#10;클릭하면 목록이 열리고 생산완료 처리를 할 수 있습니다.">진행중 ${V.planGoing}건</span>`:`<span class="sc-dot">·</span><span style="color:var(--grn)">전건 완료</span>`}
-      ${V.doneCnt>0?`<span class="sc-dot">·</span><span style="color:#0d6b42" title="생산완료로 처리해 미포장에서 제외한 계획번호입니다 (원료 ${fmt1(V.doneKg)}kg)">완료 ${V.doneCnt}건</span>`:''}</div></div>`;
+      ${V.doneCnt>0?`<span class="sc-dot">·</span><span style="color:#0d6b42" title="생산완료로 처리해 미포장에서 제외한 계획번호입니다 (원료 ${fmt1(V.doneKg)}kg)">완료 ${V.doneCnt}건</span>`:''}</div>
+    ${V.epMode&&V.ovenCnt>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="코터 ${fmt1(V.baseRaw-V.ovenRaw)}kg → 포장 ${fmt1(V.packKg-V.ovenPack)}kg&#10;오븐 ${fmt1(V.ovenRaw)}kg → 포장 ${fmt1(V.ovenPack)}kg">(포장 코터 ${((V.packKg-V.ovenPack)/1000).toFixed(1)}t / 오븐 ${(V.ovenPack/1000).toFixed(1)}t)</div>`:''}</div>`;
 }
 /* 스코어카드 표시 스위치 — 정책이 바뀌면 이 값만 고치면 된다.
    ── 당일 포장생산실적 : 일자 기준. "그날 포장은 얼마나 됐나"(생산 수준)
@@ -8080,7 +8081,8 @@ function scoreRow(DR, totLoss, totScrap){
       <div class="v mono">${T(pl)}<span class="u">ton</span></div>
       <div class="sub">원료 ${fmt(Math.round(pl))}<span class="u">kg</span><span class="sc-dot">·</span>계획 ${fmt(cnt)}건</div>
       ${ex!=null?`<div class="sub" style="margin-top:1px;color:${bad?'#b42318':'#6b7280'}" title="실적 ${fmt1(ac)}kg ÷ 계획 ${fmt1(pl)}kg&#10;차이 ${fmt1(Math.abs(pl-ac))}kg">실행률 ${ex.toFixed(1)}%${bad?` ⚠ 차이 ${fmt(Math.round(Math.abs(pl-ac)/100)/10)}t`:''}</div>`:''}
-      ${R&&R.total>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="MES 계획에는 코터·오븐 경로 정보가 없습니다.&#10;오븐은 ②-1 에서 확인된 계획번호 몫만 계산하고 나머지는 전부 코터로 봅니다.">(코터 ${(R.planCoat/1000).toFixed(1)}t / 오븐 ${(R.planOven/1000).toFixed(1)}t) <span style="font-size:9px;color:#9aa8bd">안분추정</span></div>`:''}</div>`;
+      ${R&&R.epMode&&R.total>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="당일 EP 를 돌린 계획번호의 원료입니다 (포장실적 카드의 EP원료와 같은 값).&#10;위 ${fmt1(R.dayRawTotal)}kg 과 계량 기준 실적의 차이는 계량 시점 차이입니다.&#10;  + 전일 계량 → 당일 EP 한 원료&#10;  − 당일 계량 → 익일 EP 할 원료">(EP기준 코터 ${(R.coat.raw/1000).toFixed(1)}t / 오븐 ${(R.oven.raw/1000).toFixed(1)}t) <span style="font-size:9px;color:#9aa8bd">= ${(R.total/1000).toFixed(1)}t</span></div>`
+      :R&&R.total>0?`<div class="sub" style="margin-top:1px;color:#6b7280" title="MES 계획에는 코터·오븐 경로 정보가 없습니다.&#10;오븐은 ②-1 에서 확인된 계획번호 몫만 계산하고 나머지는 전부 코터로 봅니다.">(코터 ${(R.planCoat/1000).toFixed(1)}t / 오븐 ${(R.planOven/1000).toFixed(1)}t) <span style="font-size:9px;color:#9aa8bd">안분추정</span></div>`:''}</div>`;
     })()}
     ${scRawRouteCard('coat', R)}
     ${scRawRouteCard('oven', R)}
