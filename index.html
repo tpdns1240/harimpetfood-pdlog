@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.21a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.10h</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.21a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.10h';
+const APP_VERSION='v2026.09.21a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -6430,8 +6430,13 @@ async function openDay(date, team){
         /* 그날 원료를 쓴 계획번호의 포장 실적을 "조업일 이후 전부" 긁는다.
            9/1 을 며칠 뒤에 열어도 그 사이에 나온 포장이 누적돼,
            어느 날짜가 마무리됐고 어느 날짜가 남았는지 알 수 있다. */
-        const pk=[...new Set((data||[])
-          .filter(r=>String(r.mat_code||'')[0]==='1' && Number(r.actual_qty)>0 && r.plan_no)
+        /* 계획번호 기준 = 당일 EP 생산 (EP 공정에 투입 실적이 있는 계획번호).
+           계량·분체는 전일에 미리 하는 경우가 많아, 원료 투입일로 잡으면
+           다음날 EP 할 계획번호가 전일에 묻어 이중으로 잡혔다(9/1 사례).
+           EP 공정이 없는 팀(생산2팀)만 원료 투입 기준으로 폴백한다. */
+        const _ep=(data||[]).filter(r=>isEpRow(r) && Number(r.actual_qty)>0 && r.plan_no);
+        const pk=[...new Set((_ep.length?_ep:(data||[])
+          .filter(r=>String(r.mat_code||'')[0]==='1' && Number(r.actual_qty)>0 && r.plan_no))
           .map(r=>r.plan_no))];
         if(!pk.length){ CUR_DAY.planRows=[]; return; }
         /* 그 계획번호의 모든 행을 한 번에 받는다(날짜·자재 조건 없이).
@@ -6576,7 +6581,7 @@ function renderClosing2(){
 
   // 라인별 가동시간: 계획=run 합, 실적=run - (계획정지+비계획정지)
   const runByLine={}, planStopByLine={}, unplanStopByLine={};
-  (downtime||[]).forEach(t=>{
+  dtWithBreaks(downtime).forEach(t=>{
     const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
     const dur=diffMin(t.start_time,t.end_time);
     if(t.category==='run') runByLine[k]=(runByLine[k]||0)+dur;
@@ -6747,7 +6752,7 @@ function filterRunList(f){
   if(st) st.innerHTML=`${shown}/${tot}건 · 합계 <b>${mins.toFixed(1)}</b>hr`;
 }
 function buildSection5(){
-  const downtime=CUR_DAY.downtime||[], orders=CUR_DAY.orders||[], lines=CUR_DAY.lines||[];
+  const downtime=dtWithBreaks(CUR_DAY.downtime||[]), orders=CUR_DAY.orders||[], lines=CUR_DAY.lines||[];
   const isFin=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='fin'||o.kind==='완제품')return true; if(o.kind==='semi'||o.kind==='반제품')return false; return ['2','3'].includes(String(o.prod_code||'')[0]); } return ['2','3'].includes(String(o||'')[0]); };
   const isSemi=(o)=>{ if(o&&typeof o==='object'){ if(o.kind==='semi'||o.kind==='반제품')return true; if(o.kind==='fin'||o.kind==='완제품')return false; return String(o.prod_code||'')[0]==='6'; } return String(o||'')[0]==='6'; };
     const runList=(downtime||[]).filter(t=>t.category==='run')
@@ -6937,10 +6942,12 @@ function buildSection5(){
         const eRows=stopList.map(t=>{
           const cat=t.category==='plan'?'계획정지':t.category==='unplan'?'비계획정지':'돌발';
           const catCls=t.category==='plan'?'':'neg';
-          const srcBadge=t.source==='auto'
+          const srcBadge=t._brk
+            ? '<span class="src-tag auto" style="background:#eef6ff;color:#1d4ed8" title="점심·휴식시간 중 가동 구간을 자동으로 계획정지 처리했습니다(저장되지 않는 계산값)">자동</span>'
+            : t.source==='auto'
             ? '<span class="src-tag auto" title="구글시트에서 자동 반영">시트</span>'
             : '<span class="src-tag manual" title="사이트에서 직접 입력·수정 (자동 업데이트에 안 덮임)">직접</span>';
-          return `<tr data-down="${t.id}">
+          return `<tr data-down="${t.id}"${t._brk?' style="background:#f8fbff"':''}>
             <td class="l">${(t.proc_sub1||'')}/${(t.proc_sub2||'')}</td>
             <td class="mono" style="font-size:11px">${t.prod_code?`${t.prod_code}${(function(){const n=prodNameOf(t.prod_code);return n?`<div style="font-size:10.5px;color:var(--sub);font-weight:600">${n}</div>`:'';})()}`:'–'}</td>
             <td><span class="type-tag ${catCls}">${cat}</span></td>
@@ -6952,7 +6959,7 @@ function buildSection5(){
             <td class="l" style="font-size:12px">${t.memo||'–'}</td>
             <td class="l" style="font-size:12px">${t.action_taken||'–'}</td>
             <td class="l" style="font-size:12px">${t.prevention||'–'}</td>
-            <td class="row-actions">${CUR_DAY.locked?'':`<button class="rowbtn edit" onclick="openStopEdit(${t.id})">수정</button> <button class="rowbtn del" onclick="delDown(${t.id})">삭제</button>`}</td>
+            <td class="row-actions">${t._brk?'<span style="color:var(--mut);font-size:11px">자동</span>':CUR_DAY.locked?'':`<button class="rowbtn edit" onclick="openStopEdit(${t.id})">수정</button> <button class="rowbtn del" onclick="delDown(${t.id})">삭제</button>`}</td>
           </tr>`;
         }).join('');
         // [F] 라인별 비가동 파레토 (비계획 기준)
@@ -7016,7 +7023,7 @@ function buildSection5(){
       </div>
 
       <!-- [E] 등록된 비가동 리스트 -->
-      <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.length}건</span></div>
+      <div class="blk-hd">📋 등록된 비가동 <span class="blk-sub">${stopList.filter(t=>!t._brk).length}건${stopList.some(t=>t._brk)?` · 휴게 자동 ${stopList.filter(t=>t._brk).length}건 (${stopList.filter(t=>t._brk).reduce((x,t)=>x+diffMin(t.start_time,t.end_time),0)}분)`:''}</span></div>
       <div class="sec-bd" style="overflow-x:auto"><table class="t2-table">
         <thead><tr><th>라인</th><th>오더</th><th>구분</th><th>출처</th><th>호기</th><th>유형</th><th>시작</th><th>종료</th><th>시간</th><th>정지원인</th><th>조치내용</th><th>재발방지</th><th>관리</th></tr></thead>
         <tbody>${eRows||'<tr><td colspan="11" style="color:var(--mut);padding:14px">등록된 비가동 없음</td></tr>'}</tbody>
@@ -7499,6 +7506,11 @@ function packDayTotals(){
    ════════════════════════════════════════════════════════════════════ */
 /* 메모 캐시 키에는 이 함수가 읽는 모든 소스를 넣어야 한다.
    rawAllRows 를 빼먹어, 원료 총투입이 늦게 도착해도 옛 값이 그대로 나왔다. */
+/* EP 공정 행 — 'EP' 공정의 투입 실적(부자재 제외). 리싸이클은 재투입이라 제외. */
+function isEpRow(r){
+  const p=String(r&&r.proc_sub2||'').trim();
+  return /^EP/i.test(p) && !/리싸이클/.test(p) && String(r.mat_code||'')[0]!=='5';
+}
 let _DRC_SRC=null, _DRC_PK=null, _DRC_VAL=null;
 function dayRawCalc(){
   const rows=CUR_DAY.dayRows;
@@ -7512,7 +7524,7 @@ function dayRawCalc(){
     return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`; })();
   const W=UW_MAP||{};
   let rawPlan=0, rawAct=0, packKg=0, packEa=0, eaMiss=0;
-  const rawByPlan={}, packByPlan={}, skuSet={};
+  const rawByPlan={}, packByPlan={}, skuSet={}, epDayByPlan={};
   rows.forEach(r=>{
     const mc=String(r.mat_code||''), c=mc[0];
     const pl=Number(r.plan_qty)||0, aq=Number(r.actual_qty)||0;
@@ -7521,7 +7533,14 @@ function dayRawCalc(){
       rawPlan+=pl; rawAct+=aq;
       if(pn && aq>0) rawByPlan[pn]=(rawByPlan[pn]||0)+aq;
     }
+    if(pn && aq>0 && isEpRow(r)) epDayByPlan[pn]=(epDayByPlan[pn]||0)+aq;
   });
+  /* EP 기준 모드 — 당일 EP 를 돌린 계획번호가 기준.
+     분모 = 그 계획번호 원료 전량 × (당일 EP 투입 ÷ 계획번호 EP 투입 전량)
+     분자 = 그 계획번호 포장 전량 × 같은 비율
+     원료를 전일에 계량했어도 EP 한 날로 귀속되어 이중 집계가 사라진다. */
+  const epMode=Object.keys(epDayByPlan).length>0;
+  const baseByPlan=epMode?epDayByPlan:rawByPlan;
   /* 포장 실적 = 그 계획번호로 조업일 이후 오늘까지 포장된 전량.
      날짜를 당일·익일로 좁히면 며칠 뒤 리뷰할 때 그 사이 포장분이 빠진다. */
   let lastDate=null;
@@ -7530,17 +7549,18 @@ function dayRawCalc(){
      ── 그래서 분모는 당일 원료 그대로 두고,
         분자를 포장 × (당일원료 ÷ 그 계획번호 총원료) 로 줄인다.
         "오늘 쓴 원료가 만들어낸 포장" 만 남는다. */
-  const rawAllByPlan={}, packRawByPlan={}, eaRawByPlan={};
+  const rawAllByPlan={}, packRawByPlan={}, eaRawByPlan={}, epAllByPlan={};
   let rawAll=0;
   (CUR_DAY.planRows||[]).forEach(r=>{
-    const pn=String(r.plan_no||''); if(!(pn in rawByPlan)) return;
+    const pn=String(r.plan_no||''); if(!(pn in baseByPlan)) return;
     const c=String(r.mat_code||'')[0];
     const aq=Number(r.actual_qty)||0;
     const d=String(r.work_date||'').slice(0,10);
+    if(epMode && aq>0 && isEpRow(r)) epAllByPlan[pn]=(epAllByPlan[pn]||0)+aq;
     if(c==='1'){ rawAllByPlan[pn]=(rawAllByPlan[pn]||0)+aq; rawAll+=aq; return; }
     if(c!=='6' || !/포장/.test(String(r.proc_sub2||''))) return;
     if(aq<=0) return;
-    if(d && d < String(CUR_DAY.date||'')) return;   // 조업일 이후 포장분만
+    if(!epMode && d && d < String(CUR_DAY.date||'')) return;   // 원료 기준일 때만 조업일 이후 포장분 (EP 기준은 비율로 안분)
     packRawByPlan[pn]=(packRawByPlan[pn]||0)+aq;
     const w=W[String(r.prod_code)];
     if(w>0) eaRawByPlan[pn]=(eaRawByPlan[pn]||0)+aq/w; else skuSet[r.prod_code]=1;
@@ -7550,16 +7570,21 @@ function dayRawCalc(){
      원료 → 건조(코터·오븐)에서 줄고 → 포장에서 샘플·깨짐으로 조금 더 줄어
      최종 55~70% 대면 마무리된 것으로 본다. 그 미만이면 아직 포장 진행중이다.
      보통 3~5일이면 끝나므로, 경과일수와 함께 보면 남은 건을 골라낼 수 있다. */
-  let shareMin=1, planDone=0, planGoing=0;
-  const goingList=[];
-  Object.keys(rawByPlan).forEach(pn=>{
-    const tot=rawAllByPlan[pn]||0, day=rawByPlan[pn]||0;
+  let shareMin=1, planDone=0, planGoing=0, baseRaw=0;
+  const goingList=[], baseRawByPlan={};
+  Object.keys(baseByPlan).forEach(pn=>{
+    const tot=rawAllByPlan[pn]||0;
     const pk=packRawByPlan[pn]||0;
+    /* 당일 몫 비중 : EP 기준 = 당일 EP ÷ EP 전량, 원료 기준 = 당일 원료 ÷ 원료 전량 */
+    const share=epMode
+      ? ((epAllByPlan[pn]||0)>0 ? Math.min(epDayByPlan[pn]/epAllByPlan[pn],1) : 1)
+      : (tot>0 ? Math.min((rawByPlan[pn]||0)/tot,1) : 1);
+    const day=epMode ? tot*share : (rawByPlan[pn]||0);   // 당일 몫 원료
+    baseRawByPlan[pn]=day; baseRaw+=day;
     const fin=(tot>0)?pk/tot*100:null;
     if((fin!=null && fin>=PACK_DONE_PCT) || isPlanDoneAny(pn)) planDone++;
     else { planGoing++; if(day>0) goingList.push({plan_no:pn, kg:day, rate:fin}); }
     if(!pk) return;
-    const share=(tot>0)?Math.min(day/tot,1):1;      // 당일 몫 비중
     if(share<shareMin) shareMin=share;
     packKg+=pk*share;
     packEa+=(eaRawByPlan[pn]||0)*share;
@@ -7571,19 +7596,21 @@ function dayRawCalc(){
     const d0=new Date(+m[1],+m[2]-1,+m[3]), t=new Date();
     return Math.max(0, Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-d0)/86400000)); })();
   eaMiss=Object.keys(skuSet).length;
-  const planKeys=Object.keys(rawByPlan);
+  const planKeys=Object.keys(baseByPlan);
   let noPackKg=0, noPackCnt=0, doneKg=0, doneCnt=0;
   const noPackList=[];
   planKeys.forEach(k=>{
     if(packByPlan[k]) return;
-    if(isPlanDoneAny(k)){ doneKg+=rawByPlan[k]; doneCnt++; return; }  // 생산완료 처리분은 제외
-    noPackKg+=rawByPlan[k]; noPackCnt++;
-    noPackList.push({plan_no:k, kg:rawByPlan[k]});
+    const kg=baseRawByPlan[k]||0;
+    if(isPlanDoneAny(k)){ doneKg+=kg; doneCnt++; return; }  // 생산완료 처리분은 제외
+    noPackKg+=kg; noPackCnt++;
+    noPackList.push({plan_no:k, kg});
   });
   noPackList.sort((a,b)=>b.kg-a.kg);
   const proRateOk=(rawAll>0);
   if(!proRateOk) rawAll=rawAct;            // 조회 실패 시 당일분으로 폴백(값이 커 보이므로 카드에 알린다)
-  const V={rawPlan, rawAct, rawAll, proRateOk, shareMin, planDone, planGoing, goingList, elapsed, proRateErr:(CUR_DAY.planErr||''), packKg, packEa, eaMiss, lastDate,
+  if(!proRateOk) baseRaw=epMode?baseRaw:rawAct;
+  const V={rawPlan, rawAct, rawAll, proRateOk, epMode, baseRaw, shareMin, planDone, planGoing, goingList, elapsed, proRateErr:(CUR_DAY.planErr||''), packKg, packEa, eaMiss, lastDate,
     pending:(CUR_DAY.planRows==null),
     planCnt:planKeys.length, packPlanCnt:Object.keys(packByPlan).length,
     noPackKg, noPackCnt, noPackList, doneKg, doneCnt, rawByPlan, packByPlan, d8, nx};
@@ -7608,10 +7635,10 @@ function openNoPackList(){
   el.onclick=(e)=>{ if(e.target===el) closeNoPackList(); };
   el.innerHTML=`<div class="pt-box" style="width:min(560px,100%)">
     <div class="dq-hd"><b>미포장 계획번호</b><span class="dq-x" onclick="closeNoPackList()">✕</span></div>
-    <div class="dq-prod">${CUR_DAY.date} 조업일에 원료를 투입했으나 아직 포장이 마무리되지 않은 계획번호입니다${V.elapsed!=null?` · ${V.elapsed}일 경과`:''}.</div>
+    <div class="dq-prod">${CUR_DAY.date} 조업일에 ${V.epMode?'EP 를 생산했으나':'원료를 투입했으나'} 아직 포장이 마무리되지 않은 계획번호입니다${V.elapsed!=null?` · ${V.elapsed}일 경과`:''}.</div>
     <div style="padding:14px 16px">
       <table class="t2-table" style="font-size:12.5px">
-        <thead><tr><th>생산계획번호</th><th>당일 원료(KG)</th><th>현재 수율</th><th style="width:120px">처리</th></tr></thead>
+        <thead><tr><th>생산계획번호</th><th>${V.epMode?'당일 EP몫 원료(KG)':'당일 원료(KG)'}</th><th>현재 수율</th><th style="width:120px">처리</th></tr></thead>
         <tbody>${V.goingList.map(x=>`<tr>
           <td class="mono"><b>${x.plan_no}</b></td>
           <td class="mono">${fmt(Math.round(x.kg))}</td>
@@ -7636,30 +7663,36 @@ function scPackRawCard(){
   const V=dayRawCalc();
   if(!V) return `<div class="sc o"><div class="l">당일 포장실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (원료사용량기준)</span></div>
       <div class="skel" style="height:46px;border-radius:8px;margin-top:8px"></div></div>`;
-  const t=V.packKg/1000, rt=V.rawAct/1000, dt=V.rawAct/1000;
-  const rate=V.rawAct>0 ? V.packKg/V.rawAct*100 : null;
+  const t=V.packKg/1000, rt=V.baseRaw/1000;
+  const rate=V.baseRaw>0 ? V.packKg/V.baseRaw*100 : null;
   const col=(rate==null)?'var(--mut)':(rate>=70?'var(--grn)':(rate>=50?'#d97706':'#b42318'));
   const tip=`1차 필터 : 조업일 ${CUR_DAY.date} 07:00 ~ 익일 06:59\n`
-    + `2차 필터 : 그 원료를 쓴 계획번호의 포장을 ${CUR_DAY.date} 이후 오늘까지 전부 합산\n`
+    + (V.epMode
+      ? `기준 : 이 조업일에 EP 를 생산한 계획번호 ${V.planCnt}건\n`
+        + `  (계량·분체를 전일에 미리 해도 EP 한 날로 귀속됩니다)\n`
+        + `  원료·포장 모두 그 계획번호 전량 × (당일 EP 투입 ÷ 계획번호 EP 투입 전량)\n`
+      : `기준 : 이 조업일에 원료를 투입한 계획번호 (EP 공정 없음)\n`)
+    + `2차 필터 : 그 계획번호의 포장을 오늘까지 전부 합산\n`
     + `  (포장공정이 소비한 반제품 양이 곧 완제품 포장량입니다)\n`
     + (V.lastDate?`  마지막 포장일 ${V.lastDate}\n`:'')
     + `  며칠 뒤에 다시 열면 그 사이 포장분이 누적되어 수율이 올라갑니다.\n\n`
-    + `분모 = 당일 원료 투입 ${fmt1(V.rawAct)}kg\n`
+    + `분모 = ${V.epMode?'당일 EP 몫 원료':'당일 원료 투입'} ${fmt1(V.baseRaw)}kg\n`
     + `분자 = 그 원료가 만들어낸 포장 ${fmt1(V.packKg)}kg\n`
-    + `  한 계획번호에 원료를 며칠 나눠 넣은 경우, 포장도 당일 투입 비율만큼만 잡습니다.\n\n`
+    + (V.epMode?`참고 : 조업일 원료 투입(계량 기준) ${fmt1(V.rawAct)}kg — 전일 계량분 차이로 분모와 다를 수 있습니다.\n\n`
+               :`  한 계획번호에 원료를 며칠 나눠 넣은 경우, 포장도 당일 투입 비율만큼만 잡습니다.\n\n`)
     + `[읽는 법] 원료 → 건조(코터·오븐)에서 수분이 빠지고 → 포장에서 샘플·깨짐으로 조금 더 줄어\n`
     + `  최종 55~70% 대면 마무리된 것으로 봅니다. 보통 3~5일이면 끝납니다.\n`
     + `계획번호 ${V.planCnt}건 중 완료 ${V.planDone}건 · 진행중 ${V.planGoing}건${V.elapsed!=null?` · 조업일로부터 ${V.elapsed}일 경과`:''}\n`
-    + `원료 투입 계획번호 ${V.planCnt}건 · 포장 잡힌 계획번호 ${V.packPlanCnt}건`
+    + `${V.epMode?'EP 생산':'원료 투입'} 계획번호 ${V.planCnt}건 · 포장 잡힌 계획번호 ${V.packPlanCnt}건`
     + (V.noPackCnt>0 ? `\n\n미포장 ${V.noPackCnt}건 · 원료 ${fmt1(V.noPackKg)}kg — 아직 포장이 시작되지 않았습니다. 잔여 사유는 여기서 찾으세요.` : '\n모든 계획번호가 포장에 들어갔습니다.')
     + (V.eaMiss>0 ? `\n⚠ 개당중량 미등록 ${V.eaMiss}품번은 EA 환산에서 제외했습니다.` : '');
   const tipA=tip.replace(/"/g,'&quot;');
   return `<div class="sc o"><div class="l">당일 포장실적<span style="font-size:9px;color:#98a2b3;font-weight:700"> (원료사용량기준)</span></div>
     <div class="v mono sc-dual" title="${tipA}">${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">ton</span>
       ${V.packEa>0?`<span class="sc-slash">/</span><span class="sc-rate" style="color:#b45309;font-size:15px">${fmt(Math.round(V.packEa))} EA</span>`:''}</div>
-    <div class="sub" title="${tipA}">원료 ${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">t</span>
+    <div class="sub" title="${tipA}">${V.epMode?'EP원료':'원료'} ${rt>=100?rt.toFixed(0):rt.toFixed(1)}<span class="u">t</span>
       <span class="sc-slash" style="font-size:12px">/</span>포장 ${t>=100?t.toFixed(0):t.toFixed(1)}<span class="u">t</span>
-      <span class="sc-dot">·</span><span style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span>${!V.proRateOk?`<span class="sc-dot">·</span><span style="color:#b42318;font-weight:800" title="계획번호 조회가 불완전해 안분이 적용되지 않았습니다.&#10;${V.proRateErr||'원인 미상'}&#10;수율이 실제보다 높게 나올 수 있습니다.">⚠ 조회 불완전</span>`:(rate!=null&&rate>105?`<span style="color:#b42318;font-weight:800" title="포장이 원료를 넘었습니다. 원료 ${fmt1(V.rawAct)}kg · 포장 ${fmt1(V.packKg)}kg — 데이터 점검이 필요합니다."> ⚠</span>`:'')}
+      <span class="sc-dot">·</span><span style="color:${col}">${rate==null?'–':rate.toFixed(1)+'%'}</span>${!V.proRateOk?`<span class="sc-dot">·</span><span style="color:#b42318;font-weight:800" title="계획번호 조회가 불완전해 안분이 적용되지 않았습니다.&#10;${V.proRateErr||'원인 미상'}&#10;수율이 실제보다 높게 나올 수 있습니다.">⚠ 조회 불완전</span>`:(rate!=null&&rate>105?`<span style="color:#b42318;font-weight:800" title="포장이 원료를 넘었습니다. 원료 ${fmt1(V.baseRaw)}kg · 포장 ${fmt1(V.packKg)}kg — 데이터 점검이 필요합니다."> ⚠</span>`:'')}
       ${V.planGoing>0?`<span class="sc-dot">·</span><span style="color:${(V.elapsed!=null&&V.elapsed>=5)?'#b42318':'#d97706'};cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();openNoPackList()" title="포장이 아직 마무리되지 않은 계획번호입니다.${V.elapsed!=null?` 조업일로부터 ${V.elapsed}일 경과 —${V.elapsed>=5?' 5일이 지났으므로 확인이 필요합니다.':' 보통 3~5일이면 마무리됩니다.'}`:''}&#10;클릭하면 목록이 열리고 생산완료 처리를 할 수 있습니다.">진행중 ${V.planGoing}건</span>`:`<span class="sc-dot">·</span><span style="color:var(--grn)">전건 완료</span>`}
       ${V.doneCnt>0?`<span class="sc-dot">·</span><span style="color:#0d6b42" title="생산완료로 처리해 미포장에서 제외한 계획번호입니다 (원료 ${fmt1(V.doneKg)}kg)">완료 ${V.doneCnt}건</span>`:''}</div></div>`;
 }
@@ -9864,7 +9897,7 @@ function renderClosing(){
     const stdMap={}; (stdTime||[]).forEach(s=>{ stdMap[s.line]={std:Number(s.std_hours||0)}; });
     // 라인별 가동/정지 시간 — 호기 분리 대상 라인만 호기 단위로 쪼갠다
     const runByLine={}, stopByLine={};
-    (downtime||[]).forEach(t=>{
+    dtWithBreaks(downtime).forEach(t=>{
       const k=hkKey((t.proc_sub1||'')+'/'+(t.proc_sub2||''), t.hoki);
       const dur=diffMin(t.start_time,t.end_time);
       if(t.category==='run') runByLine[k]=(runByLine[k]||0)+dur;
@@ -10158,7 +10191,7 @@ function renderMoreSections(){
 
   // ⑤ 비가동: 라인(파트) 고정 + 라인별 집계 (가동시간 포함)
   const downByLine={};
-  (downtime||[]).forEach(t=>{
+  dtWithBreaks(downtime).forEach(t=>{
     const k=(t.proc_sub1||'')+'/'+(t.proc_sub2||'');
     const d=downByLine[k]||(downByLine[k]={run:0,plan:0,unplan:0,sudden:0});
     const dur=diffMin(t.start_time,t.end_time);
@@ -10386,6 +10419,60 @@ function overnightBadge(t){
   return isOvernight(t&&t.start_time,t&&t.end_time)
     ? ` <span style="display:inline-block;font-size:9.5px;font-weight:800;color:#5a3fb8;background:#f4f1ff;border:1px solid #cfc3f0;border-radius:4px;padding:0 4px;vertical-align:1px" title="종료가 시작보다 이른 시각이라 익일로 계산했습니다">익일</span>`
     : '';
+}
+/* ════════════════════════════════════════════════════════════════════
+   휴게시간 자동 계획정지 — 라인별 가동(run) 구간과 겹치는 만큼만 계획정지로 뺀다.
+   ── 저장하지 않는 계산값(가상 행). 원본 t_cl_downtime 은 건드리지 않는다.
+   ── 가동이 휴게시간에 이미 끊겨 있으면 겹침 0 → 이중 차감 없음.
+   ── 같은 시간대에 사람이 등록한 정지(계획·비계획·돌발)가 있으면 그만큼 빼고 남은 부분만 넣는다.
+   ── 시간대를 바꾸려면 BREAK_WINDOWS 만 고치면 된다. 끄려면 AUTO_BREAK=false.
+   ════════════════════════════════════════════════════════════════════ */
+const AUTO_BREAK=true;
+const BREAK_WINDOWS=[
+  {s:'10:00',e:'10:15',n:'오전 휴식'},
+  {s:'12:00',e:'13:00',n:'점심'},
+  {s:'15:00',e:'15:15',n:'오후 휴식'},
+  {s:'22:00',e:'22:15',n:'야간 휴식'},
+  {s:'00:00',e:'01:00',n:'야간 점심'},
+  {s:'03:00',e:'03:15',n:'새벽 휴식'}
+];
+let _BRK_SRC=null, _BRK_SIG='', _BRK_VAL=null;
+function dtWithBreaks(list){
+  const src=list||[];
+  if(!AUTO_BREAK) return src;
+  // 수정은 배열을 새로 만들지 않고 행을 고치므로, 참조 + 시각 서명으로 캐시한다
+  const sig=src.length+'|'+src.map(t=>(t.category||'')+(t.start_time||'')+(t.end_time||'')+(t.proc_sub2||'')+(t.hoki||'')).join(',');
+  if(_BRK_SRC===src && _BRK_SIG===sig && _BRK_VAL) return _BRK_VAL;
+  // 조업일 축(07:00 = 0분)으로 환산해 자정 넘김을 한 줄로 다룬다
+  const rel=x=>{ const m=String(x||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return null;
+    return ((+m[1])*60+(+m[2])-420+1440)%1440; };
+  const seg=t=>{ const a=rel(t.start_time); if(a==null||!t.end_time) return null;
+    const d=diffMin(t.start_time,t.end_time); return d>0?[a,a+d]:null; };
+  const merge=arr=>{ arr.sort((x,y)=>x[0]-y[0]); const o=[];
+    arr.forEach(v=>{ const l=o[o.length-1]; if(l&&v[0]<=l[1]) l[1]=Math.max(l[1],v[1]); else o.push([v[0],v[1]]); }); return o; };
+  const cut=(iv,holes)=>{ let out=[iv]; holes.forEach(h=>{ const nx=[];
+    out.forEach(([a,b])=>{ if(h[1]<=a||h[0]>=b){ nx.push([a,b]); return; }
+      if(h[0]>a) nx.push([a,h[0]]); if(h[1]<b) nx.push([h[1],b]); }); out=nx; }); return out; };
+  const hhmm=m=>{ const x=((m+420)%1440+1440)%1440; return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0'); };
+  const BW=BREAK_WINDOWS.map(b=>{ const a=rel(b.s), e=rel(b.e); return [a, e>a?e:e+1440, b.n]; });
+  // 라인+호기별 가동 구간 병합
+  const runs={}, stops=[];
+  src.forEach(t=>{ const g=seg(t); if(!g) return;
+    const ln=(t.proc_sub1||'')+'\u0001'+(t.proc_sub2||'');
+    if(t.category==='run'){ const k=ln+'\u0001'+String(t.hoki||'').trim();
+      (runs[k]=runs[k]||{s1:t.proc_sub1||'',s2:t.proc_sub2||'',hoki:String(t.hoki||'').trim(),iv:[]}).iv.push(g); }
+    else stops.push({ln, hoki:String(t.hoki||'').trim(), g}); });
+  const add=[]; let n=0;
+  Object.keys(runs).forEach(k=>{ const R=runs[k]; const ln=R.s1+'\u0001'+R.s2;
+    const holes=merge(stops.filter(x=>x.ln===ln && (!x.hoki||!R.hoki||x.hoki===R.hoki)).map(x=>x.g.slice()));
+    merge(R.iv).forEach(([ra,rb])=>{
+      BW.forEach(([ba,bb,nm])=>{ const a=Math.max(ra,ba), b=Math.min(rb,bb); if(b<=a) return;
+        cut([a,b],holes).forEach(([x,y])=>{ if(y-x<1) return;
+          add.push({id:'brk'+(++n), _brk:true, category:'plan', source:'break',
+            proc_sub1:R.s1, proc_sub2:R.s2, hoki:R.hoki, prod_code:'',
+            start_time:hhmm(x), end_time:hhmm(y), reason_type:'휴게시간(자동)', memo:nm+' 자동 반영'}); }); }); }); });
+  _BRK_SRC=src; _BRK_SIG=sig; _BRK_VAL=add.length?src.concat(add):src;
+  return _BRK_VAL;
 }
 function diffMin(s,e){
   if(!s||!e)return 0;
