@@ -1020,7 +1020,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1057,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22b</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5978,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.22b';
+const APP_VERSION='v2026.09.22c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7622,10 +7622,14 @@ function dayRawCalc(){
     ovenRaw+=baseRawByPlan[pn]||0; ovenPack+=packByPlan[pn]||0; ovenCnt++; });
   /* EP 기준 모든 카드가 같은 모집단(당일 EP 계획번호 × 당일 몫)을 쓴다 */
   let planEP=0, coatOut=0, coatCnt=0;
+  const overList=[];   // 포장 > 코터 산출 계획번호 (물리적으로 불가 → MES 기록 점검 대상)
   Object.keys(baseRawByPlan).forEach(pn=>{ const sh=shareByPlan[pn]||0;
     planEP+=(planAllByPlan[pn]||0)*sh;
-    if(!ovenPlan[pn]){ coatOut+=(coatAllByPlan[pn]||0)*sh; coatCnt++; } });
-  const V={rawPlan, rawAct, rawAll, proRateOk, epMode, baseRaw, ovenRaw, ovenPack, ovenCnt, planEP, coatOut, coatCnt, shareMin, planDone, planGoing, goingList, elapsed, proRateErr:(CUR_DAY.planErr||''), packKg, packEa, eaMiss, lastDate,
+    if(!ovenPlan[pn]){ coatOut+=(coatAllByPlan[pn]||0)*sh; coatCnt++;
+      const co=coatAllByPlan[pn]||0, pk=packRawByPlan[pn]||0;
+      if(co>0 && pk>co*1.005) overList.push({plan_no:pn, out:co, pack:pk, eff:pk/co*100}); } });
+  overList.sort((a,b)=>(b.pack-b.out)-(a.pack-a.out));
+  const V={rawPlan, rawAct, rawAll, proRateOk, epMode, baseRaw, ovenRaw, ovenPack, ovenCnt, planEP, coatOut, coatCnt, overList, shareMin, planDone, planGoing, goingList, elapsed, proRateErr:(CUR_DAY.planErr||''), packKg, packEa, eaMiss, lastDate,
     pending:(CUR_DAY.planRows==null),
     planCnt:planKeys.length, packPlanCnt:Object.keys(packByPlan).length,
     noPackKg, noPackCnt, noPackList, doneKg, doneCnt, rawByPlan, packByPlan, d8, nx};
@@ -7714,12 +7718,15 @@ function scPackRawCard(){
       /* 같은 계획번호·같은 몫으로 코터·오븐 산출과 포장을 짝지운다. 포장 ≤ 산출 이 물리적 상한. */
       const cp=Math.max(V.packKg-V.ovenPack,0), co=V.coatOut||0, os=V.ovenRaw*OVEN_STD_YIELD/100;
       const ce=co>0?cp/co*100:null, oe=os>0?V.ovenPack/os*100:null;
-      const over=(co+os)>0 && V.packKg>(co+os)*1.005;
+      const OL=V.overList||[];
+      const over=OL.length>0 || ((co+os)>0 && V.packKg>(co+os)*1.005);
+      const olTxt=OL.map(x=>`  ${x.plan_no} : 코터산출 ${fmt1(x.out)} → 포장 ${fmt1(x.pack)}kg (${x.eff.toFixed(1)}%)`).join('&#10;');
       const tipB=`포장효율 = 포장 ÷ 산출 (같은 계획번호·같은 몫)&#10;`
         +`코터 : 산출 ${fmt1(co)}kg → 포장 ${fmt1(cp)}kg · ${ce==null?'–':ce.toFixed(1)+'%'}&#10;`
         +`오븐 : 산출 ${fmt1(os)}kg → 포장 ${fmt1(V.ovenPack)}kg · ${oe==null?'–':oe.toFixed(1)+'%'}&#10;`
-        +(over?`⚠ 포장이 산출을 넘었습니다 — MES 포장 소비량 또는 코터 투입 기록 점검이 필요합니다.`:'포장은 진행 중이면 낮고, 마무리되면 97~99% 대가 정상입니다.');
-      return `<div class="sub" style="margin-top:1px;color:${over?'#b42318':'#6b7280'}" title="${tipB}">포장효율 코터 ${ce==null?'–':ce.toFixed(1)+'%'}${V.ovenCnt>0?` / 오븐 ${oe==null?'–':oe.toFixed(1)+'%'}`:''}${over?' ⚠':''}</div>`;
+        +(OL.length?`&#10;⚠ 포장이 코터 산출을 넘은 계획번호 ${OL.length}건 — 물리적으로 불가하므로 MES 기록 점검 대상입니다.&#10;${olTxt}&#10;(코터 투입 누락 또는 다른 계획번호 반제품을 이 번호로 포장했을 가능성)`
+          :over?`⚠ 포장이 산출을 넘었습니다 — 오븐 수율(${OVEN_STD_YIELD}%) 또는 MES 기록 점검이 필요합니다.`:'포장은 진행 중이면 낮고, 마무리되면 97~99% 대가 정상입니다.');
+      return `<div class="sub" style="margin-top:1px;color:${over?'#b42318':'#6b7280'}" title="${tipB}">포장효율 코터 ${ce==null?'–':ce.toFixed(1)+'%'}${V.ovenCnt>0?` / 오븐 ${oe==null?'–':oe.toFixed(1)+'%'}`:''}${OL.length?` ⚠ 초과 ${OL.length}건`:over?' ⚠':''}</div>`;
     })():''}</div>`;
 }
 /* 스코어카드 표시 스위치 — 정책이 바뀌면 이 값만 고치면 된다.
@@ -7929,7 +7936,7 @@ function closeNotePop(save){
   window.removeEventListener('scroll', npPlace, true);
   window.removeEventListener('resize', npPlace);
 }
-const OVEN_STD_YIELD=75;      // 오븐 완제품 기준수율(%) — 원료 4t → 2.8t. 현장 기준이 바뀌면 이 값만 수정
+const OVEN_STD_YIELD=81;      // 오븐 완제품 기준수율(%) — 원료 4t → 2.8t. 현장 기준이 바뀌면 이 값만 수정
 const OVEN_BASE_YIELD=80.7;   // 오븐 제품 기본(가상) 최종완료수율 — 설계수율 마스터 등록 전 임시 기준
 /* 스코어카드 : 원료 사용실적을 건조경로(코터 / 오븐)로 나눠 본다.
    코터는 EP 산출을 실측하고, 오븐은 계량 설비가 없어 포장까지 내려가 본다.
