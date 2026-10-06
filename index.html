@@ -473,7 +473,7 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .dq-back{position:fixed;inset:0;background:rgba(16,26,42,.46);z-index:9000;
   display:flex;align-items:center;justify-content:center;padding:18px;animation:dqIn .13s ease-out}
 @keyframes dqIn{from{opacity:0}to{opacity:1}}
-.dq-box{background:#fff;border-radius:14px;width:min(430px,100%);box-shadow:0 18px 48px rgba(16,26,42,.28);overflow:hidden}
+.dq-box{background:#fff;border-radius:14px;width:min(620px,100%);box-shadow:0 18px 48px rgba(16,26,42,.28);overflow:hidden}
 .dq-hd{display:flex;align-items:center;padding:13px 16px;background:#1c3f7d;color:#fff;font-size:14px}
 .dq-hd .dq-x{margin-left:auto;cursor:pointer;opacity:.75;font-size:15px;line-height:1}
 .dq-hd .dq-x:hover{opacity:1}
@@ -484,6 +484,16 @@ input.t24::placeholder{color:#c4ccd8;letter-spacing:1px}
 .dq-grid select,.dq-grid input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit}
 .dq-grid select:focus,.dq-grid input:focus{outline:none;border-color:#3565b8;box-shadow:0 0 0 3px rgba(53,101,184,.13)}
 .dq-qty{display:flex;gap:7px}
+.dq-ml{padding:4px 16px 0}
+.dq-rowhd,.dq-row{display:grid;grid-template-columns:1fr 78px 56px 1fr 22px;gap:6px;align-items:center}
+.dq-rowhd{font-size:10.5px;font-weight:800;color:var(--sub);padding:2px 0 4px}
+.dq-row{margin-bottom:6px}
+.dq-row select,.dq-row input{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit}
+.dq-row select:focus,.dq-row input:focus{outline:none;border-color:#3565b8;box-shadow:0 0 0 3px rgba(53,101,184,.13)}
+.dq-row .dq-del{cursor:pointer;color:#b42318;font-size:13px;text-align:center;opacity:.55;font-weight:800}
+.dq-row .dq-del:hover{opacity:1}
+.dq-addrow{display:flex;align-items:center;gap:8px;padding:2px 16px 12px}
+.dq-addrow .dq-cnt{font-size:10.5px;color:var(--mut)}
 .dq-ft{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#f8fafc;border-top:1px solid var(--line)}
 .dq-ft .dq-note{flex:1;font-size:10.5px;color:var(--mut);line-height:1.4}
 /* ③ 로스관리 정렬 가능한 헤더 */
@@ -1020,7 +1030,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.06a</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1057,7 +1067,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.09.22d</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.06a</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -5978,7 +5988,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.09.22d';
+const APP_VERSION='v2026.10.06a';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -7826,45 +7836,85 @@ function openDefectQuick(code, name, unit){
     <div class="dq-grid">
       <label>라인</label>
       <select id="dqLine">${lineOpts||'<option value="">라인 없음</option>'}</select>
-      <label>불량유형</label>
-      <select id="dqType"><option value="">유형선택</option>${typeOpts}</select>
-      <label>수량</label>
-      <div class="dq-qty"><input id="dqQty" type="number" min="0" step="any" placeholder="0"
-        oninput="if(Number(this.value)<0){this.value='';toast('불량 수량은 음수로 입력할 수 없습니다','err');}">
-        <input id="dqUnit" value="${u}" style="width:64px"></div>
-      <label>사유</label>
-      <input id="dqReason" placeholder="사유 (선택)">
+    </div>
+    <div class="dq-ml">
+      <div class="dq-rowhd"><span>불량유형</span><span>수량</span><span>단위</span><span>사유 (선택)</span><span></span></div>
+      <div id="dqRows"></div>
+    </div>
+    <div class="dq-addrow">
+      <button class="tbtn" onclick="dqAddRow()" title="같은 제품에 다른 불량유형을 한 번에 더 등록합니다">+ 유형 추가</button>
+      <span class="dq-cnt" id="dqCnt"></span>
     </div>
     <div class="dq-ft">
-      <span class="dq-note">등록하면 ④ 완제품 불량관리 목록에 바로 들어갑니다.</span>
+      <span class="dq-note">등록하면 ④ 완제품 불량관리 목록에 바로 들어갑니다. 입력한 줄이 각각 1건으로 등록됩니다.</span>
       <button class="tbtn" onclick="closeDefectQuick()">취소</button>
       <button class="rowbtn save" onclick="saveDefectQuick('${String(code).replace(/'/g,"")}','${String(name||'').replace(/['"<>]/g,'')}')">+ 등록</button>
     </div></div>`;
   document.body.appendChild(el);
-  setTimeout(()=>{ const t=document.getElementById('dqType'); if(t)t.focus(); },30);
+  DQ_TYPE_OPTS=typeOpts; DQ_UNIT=u;
+  dqAddRow();
+  setTimeout(()=>{ const t=document.querySelector('#dqRows .dqType'); if(t)t.focus(); },30);
+}
+/* 한 제품에 불량유형을 여러 개 등록한다 — 줄을 추가하면 각 줄이 1건으로 저장된다 */
+let DQ_TYPE_OPTS='', DQ_UNIT='EA';
+function dqAddRow(){
+  const box=document.getElementById('dqRows'); if(!box) return;
+  const d=document.createElement('div');
+  d.className='dq-row';
+  d.innerHTML=`<select class="dqType"><option value="">유형선택</option>${DQ_TYPE_OPTS}</select>
+    <input class="dqQty" type="number" min="0" step="any" placeholder="0"
+      oninput="if(Number(this.value)<0){this.value='';toast('불량 수량은 음수로 입력할 수 없습니다','err');}">
+    <input class="dqUnit" value="${DQ_UNIT}">
+    <input class="dqReason" placeholder="사유">
+    <span class="dq-del" onclick="dqDelRow(this)" title="이 줄 삭제">✕</span>`;
+  box.appendChild(d);
+  dqSyncCnt();
+  const t=d.querySelector('.dqType'); if(t) t.focus();
+}
+function dqDelRow(btn){
+  const box=document.getElementById('dqRows'); if(!box) return;
+  if(box.children.length<=1){ toast('최소 1줄은 있어야 합니다','err'); return; }
+  const row=btn.closest('.dq-row'); if(row) row.remove();
+  dqSyncCnt();
+}
+function dqSyncCnt(){
+  const box=document.getElementById('dqRows'), c=document.getElementById('dqCnt');
+  if(box&&c) c.textContent=`${box.children.length}줄`;
 }
 function closeDefectQuick(){ const b=document.getElementById('dqBack'); if(b) b.remove(); }
 async function saveDefectQuick(code, name){
   const {date,team}=CUR_DAY;
   const lineV=(document.getElementById('dqLine')||{}).value||'';
-  const typeName=(document.getElementById('dqType')||{}).value||'';
-  const qty=Number((document.getElementById('dqQty')||{}).value)||0;
-  const unit=String((document.getElementById('dqUnit')||{}).value||'EA').trim().toUpperCase();
-  const reason=(document.getElementById('dqReason')||{}).value||'';
   if(!lineV){ toast('라인을 선택하세요','err'); return; }
-  if(!typeName){ toast('불량유형을 선택해야 집계·개선분석이 가능합니다','err'); return; }
-  if(!(qty>0)){ toast('수량을 입력하세요','err'); return; }
   const [s1,s2]=lineV.split('|');
+  /* 줄 단위로 모은다. 유형·수량이 모두 빈 줄은 건너뛰고, 한쪽만 채운 줄은 오류로 잡는다. */
+  const rows=[...document.querySelectorAll('#dqRows .dq-row')];
+  const payload=[];
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    const typeName=(r.querySelector('.dqType')||{}).value||'';
+    const qty=Number((r.querySelector('.dqQty')||{}).value)||0;
+    const unit=String((r.querySelector('.dqUnit')||{}).value||'EA').trim().toUpperCase();
+    const reason=(r.querySelector('.dqReason')||{}).value||'';
+    if(!typeName && !(qty>0)) continue;
+    if(!typeName){ toast(`${i+1}번째 줄 — 불량유형을 선택해야 집계·개선분석이 가능합니다`,'err'); return; }
+    if(!(qty>0)){ toast(`${i+1}번째 줄 — 수량을 입력하세요`,'err'); return; }
+    payload.push({ work_date:date, team, proc_sub1:s1, proc_sub2:s2,
+      prod_code:code, prod_name:name, defect_type:typeName, qty, unit, reason });
+  }
+  if(!payload.length){ toast('등록할 내용이 없습니다','err'); return; }
   try{
-    const {data,error}=await sb.from('t_cl_defect').insert({
-      work_date:date, team, proc_sub1:s1, proc_sub2:s2,
-      prod_code:code, prod_name:name, defect_type:typeName, qty, unit, reason
-    }).select();
+    const {data,error}=await sb.from('t_cl_defect').insert(payload).select();
     if(error)throw error;
-    const row=(data&&data[0])||{id:Date.now(),proc_sub1:s1,proc_sub2:s2,prod_code:code,prod_name:name,defect_type:typeName,qty,unit,reason};
-    CUR_DAY.defects=CUR_DAY.defects||[]; CUR_DAY.defects.push(row);
+    const saved=(data&&data.length===payload.length)?data
+      :payload.map((x,i)=>Object.assign({id:Date.now()+i}, x));
+    CUR_DAY.defects=CUR_DAY.defects||[];
+    saved.forEach(r=>CUR_DAY.defects.push(r));
     closeDefectQuick();
-    toast(`불량 ${fmt(qty)}${unit} 등록 · ④ 목록 반영`,'ok');
+    const tot=payload.reduce((a,x)=>a+x.qty,0);
+    toast(payload.length>1
+      ? `불량 ${payload.length}건 (${fmt(tot)}${payload[0].unit}) 등록 · ④ 목록 반영`
+      : `불량 ${fmt(payload[0].qty)}${payload[0].unit} 등록 · ④ 목록 반영`,'ok');
     rerenderClosing();
   }catch(e){ toast('등록 실패: '+(e.message||e),'err'); }
 }
