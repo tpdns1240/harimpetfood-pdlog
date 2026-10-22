@@ -1022,6 +1022,48 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 
   @page{size:A4 landscape;margin:10mm 8mm 12mm}
 }
+/* ══ 리포트 도우미 : 우측 플로팅 버튼 + 슬라이드 패널 ══ */
+.rpt-fab{position:fixed;right:18px;bottom:22px;z-index:8500;width:54px;height:54px;border-radius:50%;
+  border:none;cursor:pointer;background:linear-gradient(135deg,#1c3f7d,#3565b8);color:#fff;font-size:21px;
+  box-shadow:0 10px 26px rgba(28,63,125,.36);transition:transform .14s,box-shadow .14s}
+.rpt-fab:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(28,63,125,.45)}
+.rpt-fab.on{background:#243b63}
+.rpt-panel{position:fixed;right:0;top:0;bottom:0;width:min(420px,100%);z-index:8600;background:#fff;
+  box-shadow:-12px 0 34px rgba(16,26,42,.22);display:flex;flex-direction:column;
+  transform:translateX(102%);transition:transform .2s ease-out}
+.rpt-panel.open{transform:translateX(0)}
+.rpt-hd{display:flex;align-items:center;gap:8px;padding:13px 15px;background:#1c3f7d;color:#fff;font-size:14px;font-weight:800}
+.rpt-hd .rpt-x{margin-left:auto;cursor:pointer;opacity:.78;font-size:16px}
+.rpt-hd .rpt-x:hover{opacity:1}
+.rpt-body{flex:1;overflow-y:auto;padding:14px;background:#f4f7fc}
+.rpt-msg{margin-bottom:12px;font-size:12.5px;line-height:1.65}
+.rpt-msg.me{text-align:right}
+.rpt-msg.me span{display:inline-block;background:#1c3f7d;color:#fff;padding:7px 11px;border-radius:12px 12px 2px 12px;max-width:85%;text-align:left}
+.rpt-msg.ai .rpt-bub{background:#fff;border:1px solid var(--line);border-radius:12px 12px 12px 2px;padding:11px 12px}
+.rpt-msg.ai b{color:#1c3f7d}
+.rpt-mini{width:100%;border-collapse:collapse;margin-top:9px;font-size:11.5px}
+.rpt-mini th{background:#eef3fb;color:#243b63;font-weight:800;padding:5px 6px;text-align:left;white-space:nowrap}
+.rpt-mini td{padding:5px 6px;border-top:1px solid var(--line);white-space:nowrap}
+.rpt-mini td.n{text-align:right;font-family:ui-monospace,monospace}
+.rpt-acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.rpt-ft{padding:11px;border-top:1px solid var(--line);background:#fff}
+.rpt-in{display:flex;gap:7px}
+.rpt-in input{flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-family:inherit}
+.rpt-in input:focus{outline:none;border-color:#3565b8;box-shadow:0 0 0 3px rgba(53,101,184,.13)}
+.rpt-in button{padding:9px 14px;border:none;border-radius:9px;background:#1c3f7d;color:#fff;font-weight:800;cursor:pointer;font-size:12.5px}
+.rpt-tip{font-size:10.5px;color:var(--mut);margin-top:7px;line-height:1.5}
+.rpt-chip{display:inline-block;background:#eef3fb;color:#1c3f7d;border:1px solid #d4e0f3;border-radius:999px;
+  padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;margin:3px 4px 0 0}
+.rpt-chip:hover{background:#dfe9f8}
+.rpt-dot{display:inline-block;animation:rptBlink 1s infinite}
+@keyframes rptBlink{0%,100%{opacity:.25}50%{opacity:1}}
+.rpt-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:13px 15px;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
+.rpt-bar select,.rpt-bar input{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;font-family:inherit}
+.rpt-st{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;font-weight:800}
+.rpt-st.ok{background:#e7f6ee;color:#0d6b42}
+.rpt-st.go{background:#fff4e5;color:#b45309}
+.rpt-st.no{background:#fef3f2;color:#b42318}
+
 </style>
 </head>
 <body>
@@ -1030,7 +1072,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.06a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.22c</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1067,7 +1109,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.06a</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.22c</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1076,6 +1118,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
     <button id="navImprove" onclick="go('improve')">개선접수</button>
     <button id="navHelp" onclick="go('help')">도움말</button>
     <button id="navHoki" onclick="go('hoki')">호기 밸런스</button>
+    <button id="navReport" onclick="go('report')">리포트</button>
     <button id="navUpload" class="hidden" onclick="go('upload')">계획 업로드</button>
     <button id="navApprLine" class="hidden" onclick="go('settings')">설정</button>
   </div>
@@ -1083,6 +1126,21 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 
 <div class="wrap hidden" id="wrap"></div>
 <div id="toast"></div>
+
+<!-- 리포트 도우미 : 우측 플로팅 버튼 + 패널 (로그인 후 표시) -->
+<button class="rpt-fab hidden" id="rptFab" onclick="rptToggle()" title="리포트 도우미 — 계획번호·날짜로 바로 조회">&#128172;</button>
+<div class="rpt-panel hidden" id="rptPanel" aria-label="리포트 도우미">
+  <div class="rpt-hd">리포트 도우미 <span class="rpt-x" onclick="rptToggle(false)">&#10005;</span></div>
+  <div class="rpt-body" id="rptBody"></div>
+  <div class="rpt-ft">
+    <div class="rpt-in">
+      <input id="rptQ" placeholder="계획번호 또는 질문 입력" autocomplete="off"
+        onkeydown="if(event.key==='Enter')rptAsk()">
+      <button onclick="rptAsk()">조회</button>
+    </div>
+    <div class="rpt-tip">예) 어제 미포장 뭐 남았어? · 9/21 코터 수율 · 20260921004 추적</div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -1250,7 +1308,7 @@ async function doLogin(){
     S.user={userId:u.user_id,name:u.name,role:u.role,team:u.team};
     S.ym=kstMonth();
     $('#login').classList.add('hidden');
-    ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.remove('hidden'));
+    ['#top','#hdr','#wrap','#rptFab'].forEach(id=>$(id).classList.remove('hidden'));
     const teamTxt=u.role==='admin'?'관리자':(u.team||'-');
     $('#whoName').textContent=`${u.name} (${teamTxt})`;
     const ttw=$('#topThemeWrap'); if(ttw){ ttw.innerHTML=themeSelectHtml(); applyTheme(getTheme()); }
@@ -1289,7 +1347,8 @@ function goHome(){
   if(S.user){ go('cal'); }
 }
 function doLogout(){
-  S.user=null;  ['#top','#hdr','#wrap'].forEach(id=>$(id).classList.add('hidden'));
+  S.user=null;  ['#top','#hdr','#wrap','#rptFab'].forEach(id=>$(id).classList.add('hidden'));
+  try{ rptToggle(false); }catch(_){}
   $('#navUpload').classList.add('hidden'); $('#navApprLine').classList.add('hidden');
   $('#wrap').innerHTML='';
   $('#login').classList.remove('hidden');
@@ -1340,6 +1399,7 @@ function go(view){
   $('#navImprove')&&$('#navImprove').classList.toggle('on',view==='improve');
   $('#navHelp')&&$('#navHelp').classList.toggle('on',view==='help');
   $('#navHoki').classList.toggle('on',view==='hoki');
+  $('#navReport')&&$('#navReport').classList.toggle('on',view==='report');
   $('#navUpload').classList.toggle('on',view==='upload');
   $('#navApprLine').classList.toggle('on',view==='settings');
   if(view==='cal') renderCalendar();
@@ -1348,6 +1408,7 @@ function go(view){
   else if(view==='improve') renderImprove();
   else if(view==='help') renderHelp();
   else if(view==='hoki') renderHoki();
+  else if(view==='report') renderReport();
   else if(view==='upload') renderUpload();
   else if(view==='settings') renderSettings();
 }
@@ -5988,7 +6049,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.10.06a';
+const APP_VERSION='v2026.10.22c';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -11674,6 +11735,461 @@ async function saveDefect(idx){
     if(error)throw error;
     toast('불량 등록 완료','ok');
   }catch(e){ toast('저장 실패: '+(e.message||e),'err'); }
-}</script>
+}
+/* ════════════════════════════════════════════════════════════════════
+   리포트 (모든 접속자 공용) — 우측 도우미 패널 + 리포트 탭이 같은 함수를 쓴다.
+   ── 숫자는 전부 기존 화면과 같은 기준으로 계산한다(조업일 07시, EP 생산일 기준).
+   ── 조회 전용. 저장·수정 경로가 없다.
+   ── 1차 리포트 2종 : 계획번호 추적 / 미포장 현황
+   ════════════════════════════════════════════════════════════════════ */
+const RPT_KINDS={plan:'계획번호 추적', unpack:'미포장 현황'};
+let RPT={kind:'plan', res:null, busy:false, chatInit:false};
+
+/* ── 공통 유틸 ───────────────────────────────────────────── */
+function rptIsEp(r){
+  const p=String(r&&r.proc_sub2||'').trim();
+  return /^EP/i.test(p) && !/리싸이클/.test(p) && String(r.mat_code||'')[0]!=='5';
+}
+function rptDays(d){
+  const m=String(d||'').match(/(\d{4})-(\d{2})-(\d{2})/); if(!m) return null;
+  const d0=new Date(+m[1],+m[2]-1,+m[3]), t=kstDate();
+  return Math.max(0, Math.round((new Date(t.getFullYear(),t.getMonth(),t.getDate())-d0)/86400000));
+}
+/* 문장에서 날짜를 뽑는다. '9/21' '9월 21일' '2026-09-21' '오늘' '어제' */
+function rptPickDate(text){
+  const s=String(text||'');
+  let m=s.match(/(20\d{2})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  const p=n=>String(n).padStart(2,'0');
+  if(m) return `${m[1]}-${p(m[2])}-${p(m[3])}`;
+  m=s.match(/(\d{1,2})\s*[\/월]\s*(\d{1,2})/);
+  if(m) return `${kstToday().slice(0,4)}-${p(m[1])}-${p(m[2])}`;
+  if(/오늘/.test(s)) return kstToday();
+  if(/어제|전일/.test(s)){ const d=kstDate(); d.setDate(d.getDate()-1);
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  return null;
+}
+function rptPickTeam(text){
+  const s=String(text||'');
+  if(/2\s*팀|생산2/.test(s)) return '생산2팀';
+  if(/공통/.test(s)) return '공통';
+  if(/1\s*팀|생산1/.test(s)) return '생산1팀';
+  const t=(S&&S.user&&S.user.team)||'';
+  return STD_TEAMS.includes(t)?t:'생산1팀';
+}
+
+/* ── 리포트 ① 계획번호 추적 ─────────────────────────────── */
+async function rptRunPlan(no){
+  const [h,pr]=await Promise.all([
+    sb.rpc('plan_trace_head',{p_plan_no:no}),
+    sb.rpc('plan_trace_proc',{p_plan_no:no})
+  ]);
+  if(h.error) throw h.error;
+  if(pr.error) throw pr.error;
+  const H=(h.data||[])[0]||null, P=pr.data||[];
+  if(!H) return {kind:'plan', title:`계획번호 ${no}`, empty:`${no} — 해당 생산계획번호의 데이터가 없습니다.`,
+    cards:[], head:[], rows:[], num:[]};
+  const rate=H.pack_rate==null?null:Number(H.pack_rate);
+  const unp=Number(H.unpacked)||0;
+  return {
+    kind:'plan',
+    title:`계획번호 ${no}`,
+    sub:`${H.team} · ${H.first_date}${H.last_date!==H.first_date?` ~ ${H.last_date}`:''} · 공정 ${H.proc_cnt}`,
+    summary:`<b>${H.fin_name||H.fin_code||'-'}</b> · 반제품 산출 <b>${fmt(Math.round(H.base_qty||0))}kg</b> → 포장 <b>${fmt(Math.round(H.pack_qty||0))}kg</b>`
+      + (rate==null?'' : ` · 완결 <b>${rate.toFixed(1)}%</b>`)
+      + (unp>0?`<br>미포장 <b style="color:#b42318">${fmt(Math.round(unp))}kg</b> 남아 있습니다.`:'<br>포장이 모두 끝났습니다.'),
+    cards:[
+      {l:'팀 · 생산일', v:String(H.first_date).slice(5), s:`${H.team} · ${H.day_cnt}일`},
+      {l:'완제품', v:String(H.fin_code||'-'), s:(H.fin_name||'-')},
+      {l:'반제품 산출', v:fmt(Math.round(H.base_qty||0))+' kg', s:String(H.base_code||'-')},
+      {l:'포장 실적', v:fmt(Math.round(H.pack_qty||0))+' kg', s:H.pack_last?`${H.pack_last} 최종`:'포장 기록 없음'},
+      {l:'포장 완결', v:(rate==null?'–':rate.toFixed(1)+'%'), s:unp>0?`미포장 ${fmt(Math.round(unp))}kg`:'완결'}
+    ],
+    head:['공정','호기','제품코드','제품명','기간','계획(KG)','실적(KG)','편차','달성률(%)','자재수'],
+    num:[5,6,7,8,9],
+    rows:P.map(x=>[x.line, x.hoki||'', x.prod_code, x.prod_name||'',
+      String(x.first_date).slice(5)+(x.last_date!==x.first_date?`~${String(x.last_date).slice(5)}`:''),
+      Math.round(x.plan_qty||0), Math.round(x.actual_qty||0), Math.round(x.diff_qty||0),
+      x.achieve==null?'':Number(Number(x.achieve).toFixed(1)), Number(x.mat_cnt)||0]),
+    file:`계획번호추적_${no}`
+  };
+}
+
+/* ── 리포트 ② 미포장 현황 (조업일 기준) ─────────────────── */
+async function rptRunUnpack(date, team){
+  const F='plan_no,prod_code,prod_name,mat_code,proc_sub2,actual_qty';
+  const d1=await sb.from('db_plan_raw').select(F).eq('team',team).eq('work_date',date).limit(50000);
+  if(d1.error) throw d1.error;
+  const day=d1.data||[];
+  const epRows=day.filter(r=>rptIsEp(r) && Number(r.actual_qty)>0 && r.plan_no);
+  const epMode=epRows.length>0;
+  const baseRows=epMode?epRows:day.filter(r=>String(r.mat_code||'')[0]==='1' && Number(r.actual_qty)>0 && r.plan_no);
+  const dayByPlan={};
+  baseRows.forEach(r=>{ const k=String(r.plan_no);
+    dayByPlan[k]=(dayByPlan[k]||0)+(Number(r.actual_qty)||0); });
+  const pk=Object.keys(dayByPlan);
+  const base={kind:'unpack', title:`${date} 미포장 현황`, sub:`${team} · ${epMode?'EP 생산 기준':'원료 투입 기준'}`,
+    head:['생산계획번호','품명','당일 원료(KG)','포장(KG)','최종수율(%)','상태','최종 포장일','경과일'],
+    num:[2,3,4,7], file:`미포장현황_${team}_${date}`};
+  if(!pk.length) return Object.assign(base,{empty:`${date} ${team} — ${epMode?'EP':'원료'} 생산 기록이 없습니다.`,cards:[],rows:[]});
+  const [d2,dn]=await Promise.all([
+    sb.from('db_plan_raw').select(F+',work_date').eq('team',team).in('plan_no',pk).limit(50000),
+    sb.from('t_plan_done').select('plan_no').eq('team',team)
+  ]);
+  if(d2.error) throw d2.error;
+  const doneSet=new Set(((dn&&dn.data)||[]).map(r=>String(r.plan_no||'')));
+  const rawAll={}, epAll={}, pack={}, nameOf={}, lastD={};
+  (d2.data||[]).forEach(r=>{
+    const k=String(r.plan_no||''); if(!(k in dayByPlan)) return;
+    const c=String(r.mat_code||'')[0], q=Number(r.actual_qty)||0;
+    if(rptIsEp(r) && q>0) epAll[k]=(epAll[k]||0)+q;
+    if(c==='1'){ rawAll[k]=(rawAll[k]||0)+q; return; }
+    if(c!=='6' || !/포장/.test(String(r.proc_sub2||'')) || q<=0) return;
+    pack[k]=(pack[k]||0)+q;
+    const d=String(r.work_date||'').slice(0,10);
+    if(d && (!lastD[k] || d>lastD[k])) lastD[k]=d;
+    if(!nameOf[k] && ['2','3'].includes(String(r.prod_code||'')[0])) nameOf[k]=r.prod_name||'';
+  });
+  /* 포장 전이라 완제품명이 없는 계획번호는 공정 행의 제품명으로 채운다(반제품명이라도 보이게) */
+  (d2.data||[]).forEach(r=>{
+    const k=String(r.plan_no||''); if(!(k in dayByPlan) || nameOf[k]) return;
+    if(r.prod_name && String(r.prod_code||'')[0]!=='5') nameOf[k]=r.prod_name;
+  });
+  let done=0, going=0, noPack=0, goKg=0, dayKgSum=0;
+  const rows=[];
+  pk.sort().forEach(k=>{
+    const tot=rawAll[k]||0;
+    const share=epMode ? ((epAll[k]||0)>0?Math.min(dayByPlan[k]/epAll[k],1):1)
+                       : (tot>0?Math.min(dayByPlan[k]/tot,1):1);
+    const dayKg=epMode ? tot*share : dayByPlan[k];
+    const pkg=(pack[k]||0)*share;
+    const fin=(tot>0)?(pack[k]||0)/tot*100:null;
+    const isDone=(fin!=null && fin>=PACK_DONE_PCT) || doneSet.has(k);
+    const st=isDone?'완료':(pack[k]>0?'진행중':'포장없음');
+    if(isDone) done++; else { going++; goKg+=dayKg; if(!pack[k]) noPack++; }
+    dayKgSum+=dayKg;
+    rows.push([k, nameOf[k]||'', Math.round(dayKg), Math.round(pkg),
+      fin==null?'':Number(fin.toFixed(1)), st, lastD[k]||'', rptDays(date)]);
+  });
+  const goRows=rows.filter(r=>r[5]!=='완료');
+  return Object.assign(base,{
+    summary:`계획번호 <b>${pk.length}건</b> 중 완료 <b>${done}건</b> · 진행중 <b style="color:${going?'#b45309':'inherit'}">${going}건</b>`
+      + (going?`<br>아직 포장이 남은 원료 <b>${fmt(Math.round(goKg))}kg</b> (그중 포장 미착수 ${noPack}건)`
+              :'<br>모든 계획번호의 포장이 마무리됐습니다.'),
+    cards:[
+      {l:'계획번호', v:`${pk.length}건`, s:epMode?'당일 EP 생산':'당일 원료 투입'},
+      {l:'당일 원료', v:fmt(Math.round(dayKgSum))+' kg', s:'당일 몫 기준'},
+      {l:'완료', v:`${done}건`, s:`최종수율 ${PACK_DONE_PCT}% 이상`},
+      {l:'진행중', v:`${going}건`, s:going?`원료 ${fmt(Math.round(goKg))}kg`:'없음'},
+      {l:'포장 미착수', v:`${noPack}건`, s:noPack?'확인 필요':'없음'}
+    ],
+    rows, goRows
+  });
+}
+
+/* ── 실행 진입점 ─────────────────────────────────────────── */
+async function rptRun(kind, p){
+  if(kind==='plan') return await rptRunPlan(p.no);
+  return await rptRunUnpack(p.date, p.team);
+}
+
+/* ── 엑셀(xlsx) 내려받기 — 라이브러리는 누를 때만 받는다(초기 로딩 영향 없음) */
+function rptLoadXlsx(){
+  return new Promise((ok,no)=>{
+    if(window.XLSX) return ok();
+    const el=document.createElement('script');
+    el.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    el.onload=()=>window.XLSX?ok():no(new Error('XLSX 없음'));
+    el.onerror=()=>no(new Error('다운로드 실패'));
+    document.head.appendChild(el);
+  });
+}
+async function rptExcel(){
+  const r=RPT.res;
+  if(!r || !r.rows || !r.rows.length){ toast('내려받을 결과가 없습니다','err'); return; }
+  const name=(r.file||'리포트');
+  try{
+    await rptLoadXlsx();
+    const aoa=[[r.title],[r.sub||''],[],r.head].concat(r.rows);
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=r.head.map((h,i)=>({wch: r.num&&r.num.includes(i)?12:Math.max(10,String(h).length*2+4)}));
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '리포트');
+    XLSX.writeFile(wb, name+'.xlsx');
+    toast('엑셀 내려받기 완료','ok');
+  }catch(e){
+    downloadCSV(name+'.csv', r.head, r.rows);
+    toast('엑셀 파일을 만들지 못해 CSV로 받았습니다','err');
+  }
+}
+
+/* ── 우측 도우미 패널 ───────────────────────────────────── */
+function rptToggle(force){
+  const p=document.getElementById('rptPanel'), f=document.getElementById('rptFab');
+  if(!p) return;
+  const open=(force===undefined)?!p.classList.contains('open'):!!force;
+  p.classList.toggle('hidden', false);
+  p.classList.toggle('open', open);
+  if(f) f.classList.toggle('on', open);
+  if(open){
+    if(!RPT.chatInit){ RPT.chatInit=true; rptSay(
+      `무엇이 궁금하신가요? 문장으로 물어보셔도 됩니다.
+       <div style="margin-top:7px">
+       <span class="rpt-chip" onclick="rptFill('어제 포장이 아직 안 끝난 계획번호 알려줘')">어제 미포장 현황</span>
+       <span class="rpt-chip" onclick="rptFill('어제 코터 수율 얼마나 됐어?')">어제 코터 수율</span>
+       <span class="rpt-chip" onclick="rptFill('20260921004 추적해줘')">계획번호 추적</span>
+       <span class="rpt-chip" onclick="rptFill('이번 달 불량 많은 품목 top5')">이번 달 불량 TOP5</span>
+       <span class="rpt-chip" onclick="rptFill('지난주 비계획정지 오래 걸린 라인은?')">비계획정지 라인</span>
+       <span class="rpt-chip" onclick="rptDiag()">🔧 연결 점검</span></div>`); }
+    setTimeout(()=>{ const q=document.getElementById('rptQ'); if(q) q.focus(); },220);
+  }
+}
+function rptFill(t){ const q=document.getElementById('rptQ'); if(q){ q.value=t; q.focus(); } }
+function rptSay(html, me){
+  const b=document.getElementById('rptBody'); if(!b) return;
+  const d=document.createElement('div');
+  d.className='rpt-msg '+(me?'me':'ai');
+  d.innerHTML=me?`<span>${html}</span>`:`<div class="rpt-bub">${html}</div>`;
+  b.appendChild(d); b.scrollTop=b.scrollHeight;
+  return d;
+}
+/* 입력 한 줄을 리포트로 연결한다. 계획번호는 조회가 바로 돌고, 문장은 날짜·팀을 읽는다. */
+function rptParse(text){
+  const s=String(text||'').trim();
+  const no=s.match(/\b(\d{9,13})\b/);
+  if(no) return {kind:'plan', p:{no:no[1]}};
+  const date=rptPickDate(s);
+  if(date) return {kind:'unpack', p:{date, team:rptPickTeam(s)}};
+  return null;
+}
+/* 질문 한 줄 → AI(/api/ask) 가 직접 SQL 을 짜서 조회하고 해석까지 붙인다.
+   ── AI 함수가 아직 배포되지 않았거나 실패하면, 아래 규칙 경로(계획번호·날짜)로 자동 폴백한다.
+   ── 숫자는 전부 DB 조회 결과이고, 쓰기 구문은 DB 함수(rpt_sql)가 막는다. */
+let RPT_HIST=[];
+async function rptAsk(){
+  const q=document.getElementById('rptQ'); if(!q) return;
+  const text=String(q.value||'').trim();
+  if(!text) return;
+  if(RPT.busy){ toast('조회 중입니다','err'); return; }
+  rptSay(text.replace(/[<>]/g,''), true);
+  q.value='';
+  const wait=rptSay('<span style="color:var(--mut)">생각하는 중… <span class="rpt-dot">●</span></span>');
+  RPT.busy=true;
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({q:text, today:kstToday(), history:RPT_HIST.slice(-6)})});
+    if(!r.ok){
+      let msg=''; try{ msg=(await r.json()).error||''; }catch(_){}
+      throw new Error(msg||('HTTP '+r.status));
+    }
+    const d=await r.json();
+    if(wait) wait.remove();
+    RPT_HIST.push({role:'me',text}); RPT_HIST.push({role:'ai',text:String(d.answer||'').slice(0,1500)});
+    RPT.tabs=d.tables||[];
+    rptSay(rptAiHtml(d));
+  }catch(e){
+    if(wait) wait.remove();
+    const hit=rptParse(text);
+    if(hit){
+      rptSay(`<span style="color:var(--mut);font-size:11.5px">AI 조회를 쓸 수 없어 기본 리포트로 답합니다. (${String(e.message||e).slice(0,70)})</span>
+        <div class="rpt-acts"><button class="rowbtn" onclick="rptDiag()">🔧 연결 점검</button></div>`);
+      try{
+        const res=await rptRun(hit.kind, hit.p);
+        RPT.res=res; RPT.kind=hit.kind;
+        rptSay(rptPanelHtml(res));
+      }catch(e2){ rptSay(`<b style="color:#b42318">조회 실패</b><br>${String(e2.message||e2)}`); }
+    }else{
+      rptSay(`<b style="color:#b42318">조회 실패</b><br>${rptErrHint(e)}
+        <div class="rpt-acts"><button class="rowbtn" onclick="rptDiag()">🔧 연결 점검</button></div>`);
+    }
+  }finally{ RPT.busy=false; }
+}
+/* 실패 원인별 안내 — '왜 AI 가 안 붙었는지'를 바로 알 수 있게 나눠서 설명한다 */
+function rptErrHint(e){
+  const m=String(e&&e.message||e||'');
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))
+    return `서버에 연결하지 못했습니다 (${m})<br>
+      · 주소창이 <b>harimpetfood-pdlog.vercel.app</b> 인지 확인하세요. 파일을 직접 연 경우(file:///)에는 AI 가 동작하지 않습니다.<br>
+      · 사내망에서 차단된 경우에도 이렇게 나옵니다.`;
+  if(/HTTP 404/.test(m))
+    return `AI 함수를 찾지 못했습니다 (404)<br>저장소에 <b>api/ask.js</b> 가 올라갔는지, Vercel 재배포가 끝났는지 확인하세요.`;
+  if(/환경변수/.test(m))
+    return `${m}<br>Vercel → Settings → Environment Variables 에 값을 넣고 <b>Redeploy</b> 해야 적용됩니다.`;
+  if(/HTTP 50/.test(m)||/AI 호출 실패/.test(m))
+    return `${m}<br>API 키가 올바른지, 결제가 활성화돼 있는지 확인하세요.`;
+  return m;
+}
+/* 연결 점검 — /api/ask 를 열어 설치 상태를 항목별로 보여준다 */
+async function rptDiag(){
+  const wait=rptSay('<span style="color:var(--mut)">연결 점검 중…</span>');
+  const mark=v=>v?'<b style="color:#0d6b42">정상</b>':'<b style="color:#b42318">없음</b>';
+  try{
+    const r=await fetch('/api/ask',{method:'GET'});
+    if(r.status===404){ if(wait) wait.remove();
+      rptSay(`<b>연결 점검</b><br>① 함수 배포 <b style="color:#b42318">안 됨 (404)</b><br>
+        저장소 맨 위에 <b>api</b> 폴더를 만들고 그 안에 <b>ask.js</b> 를 넣으세요. 경로가 <b>api/ask.js</b> 여야 합니다.`); return; }
+    const d=await r.json();
+    if(wait) wait.remove();
+    const allOk=d.ANTHROPIC_API_KEY&&d.SUPABASE_ANON_KEY;
+    rptSay(`<b>연결 점검 결과</b><br>
+      ① 함수 배포 ${mark(true)}<br>
+      ② ANTHROPIC_API_KEY ${mark(d.ANTHROPIC_API_KEY)}<br>
+      ③ SUPABASE_URL ${mark(d.SUPABASE_URL)}<br>
+      ④ SUPABASE_ANON_KEY ${mark(d.SUPABASE_ANON_KEY)}<br>
+      ⑤ 모델 <b>${d.model||'-'}</b>
+      <div class="rpt-tip">${allOk?'설정은 정상입니다. 질문을 다시 입력해 보세요.'
+        :'없음 항목을 Vercel → Settings → Environment Variables 에 추가하고 <b>Redeploy</b> 하세요. 값만 저장하면 적용되지 않습니다.'}</div>`);
+  }catch(e){
+    if(wait) wait.remove();
+    rptSay(`<b>연결 점검</b><br>${rptErrHint(e)}`);
+  }
+}
+/* AI 답변 렌더 — 본문(해석) + 표(여러 개) + 사용한 SQL 접기 */
+function rptAiHtml(d){
+  const esc=t=>String(t==null?'':t).replace(/[<>]/g,c=>c==='<'?'&lt;':'&gt;');
+  const md=t=>esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+                    .replace(/^- (.+)$/gm,'• $1')
+                    .replace(/\n/g,'<br>');
+  const tabs=(d.tables||[]).map((t,i)=>{
+    const show=t.rows.slice(0,8);
+    const cut=t.rows.length-show.length;
+    const cols=t.head.slice(0,5);
+    return `<div style="margin-top:10px">
+      <div style="font-size:11.5px;font-weight:800;color:#243b63">${esc(t.title)} <span style="color:var(--mut);font-weight:600">${t.rows.length}행</span></div>
+      <table class="rpt-mini"><thead><tr>${cols.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${show.map(r=>`<tr>${cols.map((h,ci)=>{
+          const v=r[ci]; const n=(typeof v==='number');
+          return `<td class="${n?'n':''}">${v===''||v==null?'–':esc(n?fmt(v):v)}</td>`;
+        }).join('')}</tr>`).join('')}</tbody></table>
+      ${cut>0?`<div class="rpt-tip">외 ${cut}행 · 엑셀로 전체를 받으세요${t.head.length>5?` · 컬럼 ${t.head.length}개 중 5개만 표시`:''}</div>`:''}
+      <div class="rpt-acts"><button class="rowbtn save" onclick="rptExcelTab(${i})">⬇ 엑셀</button>
+        <button class="rowbtn" onclick="rptTabToReport(${i})">전체보기</button></div>
+    </div>`;
+  }).join('');
+  const sqls=(d.trace||[]).map(t=>`<div style="margin-top:6px"><b>${esc(t.title)}</b> · ${t.count}행
+    <pre style="white-space:pre-wrap;word-break:break-all;background:#f4f7fc;border:1px solid var(--line);border-radius:7px;padding:7px;margin:4px 0 0;font-size:10.5px">${esc(t.sql)}</pre></div>`).join('');
+  return `${md(d.answer)}${tabs}
+    ${sqls?`<details style="margin-top:9px"><summary style="cursor:pointer;font-size:11px;color:var(--mut)">조회에 사용한 SQL ${(d.trace||[]).length}건</summary>${sqls}</details>`:''}`;
+}
+/* AI 결과표 → 엑셀 / 전체보기 */
+function rptTabRes(i){
+  const t=(RPT.tabs||[])[i]; if(!t) return null;
+  return {kind:'ai', title:t.title, sub:'AI 리포트', head:t.head, rows:t.rows,
+    num:t.head.map((h,ci)=>ci).filter(ci=>t.rows.some(r=>typeof r[ci]==='number')),
+    file:String(t.title||'리포트').replace(/[\\/:*?"<>|]/g,'_').slice(0,40)};
+}
+function rptExcelTab(i){ const r=rptTabRes(i); if(!r){ toast('표가 없습니다','err'); return; } RPT.res=r; rptExcel(); }
+function rptTabToReport(i){ const r=rptTabRes(i); if(!r) return; RPT.res=r; RPT.kind='ai'; rptToggle(false); go('report'); }
+/* 패널 답변 — 요약 + 표 10줄 미리보기 + 전체보기·엑셀 */
+function rptPanelHtml(res){
+  if(res.empty) return `<b>${res.title}</b><br>${res.empty}`;
+  const src=(res.kind==='unpack' && res.goRows && res.goRows.length) ? res.goRows : res.rows;
+  const show=src.slice(0,10);
+  const cut=src.length-show.length;
+  const cols=(res.kind==='unpack')?[0,1,2,4,5]:[0,2,6,8];
+  const head=cols.map(i=>`<th>${res.head[i]}</th>`).join('');
+  const body=show.map(r=>`<tr>${cols.map(i=>{
+      const v=r[i]; const isNum=res.num&&res.num.includes(i);
+      let t=(v===''||v==null)?'–':(isNum?fmt(v):String(v));
+      if(res.head[i]==='상태') t=`<span class="rpt-st ${v==='완료'?'ok':(v==='진행중'?'go':'no')}">${v}</span>`;
+      return `<td class="${isNum?'n':''}">${t}</td>`;
+    }).join('')}</tr>`).join('');
+  return `<b>${res.title}</b> <span style="color:var(--mut);font-size:11px">${res.sub||''}</span>
+    <div style="margin-top:6px">${res.summary||''}</div>
+    ${src.length?`<table class="rpt-mini"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+      ${cut>0?`<div class="rpt-tip">외 ${cut}건 — 전체보기에서 확인하세요.</div>`:''}`:''}
+    <div class="rpt-acts">
+      <button class="rowbtn" onclick="rptOpenTab()">전체보기</button>
+      <button class="rowbtn save" onclick="rptExcel()">⬇ 엑셀</button>
+    </div>`;
+}
+function rptOpenTab(){ rptToggle(false); go('report'); }
+
+/* ── 리포트 탭 ──────────────────────────────────────────── */
+function renderReport(){
+  const r=RPT.res;
+  const k=RPT.kind||'plan';
+  const teamOpt=STD_TEAMS.map(t=>`<option value="${t}">${t}</option>`).join('');
+  $('#wrap').innerHTML=`
+  <div class="sec"><div class="sec-hd"><span class="no c5">R</span><h3>리포트</h3>
+    <span class="desc">조회 전용 · 결과는 엑셀로 받을 수 있습니다</span></div>
+    <div style="padding:14px 16px">
+      <div class="rpt-bar">
+        <select id="rpKind" onchange="rptKindChange()">
+          ${Object.keys(RPT_KINDS).map(x=>`<option value="${x}"${x===k?' selected':''}>${RPT_KINDS[x]}</option>`).join('')}
+          ${k==='ai'?'<option value="ai" selected>AI 조회 결과</option>':''}
+        </select>
+        <span id="rpPlanBox" class="${k==='plan'?'':'hidden'}">
+          <input id="rpNo" placeholder="생산계획번호" style="width:170px"
+            onkeydown="if(event.key==='Enter')rptTabRun()">
+        </span>
+        <span id="rpDayBox" class="${k==='plan'?'hidden':''}">
+          <input id="rpDate" type="date" value="${kstToday()}">
+          <select id="rpTeam">${teamOpt}</select>
+        </span>
+        <button class="tbtn save" onclick="rptTabRun()">조회</button>
+        <span style="flex:1"></span>
+        <button class="tbtn" onclick="rptExcel()">⬇ 엑셀 (xlsx)</button>
+        <button class="tbtn" onclick="rptToggle(true)">💬 도우미</button>
+      </div>
+      <div id="rpResult">${r?'':'<div style="color:var(--mut);font-size:12.5px;padding:18px 2px">조건을 입력하고 조회를 누르세요. 우측 아래 💬 버튼으로도 같은 리포트를 볼 수 있습니다.</div>'}</div>
+    </div></div>`;
+  if(r) rptPaintTab();
+}
+function rptKindChange(){
+  const k=($('#rpKind')||{}).value||'plan';
+  RPT.kind=k;
+  const a=document.getElementById('rpPlanBox'), b=document.getElementById('rpDayBox');
+  if(a) a.classList.toggle('hidden', k!=='plan');
+  if(b) b.classList.toggle('hidden', k==='plan');
+}
+async function rptTabRun(){
+  const k=($('#rpKind')||{}).value||'plan';
+  const box=document.getElementById('rpResult');
+  let p;
+  if(k==='plan'){
+    const no=String(($('#rpNo')||{}).value||'').trim();
+    if(!no){ toast('생산계획번호를 입력하세요','err'); return; }
+    p={no};
+  }else{
+    p={date:String(($('#rpDate')||{}).value||kstToday()), team:String(($('#rpTeam')||{}).value||'생산1팀')};
+  }
+  if(box) box.innerHTML='<div class="skel" style="height:180px;border-radius:12px"></div>';
+  try{
+    RPT.res=await rptRun(k,p); RPT.kind=k;
+    rptPaintTab();
+  }catch(e){
+    if(box) box.innerHTML=`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018;margin:0">조회 실패 — ${String(e.message||e)}</div>`;
+  }
+}
+function rptPaintTab(){
+  const box=document.getElementById('rpResult'); const res=RPT.res;
+  if(!box||!res) return;
+  if(res.empty){
+    box.innerHTML=`<div class="pk-note" style="background:#fef3f2;border-color:#fda29b;color:#912018;margin:0">${res.empty}</div>`;
+    return;
+  }
+  const cards=(res.cards||[]).map(c=>`<div class="sc"><div class="l">${c.l}</div>
+    <div class="v mono" style="font-size:15px">${c.v}</div><div class="sc-sub">${c.s||''}</div></div>`).join('');
+  const head=res.head.map(h=>`<th>${h}</th>`).join('');
+  const body=res.rows.map(r=>`<tr>${r.map((v,i)=>{
+      const isNum=res.num&&res.num.includes(i);
+      let t=(v===''||v==null)?'–':(isNum?fmt(v):String(v));
+      if(res.head[i]==='상태') t=`<span class="rpt-st ${v==='완료'?'ok':(v==='진행중'?'go':'no')}">${v}</span>`;
+      return `<td class="${isNum?'mono':'l'}">${t}</td>`;
+    }).join('')}</tr>`).join('');
+  box.innerHTML=`
+    <div style="font-size:13.5px;font-weight:800;color:#1c3f7d;margin-bottom:3px">${res.title}</div>
+    <div style="font-size:11.5px;color:var(--mut);margin-bottom:10px">${res.sub||''}</div>
+    ${cards?`<div class="score-row" style="grid-template-columns:repeat(${(res.cards||[]).length},1fr);margin-bottom:14px">${cards}</div>`:''}
+    ${res.summary?`<div class="pk-note" style="margin:0 0 12px">${res.summary}</div>`:''}
+    <div style="overflow-x:auto"><table class="tdd-table">
+      <thead><tr>${head}</tr></thead>
+      <tbody>${body||`<tr><td colspan="${res.head.length}" style="text-align:center;color:var(--mut);padding:24px">데이터가 없습니다</td></tr>`}</tbody>
+    </table></div>
+    <div style="font-size:11.5px;color:var(--mut);margin-top:9px;line-height:1.6">
+      ※ 조회 전용 화면입니다 · 숫자 기준은 마감 화면과 같습니다(조업일 07:00~익일 06:59, EP 생산일 기준).</div>`;
+}
+
+</script>
 </body>
 </html>
