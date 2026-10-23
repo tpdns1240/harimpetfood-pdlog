@@ -1028,13 +1028,21 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   box-shadow:0 10px 26px rgba(28,63,125,.36);transition:transform .14s,box-shadow .14s}
 .rpt-fab:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(28,63,125,.45)}
 .rpt-fab.on{background:#243b63}
-.rpt-panel{position:fixed;right:0;top:0;bottom:0;width:min(420px,100%);z-index:8600;background:#fff;
+.rpt-panel{position:fixed;right:0;top:0;bottom:0;width:min(var(--rptw,420px),100%);z-index:8600;background:#fff;
   box-shadow:-12px 0 34px rgba(16,26,42,.22);display:flex;flex-direction:column;
   transform:translateX(102%);transition:transform .2s ease-out}
 .rpt-panel.open{transform:translateX(0)}
 .rpt-hd{display:flex;align-items:center;gap:8px;padding:13px 15px;background:#1c3f7d;color:#fff;font-size:14px;font-weight:800}
 .rpt-hd .rpt-x{margin-left:auto;cursor:pointer;opacity:.78;font-size:16px}
 .rpt-hd .rpt-x:hover{opacity:1}
+.rpt-hd .rpt-wbtn{cursor:pointer;opacity:.78;font-size:13px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid rgba(255,255,255,.35)}
+.rpt-hd .rpt-wbtn:hover{opacity:1;background:rgba(255,255,255,.14)}
+.rpt-grip{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:2;
+  background:linear-gradient(90deg,rgba(28,63,125,.14),transparent)}
+.rpt-grip:hover,.rpt-grip.on{background:linear-gradient(90deg,rgba(28,63,125,.42),transparent)}
+.rpt-grip::after{content:'';position:absolute;left:2px;top:50%;transform:translateY(-50%);
+  width:3px;height:34px;border-radius:2px;background:#c3cfe2}
+body.rpt-resizing{user-select:none;cursor:ew-resize}
 .rpt-body{flex:1;overflow-y:auto;padding:14px;background:#f4f7fc}
 .rpt-msg{margin-bottom:12px;font-size:12.5px;line-height:1.65}
 .rpt-msg.me{text-align:right}
@@ -1072,7 +1080,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <div id="login">
   <div class="loginbox">
     <h2>일일 생산마감 관리표</h2>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.22c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.23b</span></div>
     <div class="field" id="fieldSelect">
       <label>이름</label>
       <select id="loginName"><option value="">불러오는 중…</option></select>
@@ -1109,7 +1117,7 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
   <div class="logo">H</div>
   <div>
     <h1>생산마감 관리시스템</h1>
-    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.22c</span></div>
+    <div class="en">DAILY PRODUCTION CLOSING · 하림펫푸드 <span style="opacity:.55;font-size:9.5px;letter-spacing:0" title="배포 버전 — 새로고침 후에도 이 값이 그대로면 캐시가 남은 것입니다">v2026.10.23b</span></div>
   </div>
   <div class="nav">
     <button id="navCal" class="on" onclick="go('cal')">마감 캘린더</button>
@@ -1130,7 +1138,10 @@ table.sticky-head thead th{position:sticky;top:0;z-index:2;box-shadow:0 2px 0 rg
 <!-- 리포트 도우미 : 우측 플로팅 버튼 + 패널 (로그인 후 표시) -->
 <button class="rpt-fab hidden" id="rptFab" onclick="rptToggle()" title="리포트 도우미 — 계획번호·날짜로 바로 조회">&#128172;</button>
 <div class="rpt-panel hidden" id="rptPanel" aria-label="리포트 도우미">
-  <div class="rpt-hd">리포트 도우미 <span class="rpt-x" onclick="rptToggle(false)">&#10005;</span></div>
+  <div class="rpt-grip" id="rptGrip" title="좌우로 끌어 폭을 조절합니다 (더블클릭하면 기본 폭)"></div>
+  <div class="rpt-hd">리포트 도우미
+    <span class="rpt-wbtn" id="rptWbtn" onclick="rptWide()" title="넓게 / 기본 폭 전환">&#8596; 넓게</span>
+    <span class="rpt-x" onclick="rptToggle(false)">&#10005;</span></div>
   <div class="rpt-body" id="rptBody"></div>
   <div class="rpt-ft">
     <div class="rpt-in">
@@ -6049,7 +6060,7 @@ async function doCostUpload(rows){
 }
 
 /* ===== MES 가동시간 가져오기 (Apps Script 웹앱 호출) ===== */
-const APP_VERSION='v2026.10.22c';
+const APP_VERSION='v2026.10.23b';
 console.log('%c일일생산마감 '+APP_VERSION,'background:#1b2f55;color:#fff;padding:3px 8px;border-radius:4px');
 const MES_WEBAPP_URL='https://script.google.com/macros/s/AKfycbwrLSWuf6vEDCA2rce2iTbXQuLDEjEnDPuhA9pWDVVxNNL2O0Dsp48fIGjHkke08Uai/exec';
 function fetchMES(){
@@ -11742,8 +11753,9 @@ async function saveDefect(idx){
    ── 조회 전용. 저장·수정 경로가 없다.
    ── 1차 리포트 2종 : 계획번호 추적 / 미포장 현황
    ════════════════════════════════════════════════════════════════════ */
-const RPT_KINDS={plan:'계획번호 추적', unpack:'미포장 현황'};
-let RPT={kind:'plan', res:null, busy:false, chatInit:false};
+const RPT_KINDS={plan:'계획번호 추적', unpack:'미포장 현황', day:'일자별 생산·수율',
+  defect:'불량 집계', down:'라인 가동·비가동', loss:'로스 집계', item:'품목 검색'};
+let RPT={kind:'plan', res:null, busy:false, chatInit:false, ai:undefined, tabs:null};
 
 /* ── 공통 유틸 ───────────────────────────────────────────── */
 function rptIsEp(r){
@@ -11886,9 +11898,297 @@ async function rptRunUnpack(date, team){
   });
 }
 
+
+/* ════════════════════════════════════════════════════════════════════
+   리포트 질의 엔진 (무료) — AI API 없이 브라우저에서 바로 집계한다.
+   ── 질문에서 '무엇을(의도) · 언제(기간) · 누가(팀)' 세 가지를 읽어 리포트를 고른다.
+   ── 모든 수치는 Supabase 조회 결과이며, 기준은 마감 화면과 같다.
+   ── AI 함수(/api/ask)가 살아 있으면 규칙에 없는 질문만 그쪽으로 넘긴다.
+   ════════════════════════════════════════════════════════════════════ */
+function rptD(d){ const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function rptShift(days){ const d=kstDate(); d.setDate(d.getDate()+days); return rptD(d); }
+/* 문장에서 기간을 읽는다. 없으면 null */
+function rptPickRange(text){
+  const s=String(text||'');
+  const p=n=>String(n).padStart(2,'0');
+  const two=s.match(/(20\d{2}[-.\/]\d{1,2}[-.\/]\d{1,2})\s*[~\-–]\s*(20\d{2}[-.\/]\d{1,2}[-.\/]\d{1,2})/);
+  if(two){ const f=x=>{const m=x.match(/(20\d{2})[-.\/](\d{1,2})[-.\/](\d{1,2})/);return `${m[1]}-${p(m[2])}-${p(m[3])}`;};
+    return {from:f(two[1]), to:f(two[2]), label:`${f(two[1])} ~ ${f(two[2])}`}; }
+  const near=s.match(/최근\s*(\d{1,2})\s*일/);
+  if(near) return {from:rptShift(-(+near[1]-1)), to:rptShift(0), label:`최근 ${near[1]}일`};
+  if(/이번\s*주|금주/.test(s)){ const d=kstDate(); const w=(d.getDay()+6)%7;
+    return {from:rptShift(-w), to:rptShift(0), label:'이번 주'}; }
+  if(/지난\s*주|전주/.test(s)){ const d=kstDate(); const w=(d.getDay()+6)%7;
+    return {from:rptShift(-w-7), to:rptShift(-w-1), label:'지난 주'}; }
+  if(/이번\s*달|금월|이달/.test(s)){ const d=kstDate();
+    return {from:`${d.getFullYear()}-${p(d.getMonth()+1)}-01`, to:rptShift(0), label:'이번 달'}; }
+  if(/지난\s*달|전월/.test(s)){ const d=kstDate(); const y=d.getMonth()===0?d.getFullYear()-1:d.getFullYear();
+    const m=d.getMonth()===0?12:d.getMonth();
+    const last=new Date(y, m, 0).getDate();
+    return {from:`${y}-${p(m)}-01`, to:`${y}-${p(m)}-${p(last)}`, label:`${m}월`}; }
+  const mon=s.match(/(\d{1,2})\s*월(?!\s*\d)/);
+  if(mon){ const d=kstDate(); const m=+mon[1];
+    const y=(m>d.getMonth()+1)?d.getFullYear()-1:d.getFullYear();
+    const last=new Date(y, m, 0).getDate();
+    return {from:`${y}-${p(m)}-01`, to:`${y}-${p(m)}-${p(last)}`, label:`${y}년 ${m}월`}; }
+  const one=rptPickDate(s);
+  if(one) return {from:one, to:one, label:one};
+  return null;
+}
+/* 질문 → 리포트 선택. 규칙에 걸리지 않으면 null */
+function rptIntent(text){
+  const s=String(text||'');
+  const no=s.match(/\b(\d{9,13})\b/);
+  if(no) return {kind:'plan', p:{no:no[1]}};
+  const team=/전체|전사|모든\s*팀/.test(s) ? null : rptPickTeam(s);
+  const R=rptPickRange(s) || {from:rptShift(-1), to:rptShift(-1), label:'어제(기본)'};
+  const topN=(s.match(/top\s*(\d{1,2})|상위\s*(\d{1,2})/i)||[]);
+  const top=Number(topN[1]||topN[2])||10;
+  if(/미포장|포장.*(안|않|못|남|미완|진행중)|안.*포장|남은.*물량|완료.*안/.test(s))
+    return {kind:'unpack', p:{date:R.to, team:team||'생산1팀'}};
+  if(/불량/.test(s))        return {kind:'defect', p:Object.assign({team,top},R)};
+  if(/비가동|정지|가동률|가동\s*시간|멈춤|고장/.test(s)) return {kind:'down', p:Object.assign({team,top},R)};
+  if(/로스|스크랩|손실|낭비/.test(s))   return {kind:'loss', p:Object.assign({team,top},R)};
+  if(/수율|코터|오븐|\bEP\b|산출|생산량|포장량|실적|얼마나.*생산|생산.*현황|요약/i.test(s))
+    return {kind:'day', p:Object.assign({team},R)};
+  const kw=s.replace(/[?!.,]/g,' ').split(/\s+/)
+    .filter(w=>w.length>=2 && !/팀|어제|오늘|이번|지난|최근|알려|보여|조회|얼마|무엇|뭐|해줘|줘|은|는|이|가/.test(w));
+  if(/품목|제품|품번|품명|검색/.test(s) && kw.length)
+    return {kind:'item', p:{kw:kw.sort((a,b)=>b.length-a.length)[0], team}};
+  return null;
+}
+/* ── 공통 조회 ─────────────────────────────────────────── */
+async function rptFetch(table, cols, from, to, team, extra){
+  let q=sb.from(table).select(cols).gte('work_date',from).lte('work_date',to);
+  if(team) q=q.eq('team',team);
+  if(extra) q=extra(q);
+  const {data,error}=await q.limit(50000);
+  if(error) throw error;
+  return data||[];
+}
+function rptNoData(title, sub, msg, file){
+  return {title, sub, empty:msg, cards:[], head:[], rows:[], num:[], file};
+}
+/* ── 리포트 ③ 일자별 생산·수율 ─────────────────────────── */
+async function rptRunDay(p){
+  const rows=await rptFetch('db_plan_raw','work_date,plan_no,mat_code,proc_sub2,actual_qty',p.from,p.to,p.team);
+  const file=`생산수율_${p.team||'전체'}_${p.from}_${p.to}`;
+  const title=`${p.label||p.from} 생산·수율`;
+  const sub=`${p.team||'전체 팀'} · ${p.from} ~ ${p.to}`;
+  if(!rows.length) return rptNoData(title, sub, '해당 기간에 생산 데이터가 없습니다.', file);
+  const D={};
+  rows.forEach(r=>{
+    const d=String(r.work_date||'').slice(0,10); if(!d) return;
+    const o=D[d]||(D[d]={raw:0, ep:0, coat:0, oven:0, pack:0, plans:new Set()});
+    const c=String(r.mat_code||'')[0], ps=String(r.proc_sub2||'').trim(), q=Number(r.actual_qty)||0;
+    if(q<=0) return;
+    if(c==='1') o.raw+=q;
+    if(rptIsEp(r)){ o.ep+=q; if(r.plan_no) o.plans.add(r.plan_no); }
+    if(/진공코터/.test(ps) && !/리싸이클/.test(ps) && c!=='5') o.coat+=q;
+    if(/오븐/.test(ps) && c!=='5') o.oven+=q;
+    if(c==='6' && /포장/.test(ps)) o.pack+=q;
+  });
+  const ds=Object.keys(D).sort();
+  const T={raw:0, ep:0, coat:0, oven:0, pack:0, plans:0};
+  const out=ds.map(d=>{ const o=D[d];
+    T.raw+=o.raw; T.ep+=o.ep; T.coat+=o.coat; T.oven+=o.oven; T.pack+=o.pack; T.plans+=o.plans.size;
+    const cy=(o.raw>0 && o.coat>0)?o.coat/o.raw*100:null;   // 코터를 돌리지 않은 날은 빈칸
+    const py=o.coat>0?o.pack/o.coat*100:null;
+    return [d, o.plans.size, Math.round(o.raw), Math.round(o.ep), Math.round(o.coat),
+      Math.round(o.oven), Math.round(o.pack),
+      cy==null?'':Number(cy.toFixed(1)), py==null?'':Number(py.toFixed(1))];
+  });
+  const cRate=(T.raw>0 && T.coat>0)?T.coat/T.raw*100:null;
+  const pRate=T.coat>0?T.pack/T.coat*100:null;
+  const bad=out.filter(r=>r[7]!=='' && (r[7]<70 || r[7]>90));
+  const over=out.filter(r=>r[8]!=='' && r[8]>101);
+  return {kind:'day', title, sub, file,
+    head:['일자','EP 계획번호','원료(KG)','EP 투입','코터 산출','오븐 투입','포장(KG)','코터 달성률(%)','포장효율(%)'],
+    num:[1,2,3,4,5,6,7,8],
+    cards:[
+      {l:'원료 투입', v:fmt(Math.round(T.raw))+' kg', s:`${ds.length}일 합계`},
+      {l:'코터 산출', v:fmt(Math.round(T.coat))+' kg', s:cRate==null?'–':`원료 대비 ${cRate.toFixed(1)}%`},
+      {l:'오븐 투입', v:fmt(Math.round(T.oven))+' kg', s:'산출 계근 없음'},
+      {l:'포장', v:fmt(Math.round(T.pack))+' kg', s:pRate==null?'–':`코터 산출 대비 ${pRate.toFixed(1)}%`},
+      {l:'EP 계획번호', v:`${T.plans}건`, s:'일자 합계'}
+    ],
+    summary:`원료 <b>${(T.raw/1000).toFixed(1)}t</b> → 코터 산출 <b>${(T.coat/1000).toFixed(1)}t</b> → 포장 <b>${(T.pack/1000).toFixed(1)}t</b>`
+      + (cRate!=null?` · 코터 달성률 <b>${cRate.toFixed(1)}%</b>`:'')
+      + (bad.length?`<br>코터 달성률이 정상(70~90%)을 벗어난 날 <b style="color:#b45309">${bad.length}일</b> — ${bad.slice(0,3).map(r=>r[0]+' '+r[7]+'%').join(', ')}`
+        :(out.some(r=>r[7]!=='')?'<br>코터 달성률은 전 기간 정상 범위입니다.':''))
+      + (T.oven>0?`<br>오븐 투입 ${(T.oven/1000).toFixed(1)}t 은 산출 계근이 없어 수율 계산에서 제외했습니다.`:'')
+      + (over.length?`<br><b style="color:#b42318">포장이 코터 산출을 넘은 날 ${over.length}일</b> — 그 계획번호의 MES 기록 점검이 필요합니다.`:''),
+    rows:out};
+}
+/* ── 리포트 ④ 불량 ─────────────────────────────────────── */
+async function rptRunDefect(p){
+  const rows=await rptFetch('t_cl_defect','work_date,prod_code,prod_name,defect_type,qty,unit,proc_sub1,proc_sub2',p.from,p.to,p.team);
+  const file=`불량집계_${p.team||'전체'}_${p.from}_${p.to}`;
+  const title=`${p.label||p.from} 불량 집계`;
+  const sub=`${p.team||'전체 팀'} · ${p.from} ~ ${p.to}`;
+  if(!rows.length) return rptNoData(title, sub, '해당 기간에 등록된 완제품 불량이 없습니다.', file);
+  const G={}; let tot=0, cnt=0;
+  rows.forEach(r=>{
+    const t=String(r.defect_type||'미분류'), u=String(r.unit||'EA');
+    const k=t+'|'+u;
+    const g=G[k]||(G[k]={type:t, unit:u, qty:0, cnt:0, prods:{}, lines:{}});
+    const q=Math.max(Number(r.qty)||0,0);
+    g.qty+=q; g.cnt++; tot+=q; cnt++;
+    const pn=(r.prod_name||r.prod_code||'-');
+    g.prods[pn]=(g.prods[pn]||0)+q;
+    const ln=((r.proc_sub1||'')+'/'+(r.proc_sub2||'')).replace(/^\/|\/$/g,'');
+    if(ln) g.lines[ln]=(g.lines[ln]||0)+q;
+  });
+  const list=Object.values(G).sort((a,b)=>b.qty-a.qty).slice(0, p.top||10);
+  const topP=(g)=>{ const k=Object.keys(g.prods).sort((a,b)=>g.prods[b]-g.prods[a])[0]; return k?`${k} ${fmt(Math.round(g.prods[k]))}`:''; };
+  const t1=list[0];
+  return {kind:'defect', title, sub, file,
+    head:['불량유형','수량','단위','건수','최다 품목','최다 라인','비중(%)'],
+    num:[1,3,6],
+    cards:[
+      {l:'총 불량', v:fmt(Math.round(tot)), s:`${cnt}건 등록`},
+      {l:'유형 수', v:`${Object.keys(G).length}종`, s:'단위 포함 집계'},
+      {l:'최다 유형', v:t1?t1.type:'-', s:t1?`${fmt(Math.round(t1.qty))}${t1.unit}`:''},
+      {l:'기간', v:`${(new Date(p.to)-new Date(p.from))/86400000+1}일`, s:`${p.from} ~ ${p.to}`}
+    ],
+    summary:t1?`최다 불량유형은 <b>${t1.type}</b> ${fmt(Math.round(t1.qty))}${t1.unit} (전체의 <b>${(t1.qty/tot*100).toFixed(1)}%</b>)입니다.`
+      + `<br>집중 품목 : ${topP(t1)||'–'} · 라인 : ${Object.keys(t1.lines).sort((a,b)=>t1.lines[b]-t1.lines[a])[0]||'–'}`
+      + (list.length>1?`<br>2위 ${list[1].type} ${fmt(Math.round(list[1].qty))}${list[1].unit}`:''):'',
+    rows:list.map(g=>[g.type, Math.round(g.qty), g.unit, g.cnt, topP(g),
+      Object.keys(g.lines).sort((a,b)=>g.lines[b]-g.lines[a])[0]||'',
+      Number((g.qty/tot*100).toFixed(1))])};
+}
+/* ── 리포트 ⑤ 비가동 ───────────────────────────────────── */
+async function rptRunDown(p){
+  const rows=await rptFetch('t_cl_downtime','work_date,proc_sub1,proc_sub2,category,reason_type,start_time,end_time,hoki',p.from,p.to,p.team);
+  const file=`비가동_${p.team||'전체'}_${p.from}_${p.to}`;
+  const title=`${p.label||p.from} 라인 가동·비가동`;
+  const sub=`${p.team||'전체 팀'} · ${p.from} ~ ${p.to}`;
+  if(!rows.length) return rptNoData(title, sub, '해당 기간에 등록된 가동·비가동 기록이 없습니다.', file);
+  const L={}, RS={};
+  let run=0, pl=0, un=0, su=0;
+  rows.forEach(r=>{
+    const ln=((r.proc_sub1||'')+'/'+(r.proc_sub2||'')).replace(/^\/|\/$/g,'') || '미지정';
+    const m=diffMin(r.start_time, r.end_time);
+    const o=L[ln]||(L[ln]={run:0, plan:0, unplan:0, sudden:0});
+    const c=String(r.category||'');
+    if(c==='run'){ o.run+=m; run+=m; }
+    else if(c==='plan'){ o.plan+=m; pl+=m; }
+    else if(c==='sudden'){ o.sudden+=m; su+=m; }
+    else { o.unplan+=m; un+=m; }
+    if(c!=='run' && c!=='plan' && m>0){
+      const t=String(r.reason_type||'미분류');
+      RS[t]=(RS[t]||0)+m;
+    }
+  });
+  const list=Object.keys(L).map(ln=>{ const o=L[ln];
+    const stop=o.plan+o.unplan+o.sudden;
+    const act=Math.max(o.run-stop,0);
+    return [ln, Number((o.run/60).toFixed(1)), Number((o.plan/60).toFixed(1)),
+      Number((o.unplan/60).toFixed(1)), Number((o.sudden/60).toFixed(1)),
+      Number((act/60).toFixed(1)), o.run>0?Number((act/o.run*100).toFixed(1)):''];
+  }).sort((a,b)=>(b[3]+b[4])-(a[3]+a[4]));
+  const rsTop=Object.keys(RS).sort((a,b)=>RS[b]-RS[a]).slice(0,3);
+  const worst=list[0];
+  const rate=run>0?Math.max(run-(pl+un+su),0)/run*100:null;
+  return {kind:'down', title, sub, file,
+    head:['라인','가동(hr)','계획정지(hr)','비계획정지(hr)','돌발(hr)','실적(hr)','가동률(%)'],
+    num:[1,2,3,4,5,6],
+    cards:[
+      {l:'가동시간', v:(run/60).toFixed(1)+' hr', s:`라인 ${list.length}개`},
+      {l:'계획정지', v:(pl/60).toFixed(1)+' hr', s:'휴게·청소 등'},
+      {l:'비계획정지', v:((un+su)/60).toFixed(1)+' hr', s:su>0?`돌발 ${(su/60).toFixed(1)}hr 포함`:'돌발 없음'},
+      {l:'가동률', v:rate==null?'–':rate.toFixed(1)+'%', s:'(가동−정지) ÷ 가동'}
+    ],
+    summary:(worst?`비계획정지가 가장 많은 라인은 <b>${worst[0]}</b> ${(worst[3]+worst[4]).toFixed(1)}hr 입니다.`:'')
+      + (rsTop.length?`<br>주요 사유 : ${rsTop.map(t=>`${t} ${(RS[t]/60).toFixed(1)}hr`).join(' · ')}`:'')
+      + (rate!=null&&rate<85?`<br><b style="color:#b45309">가동률 ${rate.toFixed(1)}%</b> — 85% 미만이면 원인 확인이 필요합니다.`:''),
+    rows:list};
+}
+/* ── 리포트 ⑥ 로스 ─────────────────────────────────────── */
+async function rptRunLoss(p){
+  const rows=await rptFetch('t_cl_scrap','work_date,scrap_type,mat_code,mat_name,diff,loss_amount,prod_code',p.from,p.to,p.team);
+  const file=`로스집계_${p.team||'전체'}_${p.from}_${p.to}`;
+  const title=`${p.label||p.from} 로스 집계`;
+  const sub=`${p.team||'전체 팀'} · ${p.from} ~ ${p.to}`;
+  if(!rows.length) return rptNoData(title, sub, '해당 기간에 등록된 로스가 없습니다.', file);
+  const G={}; let amt=0;
+  rows.forEach(r=>{
+    const t=String(r.scrap_type||'미분류');
+    const g=G[t]||(G[t]={cnt:0, qty:0, amt:0, mats:{}});
+    const a=Math.round(Number(r.loss_amount)||0), q=Number(r.diff)||0;
+    g.cnt++; g.qty+=q; g.amt+=a; amt+=a;
+    const mn=r.mat_name||r.mat_code||'-';
+    g.mats[mn]=(g.mats[mn]||0)+a;
+  });
+  const list=Object.keys(G).map(t=>{ const g=G[t];
+    const m=Object.keys(g.mats).sort((a,b)=>g.mats[b]-g.mats[a])[0]||'';
+    return [t, g.cnt, Math.round(g.qty), Math.round(g.amt), m,
+      amt>0?Number((g.amt/amt*100).toFixed(1)):''];
+  }).sort((a,b)=>b[3]-a[3]).slice(0, p.top||10);
+  const t1=list[0];
+  return {kind:'loss', title, sub, file,
+    head:['로스유형','건수','편차수량','로스금액(원)','최다 자재','비중(%)'],
+    num:[1,2,3,5],
+    cards:[
+      {l:'총 로스금액', v:fmt(Math.round(amt))+' 원', s:`${rows.length}건`},
+      {l:'유형 수', v:`${Object.keys(G).length}종`, s:''},
+      {l:'최다 유형', v:t1?t1[0]:'-', s:t1?fmt(t1[3])+'원':''},
+      {l:'기간', v:`${(new Date(p.to)-new Date(p.from))/86400000+1}일`, s:`${p.from} ~ ${p.to}`}
+    ],
+    summary:t1?`로스금액 1위는 <b>${t1[0]}</b> ${fmt(t1[3])}원 (전체의 <b>${t1[5]}%</b>)입니다.`
+      + `<br>집중 자재 : ${t1[4]||'–'}`
+      + (list.length>1?` · 2위 ${list[1][0]} ${fmt(list[1][3])}원`:''):'',
+    rows:list};
+}
+/* ── 리포트 ⑦ 품목 검색 ───────────────────────────────── */
+async function rptRunItem(p){
+  const from=rptShift(-60), to=rptShift(0);
+  let q=sb.from('db_plan_raw').select('work_date,plan_no,prod_code,prod_name,proc_sub2,plan_qty,actual_qty')
+    .gte('work_date',from).lte('work_date',to);
+  if(p.team) q=q.eq('team',p.team);
+  const kw=String(p.kw||'').trim();
+  q=/^\d+$/.test(kw) ? q.like('prod_code', kw+'%') : q.ilike('prod_name', '%'+kw+'%');
+  const {data,error}=await q.limit(5000);
+  if(error) throw error;
+  const rows=data||[];
+  const file=`품목검색_${kw}`;
+  const title=`품목 검색 "${kw}"`;
+  const sub=`최근 60일 (${from} ~ ${to})${p.team?' · '+p.team:''}`;
+  if(!rows.length) return rptNoData(title, sub, `"${kw}" 로 찾은 생산 기록이 최근 60일 안에 없습니다.`, file);
+  const P={};
+  rows.forEach(r=>{
+    const k=String(r.prod_code||'');
+    const o=P[k]||(P[k]={code:k, name:r.prod_name||'', days:new Set(), plans:new Set(), act:0, last:''});
+    const q2=Number(r.actual_qty)||0;
+    if(q2>0){ o.act+=q2; o.days.add(String(r.work_date).slice(0,10)); }
+    if(r.plan_no) o.plans.add(r.plan_no);
+    const d=String(r.work_date||'').slice(0,10);
+    if(d>o.last) o.last=d;
+    if(!o.name && r.prod_name) o.name=r.prod_name;
+  });
+  const list=Object.values(P).sort((a,b)=>b.act-a.act).slice(0,50);
+  return {kind:'item', title, sub, file,
+    head:['품번','품명','실적 합계(KG)','생산 일수','계획번호 수','최근 생산일'],
+    num:[2,3,4],
+    cards:[
+      {l:'찾은 품목', v:`${Object.keys(P).length}개`, s:'최근 60일'},
+      {l:'실적 합계', v:fmt(Math.round(list.reduce((a,x)=>a+x.act,0)))+' kg', s:''},
+      {l:'최근 생산', v:list.map(x=>x.last).sort().slice(-1)[0]||'-', s:''}
+    ],
+    summary:`"${kw}" 로 품목 <b>${Object.keys(P).length}개</b>를 찾았습니다. 품번을 눌러 계획번호로 추적하시려면 계획번호를 입력하세요.`,
+    rows:list.map(x=>[x.code, x.name, Math.round(x.act), x.days.size, x.plans.size, x.last])};
+}
+
 /* ── 실행 진입점 ─────────────────────────────────────────── */
 async function rptRun(kind, p){
-  if(kind==='plan') return await rptRunPlan(p.no);
+  if(kind==='plan')   return await rptRunPlan(p.no);
+  if(kind==='day')    return await rptRunDay(p);
+  if(kind==='defect') return await rptRunDefect(p);
+  if(kind==='down')   return await rptRunDown(p);
+  if(kind==='loss')   return await rptRunLoss(p);
+  if(kind==='item')   return await rptRunItem(p);
   return await rptRunUnpack(p.date, p.team);
 }
 
@@ -11922,24 +12222,80 @@ async function rptExcel(){
   }
 }
 
+/* ── 패널 폭 조절 — 끌어서 넓히기 + 넓게 버튼. 브라우저에 폭을 기억한다 ── */
+const RPT_W_MIN=330, RPT_W_DEF=420;
+function rptWMax(){ return Math.max(RPT_W_MIN, Math.round(window.innerWidth*0.96)); }
+function rptSetW(px, save){
+  const w=Math.min(Math.max(Math.round(px), RPT_W_MIN), rptWMax());
+  document.documentElement.style.setProperty('--rptw', w+'px');
+  const b=document.getElementById('rptWbtn');
+  if(b) b.innerHTML=(w>RPT_W_DEF+80)?'&#8596; 기본':'&#8596; 넓게';
+  if(save!==false){ try{ localStorage.setItem('rptW', String(w)); }catch(_){ } }
+  return w;
+}
+function rptWGet(){
+  try{ const v=Number(localStorage.getItem('rptW')); if(v>=RPT_W_MIN) return Math.min(v, rptWMax()); }catch(_){ }
+  return RPT_W_DEF;
+}
+function rptWide(){
+  const cur=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rptw'))||RPT_W_DEF;
+  rptSetW(cur>RPT_W_DEF+80 ? RPT_W_DEF : Math.min(880, rptWMax()));
+  rptRepaintLast();
+}
+/* 폭이 바뀌면 마지막 답변의 표 컬럼 수가 달라지므로 다시 그린다 */
+function rptRepaintLast(){
+  const b=document.getElementById('rptBody'); if(!b||!RPT.res) return;
+  const last=b.querySelector('.rpt-msg.ai:last-child .rpt-bub');
+  if(!last || !last.querySelector('.rpt-mini')) return;
+  last.innerHTML=RPT.tabs ? last.innerHTML : rptPanelHtml(RPT.res);
+}
+function rptGripInit(){
+  const g=document.getElementById('rptGrip'), p=document.getElementById('rptPanel');
+  if(!g || !p || g.dataset.on) return;
+  g.dataset.on='1';
+  let drag=false;
+  const move=e=>{ if(!drag) return;
+    const x=(e.touches?e.touches[0].clientX:e.clientX);
+    rptSetW(window.innerWidth - x); };
+  const up=()=>{ if(!drag) return; drag=false;
+    g.classList.remove('on'); document.body.classList.remove('rpt-resizing');
+    rptRepaintLast(); };
+  const down=e=>{ drag=true; g.classList.add('on');
+    document.body.classList.add('rpt-resizing'); e.preventDefault(); };
+  g.addEventListener('mousedown', down);
+  g.addEventListener('touchstart', down, {passive:false});
+  window.addEventListener('mousemove', move);
+  window.addEventListener('touchmove', move, {passive:true});
+  window.addEventListener('mouseup', up);
+  window.addEventListener('touchend', up);
+  g.addEventListener('dblclick', ()=>{ rptSetW(RPT_W_DEF); rptRepaintLast(); });
+  window.addEventListener('resize', ()=>rptSetW(rptWGet(), false));
+}
 /* ── 우측 도우미 패널 ───────────────────────────────────── */
 function rptToggle(force){
   const p=document.getElementById('rptPanel'), f=document.getElementById('rptFab');
   if(!p) return;
   const open=(force===undefined)?!p.classList.contains('open'):!!force;
+  rptSetW(rptWGet(), false); rptGripInit();
   p.classList.toggle('hidden', false);
   p.classList.toggle('open', open);
   if(f) f.classList.toggle('on', open);
   if(open){
+    if(RPT.ai===undefined){ RPT.ai=null;
+      fetch('/api/ask',{method:'GET'}).then(r=>r.ok?r.json():null).then(d=>{
+        RPT.ai=!!(d&&d.ANTHROPIC_API_KEY); }, ()=>{ RPT.ai=false; });
+    }
     if(!RPT.chatInit){ RPT.chatInit=true; rptSay(
       `무엇이 궁금하신가요? 문장으로 물어보셔도 됩니다.
        <div style="margin-top:7px">
-       <span class="rpt-chip" onclick="rptFill('어제 포장이 아직 안 끝난 계획번호 알려줘')">어제 미포장 현황</span>
-       <span class="rpt-chip" onclick="rptFill('어제 코터 수율 얼마나 됐어?')">어제 코터 수율</span>
-       <span class="rpt-chip" onclick="rptFill('20260921004 추적해줘')">계획번호 추적</span>
-       <span class="rpt-chip" onclick="rptFill('이번 달 불량 많은 품목 top5')">이번 달 불량 TOP5</span>
-       <span class="rpt-chip" onclick="rptFill('지난주 비계획정지 오래 걸린 라인은?')">비계획정지 라인</span>
-       <span class="rpt-chip" onclick="rptDiag()">🔧 연결 점검</span></div>`); }
+       <span class="rpt-chip" onclick="rptFill('어제 미포장 현황')">미포장 현황</span>
+       <span class="rpt-chip" onclick="rptFill('어제 생산 수율')">생산·수율</span>
+       <span class="rpt-chip" onclick="rptFill('이번 달 불량 TOP5')">불량 TOP5</span>
+       <span class="rpt-chip" onclick="rptFill('지난주 비가동')">비가동</span>
+       <span class="rpt-chip" onclick="rptFill('이번 달 로스')">로스</span>
+       <span class="rpt-chip" onclick="rptFill('20260921004')">계획번호 추적</span>
+       <span class="rpt-chip" onclick="rptFill('품목 검색 닭고기')">품목 검색</span></div>
+       <div class="rpt-tip">기간 : 어제 · 이번 주 · 지난주 · 이번 달 · 9월 · 최근 7일 · 9/1~9/21 &nbsp;|&nbsp; 팀 : 1팀 · 2팀 · 공통 · 전체</div>`); }
     setTimeout(()=>{ const q=document.getElementById('rptQ'); if(q) q.focus(); },220);
   }
 }
@@ -11964,7 +12320,6 @@ function rptParse(text){
 /* 질문 한 줄 → AI(/api/ask) 가 직접 SQL 을 짜서 조회하고 해석까지 붙인다.
    ── AI 함수가 아직 배포되지 않았거나 실패하면, 아래 규칙 경로(계획번호·날짜)로 자동 폴백한다.
    ── 숫자는 전부 DB 조회 결과이고, 쓰기 구문은 DB 함수(rpt_sql)가 막는다. */
-let RPT_HIST=[];
 async function rptAsk(){
   const q=document.getElementById('rptQ'); if(!q) return;
   const text=String(q.value||'').trim();
@@ -11972,37 +12327,52 @@ async function rptAsk(){
   if(RPT.busy){ toast('조회 중입니다','err'); return; }
   rptSay(text.replace(/[<>]/g,''), true);
   q.value='';
-  const wait=rptSay('<span style="color:var(--mut)">생각하는 중… <span class="rpt-dot">●</span></span>');
   RPT.busy=true;
+  const wait=rptSay('<span style="color:var(--mut)">조회 중… <span class="rpt-dot">\u25cf</span></span>');
   try{
-    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({q:text, today:kstToday(), history:RPT_HIST.slice(-6)})});
-    if(!r.ok){
-      let msg=''; try{ msg=(await r.json()).error||''; }catch(_){}
-      throw new Error(msg||('HTTP '+r.status));
+    const hit=rptIntent(text);
+    if(hit){
+      const res=await rptRun(hit.kind, hit.p);
+      RPT.res=res; RPT.kind=hit.kind; RPT.tabs=null;
+      if(wait) wait.remove();
+      rptSay(rptPanelHtml(res));
+      return;
     }
-    const d=await r.json();
+    /* 규칙에 없는 질문 — AI 함수가 살아 있을 때만 넘긴다(무료 운영이면 안내로 끝낸다) */
+    if(RPT.ai===true){
+      const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({q:text, today:kstToday(), history:RPT_HIST.slice(-6)})});
+      if(!r.ok){ let m=''; try{ m=(await r.json()).error||''; }catch(_){}
+        throw new Error(m||('HTTP '+r.status)); }
+      const d=await r.json();
+      if(wait) wait.remove();
+      RPT_HIST.push({role:'me',text}); RPT_HIST.push({role:'ai',text:String(d.answer||'').slice(0,1500)});
+      RPT.tabs=d.tables||[];
+      rptSay(rptAiHtml(d));
+      return;
+    }
     if(wait) wait.remove();
-    RPT_HIST.push({role:'me',text}); RPT_HIST.push({role:'ai',text:String(d.answer||'').slice(0,1500)});
-    RPT.tabs=d.tables||[];
-    rptSay(rptAiHtml(d));
+    rptSay(rptHelpHtml(text));
   }catch(e){
     if(wait) wait.remove();
-    const hit=rptParse(text);
-    if(hit){
-      rptSay(`<span style="color:var(--mut);font-size:11.5px">AI 조회를 쓸 수 없어 기본 리포트로 답합니다. (${String(e.message||e).slice(0,70)})</span>
-        <div class="rpt-acts"><button class="rowbtn" onclick="rptDiag()">🔧 연결 점검</button></div>`);
-      try{
-        const res=await rptRun(hit.kind, hit.p);
-        RPT.res=res; RPT.kind=hit.kind;
-        rptSay(rptPanelHtml(res));
-      }catch(e2){ rptSay(`<b style="color:#b42318">조회 실패</b><br>${String(e2.message||e2)}`); }
-    }else{
-      rptSay(`<b style="color:#b42318">조회 실패</b><br>${rptErrHint(e)}
-        <div class="rpt-acts"><button class="rowbtn" onclick="rptDiag()">🔧 연결 점검</button></div>`);
-    }
+    rptSay(`<b style="color:#b42318">조회 실패</b><br>${rptErrHint(e)}`);
   }finally{ RPT.busy=false; }
 }
+/* 못 알아들었을 때 — 할 수 있는 질문을 보여준다 */
+function rptHelpHtml(text){
+  return `무엇을 찾는지 알기 어렵습니다. 아래처럼 물어보시면 바로 답할 수 있습니다.
+    <div style="margin-top:8px">
+    <span class="rpt-chip" onclick="rptFill('어제 미포장 현황')">미포장 현황</span>
+    <span class="rpt-chip" onclick="rptFill('어제 생산 수율')">생산·수율</span>
+    <span class="rpt-chip" onclick="rptFill('이번 달 불량 TOP5')">불량 집계</span>
+    <span class="rpt-chip" onclick="rptFill('지난주 비가동')">비가동</span>
+    <span class="rpt-chip" onclick="rptFill('이번 달 로스')">로스</span>
+    <span class="rpt-chip" onclick="rptFill('20260921004')">계획번호 추적</span>
+    <span class="rpt-chip" onclick="rptFill('품목 검색 닭고기')">품목 검색</span></div>
+    <div class="rpt-tip">기간은 <b>어제 · 오늘 · 이번 주 · 지난주 · 이번 달 · 9월 · 최근 7일 · 9/1~9/21</b> 로 쓰시면 됩니다.
+    팀은 <b>1팀 · 2팀 · 공통 · 전체</b> 로 지정합니다.</div>`;
+}
+let RPT_HIST=[];
 /* 실패 원인별 안내 — '왜 AI 가 안 붙었는지'를 바로 알 수 있게 나눠서 설명한다 */
 function rptErrHint(e){
   const m=String(e&&e.message||e||'');
@@ -12052,7 +12422,8 @@ function rptAiHtml(d){
   const tabs=(d.tables||[]).map((t,i)=>{
     const show=t.rows.slice(0,8);
     const cut=t.rows.length-show.length;
-    const cols=t.head.slice(0,5);
+    const w2=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rptw'))||420;
+    const cols=t.head.slice(0, Math.max(3, Math.min(t.head.length, Math.floor((w2-40)/95))));
     return `<div style="margin-top:10px">
       <div style="font-size:11.5px;font-weight:800;color:#243b63">${esc(t.title)} <span style="color:var(--mut);font-weight:600">${t.rows.length}행</span></div>
       <table class="rpt-mini"><thead><tr>${cols.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
@@ -12060,7 +12431,7 @@ function rptAiHtml(d){
           const v=r[ci]; const n=(typeof v==='number');
           return `<td class="${n?'n':''}">${v===''||v==null?'–':esc(n?fmt(v):v)}</td>`;
         }).join('')}</tr>`).join('')}</tbody></table>
-      ${cut>0?`<div class="rpt-tip">외 ${cut}행 · 엑셀로 전체를 받으세요${t.head.length>5?` · 컬럼 ${t.head.length}개 중 5개만 표시`:''}</div>`:''}
+      ${cut>0||t.head.length>cols.length?`<div class="rpt-tip">${cut>0?`외 ${cut}행 · `:''}엑셀로 전체를 받으세요${t.head.length>cols.length?` · 컬럼 ${t.head.length}개 중 ${cols.length}개 표시 (패널을 넓히면 더 보입니다)`:''}</div>`:''}
       <div class="rpt-acts"><button class="rowbtn save" onclick="rptExcelTab(${i})">⬇ 엑셀</button>
         <button class="rowbtn" onclick="rptTabToReport(${i})">전체보기</button></div>
     </div>`;
@@ -12085,7 +12456,13 @@ function rptPanelHtml(res){
   const src=(res.kind==='unpack' && res.goRows && res.goRows.length) ? res.goRows : res.rows;
   const show=src.slice(0,10);
   const cut=src.length-show.length;
-  const cols=(res.kind==='unpack')?[0,1,2,4,5]:[0,2,6,8];
+  /* 패널이 넓어지면 컬럼을 더 보여준다. 좁으면 핵심 컬럼만. */
+  const w=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rptw'))||420;
+  const maxC=Math.max(3, Math.min(res.head.length, Math.floor((w-40)/95)));
+  const pick=(res.kind==='unpack')?[0,1,2,4,5,3,6,7]
+            :(res.kind==='plan') ?[0,2,6,8,3,5,7,9]
+            :res.head.map((h,i)=>i);
+  const cols=pick.filter(i=>i<res.head.length).slice(0,maxC).sort((a,b)=>a-b);
   const head=cols.map(i=>`<th>${res.head[i]}</th>`).join('');
   const body=show.map(r=>`<tr>${cols.map(i=>{
       const v=r[i]; const isNum=res.num&&res.num.includes(i);
@@ -12096,7 +12473,7 @@ function rptPanelHtml(res){
   return `<b>${res.title}</b> <span style="color:var(--mut);font-size:11px">${res.sub||''}</span>
     <div style="margin-top:6px">${res.summary||''}</div>
     ${src.length?`<table class="rpt-mini"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-      ${cut>0?`<div class="rpt-tip">외 ${cut}건 — 전체보기에서 확인하세요.</div>`:''}`:''}
+      ${cut>0||cols.length<res.head.length?`<div class="rpt-tip">${cut>0?`외 ${cut}건 · `:''}${cols.length<res.head.length?`컬럼 ${res.head.length}개 중 ${cols.length}개 표시 — 패널을 넓히거나 전체보기에서 모두 확인하세요.`:'전체보기에서 확인하세요.'}</div>`:''}`:''}
     <div class="rpt-acts">
       <button class="rowbtn" onclick="rptOpenTab()">전체보기</button>
       <button class="rowbtn save" onclick="rptExcel()">⬇ 엑셀</button>
@@ -12122,10 +12499,19 @@ function renderReport(){
           <input id="rpNo" placeholder="생산계획번호" style="width:170px"
             onkeydown="if(event.key==='Enter')rptTabRun()">
         </span>
-        <span id="rpDayBox" class="${k==='plan'?'hidden':''}">
+        <span id="rpDayBox" class="${k==='unpack'?'':'hidden'}">
           <input id="rpDate" type="date" value="${kstToday()}">
-          <select id="rpTeam">${teamOpt}</select>
         </span>
+        <span id="rpRangeBox" class="${(k==='plan'||k==='unpack')?'hidden':''}">
+          <input id="rpFrom" type="date" value="${rptShift(-6)}">
+          <span style="color:var(--mut)">~</span>
+          <input id="rpTo" type="date" value="${kstToday()}">
+        </span>
+        <span id="rpKwBox" class="${k==='item'?'':'hidden'}">
+          <input id="rpKw" placeholder="품명 또는 품번" style="width:150px"
+            onkeydown="if(event.key==='Enter')rptTabRun()">
+        </span>
+        <select id="rpTeam" class="${k==='plan'?'hidden':''}">${teamOpt}<option value="">전체 팀</option></select>
         <button class="tbtn save" onclick="rptTabRun()">조회</button>
         <span style="flex:1"></span>
         <button class="tbtn" onclick="rptExcel()">⬇ 엑셀 (xlsx)</button>
@@ -12138,20 +12524,33 @@ function renderReport(){
 function rptKindChange(){
   const k=($('#rpKind')||{}).value||'plan';
   RPT.kind=k;
-  const a=document.getElementById('rpPlanBox'), b=document.getElementById('rpDayBox');
-  if(a) a.classList.toggle('hidden', k!=='plan');
-  if(b) b.classList.toggle('hidden', k==='plan');
+  const set=(id,on)=>{ const el=document.getElementById(id); if(el) el.classList.toggle('hidden', !on); };
+  set('rpPlanBox',  k==='plan');
+  set('rpDayBox',   k==='unpack');
+  set('rpRangeBox', k!=='plan' && k!=='unpack');
+  set('rpKwBox',    k==='item');
+  set('rpTeam',     k!=='plan');
 }
 async function rptTabRun(){
   const k=($('#rpKind')||{}).value||'plan';
   const box=document.getElementById('rpResult');
   let p;
+  const team=String(($('#rpTeam')||{}).value||'');
   if(k==='plan'){
     const no=String(($('#rpNo')||{}).value||'').trim();
     if(!no){ toast('생산계획번호를 입력하세요','err'); return; }
     p={no};
+  }else if(k==='unpack'){
+    p={date:String(($('#rpDate')||{}).value||kstToday()), team:team||'생산1팀'};
   }else{
-    p={date:String(($('#rpDate')||{}).value||kstToday()), team:String(($('#rpTeam')||{}).value||'생산1팀')};
+    const from=String(($('#rpFrom')||{}).value||rptShift(-6));
+    const to=String(($('#rpTo')||{}).value||kstToday());
+    p={from, to, team:team||null, label:`${from} ~ ${to}`, top:10};
+    if(k==='item'){
+      const kw=String(($('#rpKw')||{}).value||'').trim();
+      if(!kw){ toast('품명 또는 품번을 입력하세요','err'); return; }
+      p.kw=kw;
+    }
   }
   if(box) box.innerHTML='<div class="skel" style="height:180px;border-radius:12px"></div>';
   try{
